@@ -439,6 +439,7 @@ fd_runtime_update_rent_epoch( fd_exec_slot_ctx_t * slot_ctx ) {
 
   /* Common case: do nothing if we have no rent fresh accounts */
   if( FD_LIKELY( rent_fresh_accounts->total_count == 0UL ) ) {
+    fd_bank_rent_fresh_accounts_end_modify( slot_ctx->bank );
     return;
   }
 
@@ -463,6 +464,7 @@ fd_runtime_update_rent_epoch( fd_exec_slot_ctx_t * slot_ctx ) {
       }
     }
   }
+  fd_bank_rent_fresh_accounts_end_modify( slot_ctx->bank );
 }
 
 static void

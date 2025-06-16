@@ -570,6 +570,8 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
   memset( fresh_accounts, 0, rent_fresh_accounts->fresh_accounts_len * sizeof(fd_rent_fresh_account_t) );
   fd_rent_fresh_accounts_fresh_accounts_update( rent_fresh_accounts, fresh_accounts );
 
+  fd_bank_rent_fresh_accounts_end_modify( slot_ctx->bank );
+
   /* Setup next epoch stakes */
 
   return slot_ctx;

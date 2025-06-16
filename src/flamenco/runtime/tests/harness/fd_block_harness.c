@@ -411,6 +411,7 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   rent_fresh_accounts->fresh_accounts_len = FD_RENT_FRESH_ACCOUNTS_MAX;
   fd_memset(  fresh_accounts, 0, sizeof(fd_rent_fresh_account_t) * FD_RENT_FRESH_ACCOUNTS_MAX );
   fd_rent_fresh_accounts_fresh_accounts_update( rent_fresh_accounts, fresh_accounts );
+  fd_bank_rent_fresh_accounts_end_modify( slot_ctx->bank );
 
   // Set genesis hash to {0}
   fd_hash_t * genesis_hash = fd_bank_mgr_genesis_hash_modify( bank_mgr );
