@@ -201,7 +201,7 @@ during_frag( fd_writer_tile_ctx_t * ctx,
       }
       FD_SPAD_FRAME_BEGIN( ctx->spad ) {
         FD_TEST( ctx->bank );
-        fd_runtime_finalize_txn( ctx->slot_ctx, NULL, &info, ctx->spad, ctx->bank_mgr, ctx->banks, ctx->bank );
+        fd_runtime_finalize_txn( ctx->slot_ctx, NULL, &info, ctx->spad, ctx->bank_mgr, ctx->bank );
       } FD_SPAD_FRAME_END;
     }
     /* Notify the replay tile. */

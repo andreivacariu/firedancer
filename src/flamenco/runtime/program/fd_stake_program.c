@@ -3279,11 +3279,10 @@ fd_stake_activating_and_deactivating( fd_delegation_t const *    self,
 /* Removes stake delegation from epoch stakes and updates vote account */
 static void
 fd_stakes_remove_stake_delegation( fd_txn_account_t *   stake_account,
-                                   fd_banks_t *         banks,
                                    fd_bank_t *          bank ) {
 
   fd_rwlock_write( &bank->stake_account_keys_lock );
-  fd_account_keys_global_t *         stake_account_keys = fd_bank_stake_account_keys_modify( banks, bank );
+  fd_account_keys_global_t *         stake_account_keys = fd_bank_stake_account_keys_modify( bank );
   fd_account_keys_pair_t_mapnode_t * account_keys_pool  = fd_account_keys_account_keys_pool_join( stake_account_keys );
   fd_account_keys_pair_t_mapnode_t * account_keys_root  = fd_account_keys_account_keys_root_join( stake_account_keys );
 
@@ -3310,7 +3309,6 @@ fd_stakes_remove_stake_delegation( fd_txn_account_t *   stake_account,
 static void
 fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
                                    fd_bank_mgr_t *      bank_mgr,
-                                   fd_banks_t *         banks,
                                    fd_bank_t *          bank ) {
   FD_TEST( stake_account->vt->get_lamports( stake_account )!=0 );
 
@@ -3329,7 +3327,7 @@ fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
 
 
   fd_rwlock_write( &bank->stake_account_keys_lock );
-  fd_account_keys_global_t * stake_account_keys = fd_bank_stake_account_keys_modify( banks, bank );
+  fd_account_keys_global_t * stake_account_keys = fd_bank_stake_account_keys_modify( bank );
 
   fd_account_keys_pair_t_mapnode_t * account_keys_pool = NULL;
   fd_account_keys_pair_t_mapnode_t * account_keys_root = NULL;
@@ -3374,7 +3372,6 @@ fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
 void
 fd_store_stake_delegation( fd_txn_account_t *   stake_account,
                            fd_bank_mgr_t *      bank_mgr,
-                           fd_banks_t *         banks,
                            fd_bank_t *          bank ) {
   fd_pubkey_t const * owner = stake_account->vt->get_owner( stake_account );
 
@@ -3390,8 +3387,8 @@ fd_store_stake_delegation( fd_txn_account_t *   stake_account,
   }
 
   if( is_empty || is_uninit ) {
-    fd_stakes_remove_stake_delegation( stake_account, banks, bank );
+    fd_stakes_remove_stake_delegation( stake_account, bank );
   } else {
-    fd_stakes_upsert_stake_delegation( stake_account, bank_mgr, banks, bank );
+    fd_stakes_upsert_stake_delegation( stake_account, bank_mgr, bank );
   }
 }

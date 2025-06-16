@@ -1906,6 +1906,7 @@ init_snapshot( fd_replay_tile_ctx_t * ctx,
   uchar * slot_ctx_mem        = fd_spad_alloc_check( ctx->runtime_spad, FD_EXEC_SLOT_CTX_ALIGN, FD_EXEC_SLOT_CTX_FOOTPRINT );
   ctx->slot_ctx               = fd_exec_slot_ctx_join( fd_exec_slot_ctx_new( slot_ctx_mem ) );
   ctx->slot_ctx->banks        = ctx->banks;
+  ctx->slot_ctx->bank         = fd_banks_get_bank( ctx->banks, 0UL );
 
   ctx->slot_ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( ctx->slot_ctx->bank_mgr_mem ), ctx->funk, NULL );
 
@@ -1934,7 +1935,6 @@ init_snapshot( fd_replay_tile_ctx_t * ctx,
   /* We call this after fd_runtime_read_genesis, which sets up the
      slot_bank needed in blockstore_init. */
   /* FIXME: We should really only call this once. */
-  FD_LOG_WARNING(("BLOCKSTORE INIT 1 %lu", ctx->curr_slot));
   fd_blockstore_init( ctx->slot_ctx->blockstore,
                       ctx->blockstore_fd,
                       FD_BLOCKSTORE_ARCHIVE_MIN_SIZE,
@@ -2057,7 +2057,7 @@ publish_votes_to_plugin( fd_replay_tile_ctx_t * ctx,
 
     fd_clock_timestamp_vote_t_mapnode_t query;
     memcpy( query.elem.pubkey.uc, n->elem.key.uc, 32UL );
-    fd_clock_timestamp_votes_global_t *   clock_timestamp_votes = fd_bank_clock_timestamp_votes_query( ctx->slot_ctx->banks, ctx->slot_ctx->bank );
+    fd_clock_timestamp_votes_global_t const * clock_timestamp_votes = fd_bank_clock_timestamp_votes_query( ctx->slot_ctx->bank );
     fd_clock_timestamp_vote_t_mapnode_t * timestamp_votes_root  = fd_clock_timestamp_votes_votes_root_join( clock_timestamp_votes );
     fd_clock_timestamp_vote_t_mapnode_t * timestamp_votes_pool  = fd_clock_timestamp_votes_votes_pool_join( clock_timestamp_votes );
 

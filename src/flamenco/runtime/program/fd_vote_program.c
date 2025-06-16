@@ -2170,12 +2170,11 @@ void
 fd_vote_record_timestamp_vote_with_slot( fd_pubkey_t const *  vote_acc,
                                          long                 timestamp,
                                          ulong                slot,
-                                         fd_banks_t *         banks,
                                          fd_bank_t *          bank ) {
 
   fd_rwlock_write( &bank->clock_timestamp_votes_lock );
 
-  fd_clock_timestamp_votes_global_t * clock_timestamp_votes = fd_bank_clock_timestamp_votes_modify( banks, bank );
+  fd_clock_timestamp_votes_global_t * clock_timestamp_votes = fd_bank_clock_timestamp_votes_modify( bank );
 
   fd_clock_timestamp_vote_t_mapnode_t * pool = fd_clock_timestamp_votes_votes_pool_join( clock_timestamp_votes );
   fd_clock_timestamp_vote_t_mapnode_t * root = fd_clock_timestamp_votes_votes_root_join( clock_timestamp_votes );
@@ -2942,7 +2941,6 @@ fd_vote_convert_to_current( fd_vote_state_versioned_t * self,
 static void
 remove_vote_account( fd_txn_account_t *   vote_account,
                      fd_bank_mgr_t *      bank_mgr,
-                     fd_banks_t *         banks,
                      fd_bank_t *          bank ) {
 
   fd_stakes_global_t * stakes = fd_bank_mgr_stakes_modify( bank_mgr );
@@ -2968,7 +2966,7 @@ remove_vote_account( fd_txn_account_t *   vote_account,
   fd_vote_accounts_vote_accounts_root_update( epoch_vote_accounts, epoch_vote_accounts_root );
   fd_bank_mgr_stakes_save( bank_mgr );
 
-  fd_account_keys_global_t * vote_account_keys = fd_bank_vote_account_keys_modify( banks, bank );
+  fd_account_keys_global_t * vote_account_keys = fd_bank_vote_account_keys_modify( bank );
   fd_account_keys_pair_t_mapnode_t * vote_account_keys_pool = fd_account_keys_account_keys_pool_join( vote_account_keys );
   fd_account_keys_pair_t_mapnode_t * vote_account_keys_root = fd_account_keys_account_keys_root_join( vote_account_keys );
 
@@ -2990,14 +2988,13 @@ remove_vote_account( fd_txn_account_t *   vote_account,
 static void
 upsert_vote_account( fd_txn_account_t *   vote_account,
                      fd_bank_mgr_t *      bank_mgr,
-                     fd_banks_t *         banks,
                      fd_bank_t *          bank ) {
 
   fd_stakes_global_t * stakes = fd_bank_mgr_stakes_query( bank_mgr );
   fd_vote_accounts_pair_global_t_mapnode_t * stakes_vote_accounts_pool = fd_vote_accounts_vote_accounts_pool_join( &stakes->vote_accounts );
   fd_vote_accounts_pair_global_t_mapnode_t * stakes_vote_accounts_root = fd_vote_accounts_vote_accounts_root_join( &stakes->vote_accounts );
 
-  fd_account_keys_global_t *         vote_account_keys      = fd_bank_vote_account_keys_modify( banks, bank );
+  fd_account_keys_global_t *         vote_account_keys      = fd_bank_vote_account_keys_modify( bank );
   fd_account_keys_pair_t_mapnode_t * vote_account_keys_pool = fd_account_keys_account_keys_pool_join( vote_account_keys );
   fd_account_keys_pair_t_mapnode_t * vote_account_keys_root = fd_account_keys_account_keys_root_join( vote_account_keys );
 
@@ -3027,14 +3024,13 @@ upsert_vote_account( fd_txn_account_t *   vote_account,
     fd_memcpy( &new_node->elem.key, vote_account->pubkey, sizeof(fd_pubkey_t));
     fd_account_keys_pair_t_map_insert( vote_account_keys_pool, &vote_account_keys_root, new_node );
   } else {
-    remove_vote_account( vote_account, bank_mgr, banks, bank );
+    remove_vote_account( vote_account, bank_mgr, bank );
   }
 }
 
 void
 fd_vote_store_account( fd_txn_account_t *   vote_account,
                        fd_bank_mgr_t *      bank_mgr,
-                       fd_banks_t *         banks,
                        fd_bank_t *          bank ) {
   fd_pubkey_t const * owner = vote_account->vt->get_owner( vote_account );
 
@@ -3044,9 +3040,9 @@ fd_vote_store_account( fd_txn_account_t *   vote_account,
 
   fd_rwlock_write( &bank->vote_account_keys_lock );
   if( vote_account->vt->get_lamports( vote_account ) == 0 ) {
-    remove_vote_account( vote_account, bank_mgr, banks, bank );
+    remove_vote_account( vote_account, bank_mgr, bank );
   } else {
-    upsert_vote_account( vote_account, bank_mgr, banks, bank );
+    upsert_vote_account( vote_account, bank_mgr, bank );
   }
   fd_rwlock_unwrite( &bank->vote_account_keys_lock );
 }

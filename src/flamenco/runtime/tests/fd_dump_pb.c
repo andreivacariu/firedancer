@@ -428,7 +428,7 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
   fd_bank_mgr_t                  bank_mgr_obj;
   fd_bank_mgr_t *                bank_mgr = fd_bank_mgr_join( &bank_mgr_obj, slot_ctx->funk, slot_ctx->funk_txn );
 
-  fd_account_keys_global_t *         stake_account_keys      = fd_bank_stake_account_keys_query( slot_ctx->banks, slot_ctx->bank );
+  fd_account_keys_global_t const *   stake_account_keys      = fd_bank_stake_account_keys_query( slot_ctx->bank );
   fd_account_keys_pair_t_mapnode_t * stake_account_keys_pool = fd_account_keys_account_keys_pool_join( stake_account_keys );
   fd_account_keys_pair_t_mapnode_t * stake_account_keys_root = fd_account_keys_account_keys_root_join( stake_account_keys );
 

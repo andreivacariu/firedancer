@@ -26,14 +26,67 @@ FD_PROTOTYPES_BEGIN
    abstracted away from the caller who should only access/modify the
    fields using getters and setters: fd_bank_{*}_{query,modfiy}(). */
 
-#define FD_BANK_BLOCK_HASH_QUEUE_SIZE (50000UL)
+/**********************************************************************/
+
+/* CoW Pools used for complex data structures. The pool structs are
+   just wrappers around aligned buffers. These should not be accessed
+   directly and are just for itnernal use. */
 
 /* Use this to avoid code duplication */
 #define FD_BANKS_COW_ITER(X)                                                                                                 \
   X(fd_clock_timestamp_votes_global_t, clock_timestamp_votes, 5000000UL,   128UL)  /* TODO: This needs to get sized out */   \
   X(fd_account_keys_global_t,          stake_account_keys,    100000000UL, 128UL)  /* Supports roughly 3M stake accounts */  \
   X(fd_account_keys_global_t,          vote_account_keys,     3200000UL,   128UL)  /* Supports roughly 100k vote accounts */ \
-  X(fd_rent_fresh_accounts_global_t,   rent_fresh_accounts,   50000UL,     128UL)  /* Supports roughly 3M stake accounts */
+  X(fd_rent_fresh_accounts_global_t,   rent_fresh_accounts,   50000UL,     128UL)  /* Rent fresh accounts */
+
+#define FD_BANKS_FLAT_ITER(Y)                                                                   \
+  /* type, name, has_lock, override, footprint, align */                                        \
+  Y(fd_block_hash_queue_global_t, block_hash_queue, 0, 1, FD_BANK_BLOCK_HASH_QUEUE_SIZE, 128UL) \
+  Y(fd_fee_rate_governor_t, fee_rate_governor, 0, 0, 0, 0)
+
+
+#define X(type, name, footprint, align)                      \
+  static const ulong fd_bank_##name##_align     = align;     \
+  static const ulong fd_bank_##name##_footprint = footprint; \
+                                                             \
+  struct fd_bank_##name {                                    \
+    ulong next;                                              \
+    uchar data[footprint]__attribute__((aligned(align)));    \
+  };                                                         \
+  typedef struct fd_bank_##name fd_bank_##name##_t;
+FD_BANKS_COW_ITER(X)
+#undef X
+
+/* All of the pools used by CoW. TODO: Is there a way to templatize
+   this? */
+
+#define POOL_NAME fd_bank_clock_timestamp_votes_pool
+#define POOL_T    fd_bank_clock_timestamp_votes_t
+#include "../../util/tmpl/fd_pool.c"
+#undef POOL_NAME
+#undef POOL_T
+
+#define POOL_NAME fd_bank_stake_account_keys_pool
+#define POOL_T    fd_bank_stake_account_keys_t
+#include "../../util/tmpl/fd_pool.c"
+#undef POOL_NAME
+#undef POOL_T
+
+#define POOL_NAME fd_bank_vote_account_keys_pool
+#define POOL_T    fd_bank_vote_account_keys_t
+#include "../../util/tmpl/fd_pool.c"
+#undef POOL_NAME
+#undef POOL_T
+
+#define POOL_NAME fd_bank_rent_fresh_accounts_pool
+#define POOL_T    fd_bank_rent_fresh_accounts_t
+#include "../../util/tmpl/fd_pool.c"
+#undef POOL_NAME
+#undef POOL_T
+
+/**********************************************************************/
+
+#define FD_BANK_BLOCK_HASH_QUEUE_SIZE (50000UL)
 
 struct fd_bank {
   /* Fields used for internal pool and bank management */
@@ -43,9 +96,23 @@ struct fd_bank {
   ulong             child_idx;   /* index of the left-child in the node pool */
   ulong             sibling_idx; /* index of the right-sibling in the node pool */
 
-
   /* Simple or frequently modified fields that are always copied over. */
   uchar                             block_hash_queue[FD_BANK_BLOCK_HASH_QUEUE_SIZE]__attribute__((aligned(128UL)));
+
+
+  #define FD_BANKS_FLAT_ITER_TYPE_OVERRIDE_0( type, name, footprint_, align_ ) \
+    type name;
+  #define FD_BANKS_FLAT_ITER_TYPE_OVERRIDE_1( type, name, footprint, align ) \
+    uchar name[footprint]__attribute__((aligned(align)));
+  #define FD_BANKS_FLAT_ITER_TYPE_EMIT_LOCK_0( name )
+  #define FD_BANKS_FLAT_ITER_TYPE_EMIT_LOCK_1( name ) \
+    fd_rwlock_t name##_lock;
+
+  #define Y(type, name, has_lock, override, footprint, align)                   \
+    FD_BANKS_FLAT_ITER_TYPE_OVERRIDE_##override( type, name, footprint, align ) \
+    FD_BANKS_FLAT_ITER_TYPE_EMIT_LOCK_##has_lock( name )
+  #undef Y
+
   fd_fee_rate_governor_t            fee_rate_governor;
   ulong                             capitalization;
   ulong                             lamports_per_signature;
@@ -88,9 +155,11 @@ struct fd_bank {
      be accessed directly and are just for internal use.. */
 
   #define X(type, name, footprint, align) \
-  fd_rwlock_t name##_lock;                \
-  int         name##_dirty;               \
-  ulong       name##_pool_idx;            \
+  fd_rwlock_t          name##_lock;       \
+  int                  name##_dirty;      \
+  ulong                name##_pool_idx;   \
+  fd_bank_##name##_t * name##_pool;
+
 
   FD_BANKS_COW_ITER(X)
 
@@ -108,51 +177,6 @@ fd_bank_align( void );
 
 ulong
 fd_bank_footprint( void );
-
-/**********************************************************************/
-
-/* CoW Pools used for complex data structures. The pool structs are
-   just wrappers around aligned buffers. These should not be accessed
-   directly and are just for itnernal use. */
-
-#define X(type, name, footprint, align)                      \
-  static const ulong fd_bank_##name##_align     = align;     \
-  static const ulong fd_bank_##name##_footprint = footprint; \
-                                                             \
-  struct fd_bank_##name {                                    \
-    ulong next;                                              \
-    uchar data[footprint]__attribute__((aligned(align)));    \
-  };                                                         \
-  typedef struct fd_bank_##name fd_bank_##name##_t;
-FD_BANKS_COW_ITER(X)
-#undef X
-
-/* All of the pools used by CoW. TODO: Is there a way to templatize
-   this? */
-
-#define POOL_NAME fd_bank_clock_timestamp_votes_pool
-#define POOL_T    fd_bank_clock_timestamp_votes_t
-#include "../../util/tmpl/fd_pool.c"
-#undef POOL_NAME
-#undef POOL_T
-
-#define POOL_NAME fd_bank_stake_account_keys_pool
-#define POOL_T    fd_bank_stake_account_keys_t
-#include "../../util/tmpl/fd_pool.c"
-#undef POOL_NAME
-#undef POOL_T
-
-#define POOL_NAME fd_bank_vote_account_keys_pool
-#define POOL_T    fd_bank_vote_account_keys_t
-#include "../../util/tmpl/fd_pool.c"
-#undef POOL_NAME
-#undef POOL_T
-
-#define POOL_NAME fd_bank_rent_fresh_accounts_pool
-#define POOL_T    fd_bank_rent_fresh_accounts_t
-#include "../../util/tmpl/fd_pool.c"
-#undef POOL_NAME
-#undef POOL_T
 
 /**********************************************************************/
 /* fd_banks_t is the main struct used to manage the bank state. It can
@@ -196,11 +220,17 @@ typedef struct fd_banks fd_banks_t;
 
 /* Bank accesssors */
 
-#define X(type, name, footprint, align)                                  \
-  type * fd_bank_##name##_query( fd_banks_t * banks, fd_bank_t * bank ); \
-  type * fd_bank_##name##_modify( fd_banks_t * banks, fd_bank_t * bank );
+#define X(type, name, footprint, align)                    \
+  type const * fd_bank_##name##_query( fd_bank_t * bank ); \
+  type * fd_bank_##name##_modify( fd_bank_t * bank );
 FD_BANKS_COW_ITER(X)
 #undef X
+
+#define Y(type, name, has_lock_, override_, footprint_, align_) \
+  type const * fd_bank_##name##_query( fd_bank_t * bank );      \
+  type * fd_bank_##name##_modify( fd_bank_t * bank );
+FD_BANKS_FLAT_ITER(Y)
+#undef Y
 
 /* fd_banks_root reutrns the current root slot for the bank/ */
 

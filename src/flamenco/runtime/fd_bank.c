@@ -17,32 +17,37 @@ fd_bank_footprint( void ) {
 /* Bank accesssors */
 
 #define X(type, name, footprint, align)                                                                            \
-  type * fd_bank_##name##_query( fd_banks_t * banks, fd_bank_t * bank ) {                                          \
+  type const *                                                                                                     \
+  fd_bank_##name##_query( fd_bank_t * bank ) {                                                                     \
     /* If the pool element hasn't been setup yet, then return NULL */                                              \
-    if( bank->name##_pool_idx==fd_bank_##name##_pool_idx_null( banks->name##_pool ) ) {                            \
+    if( bank->name##_pool_idx==fd_bank_##name##_pool_idx_null( bank->name##_pool ) ) {                             \
       return NULL;                                                                                                 \
     }                                                                                                              \
-    fd_bank_##name##_t * bank_##name = fd_bank_##name##_pool_ele( banks->name##_pool, bank->name##_pool_idx );     \
+    fd_bank_##name##_t * bank_##name = fd_bank_##name##_pool_ele( bank->name##_pool, bank->name##_pool_idx );      \
     return (type *)bank_##name->data;                                                                              \
   }                                                                                                                \
-  type * fd_bank_##name##_modify( fd_banks_t * banks, fd_bank_t * bank ) {                                         \
+  type *                                                                                                           \
+  fd_bank_##name##_modify( fd_bank_t * bank ) {                                                                    \
     /* If the dirty flag is set, then we already have a pool element */                                            \
     /* that was copied over for the current bank. We can simply just */                                            \
     /* query the pool element and return it. */                                                                    \
+    if( FD_UNLIKELY( bank->name##_pool==NULL ) ) {                                                                 \
+      FD_LOG_CRIT(( "NULL " #name " pool" ));                                                                      \
+    }                                                                                                              \
     if( bank->name##_dirty ) {                                                                                     \
-      fd_bank_##name##_t * bank_##name = fd_bank_##name##_pool_ele( banks->name##_pool, bank->name##_pool_idx );   \
+      fd_bank_##name##_t * bank_##name = fd_bank_##name##_pool_ele( bank->name##_pool, bank->name##_pool_idx );    \
       return (type *)bank_##name->data;                                                                            \
     }                                                                                                              \
-    fd_bank_##name##_t * child_##name = fd_bank_##name##_pool_ele_acquire( banks->name##_pool );                   \
+    fd_bank_##name##_t * child_##name = fd_bank_##name##_pool_ele_acquire( bank->name##_pool );                    \
     if( FD_UNLIKELY( !child_##name ) ) {                                                                           \
       FD_LOG_CRIT(( "Failed to acquire " #name " pool element" ));                                                 \
     }                                                                                                              \
     /* If the dirty flag has not been set yet, we need to allocated a */                                           \
     /* new pool element and copy over the data from the parent idx.   */                                           \
     /* We also need to mark the dirty flag.                           */                                           \
-    ulong child_idx = fd_bank_##name##_pool_idx( banks->name##_pool, child_##name );                               \
-    if( bank->name##_pool_idx!=fd_bank_##name##_pool_idx_null( banks->name##_pool ) ) {                            \
-      fd_bank_##name##_t * parent_##name = fd_bank_##name##_pool_ele( banks->name##_pool, bank->name##_pool_idx ); \
+    ulong child_idx = fd_bank_##name##_pool_idx( bank->name##_pool, child_##name );                                \
+    if( bank->name##_pool_idx!=fd_bank_##name##_pool_idx_null( bank->name##_pool ) ) {                             \
+      fd_bank_##name##_t * parent_##name = fd_bank_##name##_pool_ele( bank->name##_pool, bank->name##_pool_idx );  \
       memcpy( child_##name->data, parent_##name->data, fd_bank_##name##_footprint );                               \
     }                                                                                                              \
     bank->name##_pool_idx = child_idx;                                                                             \
@@ -52,6 +57,17 @@ fd_bank_footprint( void ) {
 FD_BANKS_COW_ITER(X)
 #undef X
 
+#define Y(type, name, has_lock_, override_, footprint_, align_) \
+  type const *                                                  \
+  fd_bank_##name##_query( fd_bank_t * bank ) {                  \
+    return (type *)&bank->name;                                 \
+  }                                                             \
+  type *                                                        \
+  fd_bank_##name##_modify( fd_bank_t * bank ) {                 \
+    return (type *)&bank->name;                                 \
+  }
+FD_BANKS_FLAT_ITER(Y)
+#undef Y
 
 /**********************************************************************/
 
@@ -233,6 +249,9 @@ fd_banks_init_bank( fd_banks_t * banks, ulong slot ) {
 
   /* Set all CoW fields to null. */
   #define X(type, name, footprint, align)                                         \
+    bank->name##_pool     = banks->name##_pool;                                   \
+    FD_TEST( bank->name##_pool );                                                 \
+    FD_LOG_WARNING(("__FUNC %s %p", __func__, (void*)bank->name##_pool)); \
     bank->name##_pool_idx = fd_bank_##name##_pool_idx_null( banks->name##_pool ); \
     bank->name##_dirty    = 0;
   FD_BANKS_COW_ITER(X)
@@ -363,7 +382,8 @@ fd_banks_clone_from_parent( fd_banks_t * banks,
   /* Setup all of the CoW fields. */
   #define X(type, name, footprint, align)                     \
     new_bank->name##_pool_idx = parent_bank->name##_pool_idx; \
-    new_bank->name##_dirty    = 0UL;
+    new_bank->name##_dirty    = 0UL;                          \
+    new_bank->name##_pool     = banks->name##_pool;
   FD_BANKS_COW_ITER(X)
   #undef X
 

@@ -95,11 +95,10 @@ fd_runtime_compute_max_tick_height( ulong   ticks_per_slot,
 void
 fd_runtime_register_new_fresh_account( fd_pubkey_t const  * pubkey,
                                        fd_bank_mgr_t *      bank_mgr,
-                                       fd_banks_t *         banks,
                                        fd_bank_t *          bank ) {
 
   fd_rwlock_write( &bank->rent_fresh_accounts_lock );
-  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( banks, bank );
+  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( bank );
 
   fd_rent_fresh_account_t *         fresh_accounts      = fd_rent_fresh_accounts_fresh_accounts_join( rent_fresh_accounts );
 
@@ -137,7 +136,7 @@ fd_runtime_repartition_fresh_account_partitions( fd_exec_slot_ctx_t * slot_ctx )
   ulong * part_width_ptr = fd_bank_mgr_part_width_query( slot_ctx->bank_mgr );
   ulong * slots_per_epoch_ptr = fd_bank_mgr_slots_per_epoch_query( slot_ctx->bank_mgr );
 
-  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( slot_ctx->banks, slot_ctx->bank );
+  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( slot_ctx->bank );
   fd_rent_fresh_account_t *         fresh_accounts      = fd_rent_fresh_accounts_fresh_accounts_join( rent_fresh_accounts );
 
   for( ulong i = 0UL; i < rent_fresh_accounts->fresh_accounts_len; i++ ) {
@@ -434,7 +433,7 @@ fd_runtime_update_rent_epoch( fd_exec_slot_ctx_t * slot_ctx ) {
     return;
   }
 
-  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( slot_ctx->banks, slot_ctx->bank );
+  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( slot_ctx->bank );
   fd_rent_fresh_account_t *         fresh_accounts      = fd_rent_fresh_accounts_fresh_accounts_join( rent_fresh_accounts );
 
   /* Common case: do nothing if we have no rent fresh accounts */
@@ -1899,7 +1898,6 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
                          fd_execute_txn_task_info_t * task_info,
                          fd_spad_t *                  finalize_spad,
                          fd_bank_mgr_t *              bank_mgr,
-                         fd_banks_t *                 banks,
                          fd_bank_t *                  bank ) {
 
   /* for all accounts, if account->is_verified==true, propagate update
@@ -1976,7 +1974,7 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
       fd_txn_account_t * acc_rec = &txn_ctx->accounts[i];
 
       if( dirty_vote_acc && 0==memcmp( acc_rec->vt->get_owner( acc_rec ), &fd_solana_vote_program_id, sizeof(fd_pubkey_t) ) ) {
-        fd_vote_store_account( acc_rec, bank_mgr, banks, bank );
+        fd_vote_store_account( acc_rec, bank_mgr, bank );
         FD_SPAD_FRAME_BEGIN( finalize_spad ) {
           int err;
           fd_vote_state_versioned_t * vsv = fd_bincode_decode_spad(
@@ -2007,21 +2005,20 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
           fd_vote_record_timestamp_vote_with_slot( acc_rec->pubkey,
                                                    ts->timestamp,
                                                    ts->slot,
-                                                   banks,
                                                    bank );
         } FD_SPAD_FRAME_END;
       }
 
       if( dirty_stake_acc && 0==memcmp( acc_rec->vt->get_owner( acc_rec ), &fd_solana_stake_program_id, sizeof(fd_pubkey_t) ) ) {
         // TODO: does this correctly handle stake account close?
-        fd_store_stake_delegation( acc_rec, bank_mgr, banks, bank );
+        fd_store_stake_delegation( acc_rec, bank_mgr, bank );
       }
 
       fd_txn_account_save( &txn_ctx->accounts[i], slot_ctx->funk, slot_ctx->funk_txn, txn_ctx->spad_wksp );
       int fresh_account = acc_rec->vt->is_mutable( acc_rec ) &&
          acc_rec->vt->get_lamports( acc_rec ) && acc_rec->vt->get_rent_epoch( acc_rec ) != FD_RENT_EXEMPT_RENT_EPOCH;
       if( FD_UNLIKELY( fresh_account ) ) {
-        fd_runtime_register_new_fresh_account( txn_ctx->accounts[0].pubkey, bank_mgr, banks, bank );
+        fd_runtime_register_new_fresh_account( txn_ctx->accounts[0].pubkey, bank_mgr, bank );
       }
     }
   }
@@ -2135,7 +2132,7 @@ fd_runtime_prepare_execute_finalize_txn_task( void * tpool,
     return;
   }
 
-  fd_runtime_finalize_txn( slot_ctx, capture_ctx, task_info, task_info->txn_ctx->spad, task_info->txn_ctx->bank_mgr, slot_ctx->banks, slot_ctx->bank );
+  fd_runtime_finalize_txn( slot_ctx, capture_ctx, task_info, task_info->txn_ctx->spad, task_info->txn_ctx->bank_mgr, slot_ctx->bank );
 }
 
 /* fd_executor_txn_verify and fd_runtime_pre_execute_check are responisble
@@ -2317,7 +2314,7 @@ fd_update_stake_delegations( fd_exec_slot_ctx_t * slot_ctx,
   /* At the epoch boundary, release all of the stake account keys
      because at this point all of the changes have been applied to the
      stakes. */
-  fd_account_keys_global_t * stake_account_keys = fd_bank_stake_account_keys_modify( slot_ctx->banks, slot_ctx->bank );
+  fd_account_keys_global_t * stake_account_keys = fd_bank_stake_account_keys_modify( slot_ctx->bank );
   fd_account_keys_pair_t_mapnode_t * account_keys_pool = fd_account_keys_account_keys_pool_join( stake_account_keys );
   fd_account_keys_pair_t_mapnode_t * account_keys_root = fd_account_keys_account_keys_root_join( stake_account_keys );
 
@@ -3700,7 +3697,7 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
 
   slot_ctx->bank->capitalization = capitalization;
 
-  fd_clock_timestamp_votes_global_t * clock_timestamp_votes = fd_bank_clock_timestamp_votes_modify( slot_ctx->banks, slot_ctx->bank );
+  fd_clock_timestamp_votes_global_t * clock_timestamp_votes = fd_bank_clock_timestamp_votes_modify( slot_ctx->bank );
   uchar * clock_pool_mem = (uchar *)fd_ulong_align_up( (ulong)clock_timestamp_votes + sizeof(fd_clock_timestamp_votes_global_t), fd_clock_timestamp_vote_t_map_align() );
   fd_clock_timestamp_vote_t_mapnode_t * clock_pool = fd_clock_timestamp_vote_t_map_join( fd_clock_timestamp_vote_t_map_new(clock_pool_mem, 30000UL ) );
   clock_timestamp_votes->votes_pool_offset = (ulong)fd_clock_timestamp_vote_t_map_leave( clock_pool) - (ulong)clock_timestamp_votes;
@@ -3758,7 +3755,7 @@ fd_runtime_process_genesis_block( fd_exec_slot_ctx_t * slot_ctx,
       }
 
       fd_funk_rec_key_t const * pubkey = rec->pair.key;
-      fd_runtime_register_new_fresh_account( (fd_pubkey_t * const ) fd_type_pun_const(&pubkey->uc[0]), slot_ctx->bank_mgr, slot_ctx->banks, slot_ctx->bank );
+      fd_runtime_register_new_fresh_account( (fd_pubkey_t * const ) fd_type_pun_const(&pubkey->uc[0]), slot_ctx->bank_mgr, slot_ctx->bank );
     }
   }
 
@@ -3893,7 +3890,7 @@ fd_runtime_read_genesis( fd_exec_slot_ctx_t * slot_ctx,
   }
 
 
-  fd_account_keys_global_t *         stake_account_keys      = fd_bank_stake_account_keys_modify( slot_ctx->banks, slot_ctx->bank );
+  fd_account_keys_global_t *         stake_account_keys      = fd_bank_stake_account_keys_modify( slot_ctx->bank );
   uchar *                            pool_mem                = (uchar *)fd_ulong_align_up( (ulong)stake_account_keys + sizeof(fd_account_keys_global_t), fd_account_keys_pair_t_map_align() );
   fd_account_keys_pair_t_mapnode_t * stake_account_keys_pool = fd_account_keys_pair_t_map_join( fd_account_keys_pair_t_map_new( pool_mem, 100000UL ) );
   fd_account_keys_pair_t_mapnode_t * stake_account_keys_root = NULL;
@@ -3901,7 +3898,7 @@ fd_runtime_read_genesis( fd_exec_slot_ctx_t * slot_ctx,
   fd_account_keys_account_keys_pool_update( stake_account_keys, stake_account_keys_pool );
   fd_account_keys_account_keys_root_update( stake_account_keys, stake_account_keys_root );
 
-  fd_account_keys_global_t *         vote_account_keys      = fd_bank_vote_account_keys_modify( slot_ctx->banks, slot_ctx->bank );
+  fd_account_keys_global_t *         vote_account_keys      = fd_bank_vote_account_keys_modify( slot_ctx->bank );
                                      pool_mem               = (uchar *)fd_ulong_align_up( (ulong)vote_account_keys + sizeof(fd_account_keys_global_t), fd_account_keys_pair_t_map_align() );
   fd_account_keys_pair_t_mapnode_t * vote_account_keys_pool = fd_account_keys_pair_t_map_join( fd_account_keys_pair_t_map_new( pool_mem, 100000UL ) );
   fd_account_keys_pair_t_mapnode_t * vote_account_keys_root = NULL;

@@ -124,7 +124,7 @@ estimate_timestamp( fd_exec_slot_ctx_t * slot_ctx ) {
   /* TODO: bound the estimate to ensure it stays within a certain range of the expected PoH clock:
   https://github.com/solana-labs/solana/blob/8f2c8b8388a495d2728909e30460aa40dcc5d733/runtime/src/stake_weighted_timestamp.rs#L13 */
 
-  fd_clock_timestamp_votes_global_t * clock_timestamp_votes = fd_bank_clock_timestamp_votes_query( slot_ctx->banks, slot_ctx->bank );
+  fd_clock_timestamp_votes_global_t const * clock_timestamp_votes = fd_bank_clock_timestamp_votes_query( slot_ctx->bank );
   fd_clock_timestamp_vote_t_mapnode_t * votes = !!clock_timestamp_votes ? fd_clock_timestamp_votes_votes_root_join( clock_timestamp_votes ) : NULL;
   if( NULL==votes ) {
     return timestamp_from_genesis( slot_ctx );
@@ -207,7 +207,7 @@ fd_calculate_stake_weighted_timestamp( fd_exec_slot_ctx_t * slot_ctx,
 
   ulong total_stake = 0;
 
-  fd_clock_timestamp_votes_global_t * clock_timestamp_votes = fd_bank_clock_timestamp_votes_query( slot_ctx->banks, slot_ctx->bank );
+  fd_clock_timestamp_votes_global_t const * clock_timestamp_votes = fd_bank_clock_timestamp_votes_query( slot_ctx->bank );
   if( FD_UNLIKELY( !clock_timestamp_votes ) ) {
     *result_timestamp = 0;
     return;
