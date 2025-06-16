@@ -3289,6 +3289,7 @@ fd_stakes_remove_stake_delegation( fd_txn_account_t *   stake_account,
   fd_memcpy( key.elem.key.uc, stake_account->pubkey->uc, sizeof(fd_pubkey_t) );
   if( FD_UNLIKELY( account_keys_pool==NULL ) ) {
     /* TODO: Should this be a LOG_ERR/LOG_CRIT? */
+    fd_bank_stake_account_keys_end_modify( bank );
     FD_LOG_DEBUG(("Stake accounts pool does not exist"));
     return;
   }

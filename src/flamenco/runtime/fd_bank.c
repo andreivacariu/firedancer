@@ -360,8 +360,6 @@ fd_banks_init_bank( fd_banks_t * banks, ulong slot ) {
   #undef HAS_LOCK_0
   #undef HAS_LOCK_1
 
-  FD_LOG_WARNING(("bank->clock_timestamp_votes_lock.value: %d", bank->clock_timestamp_votes_lock.value));
-
   fd_banks_map_ele_insert( banks->map, bank, banks->pool );
 
   /* Now that the node is inserted, update the root */
@@ -446,43 +444,13 @@ fd_banks_clone_from_parent( fd_banks_t * banks,
 
   }
 
-  /* Copy over fields from parent to child */
+  /* We want to copy over the fields from the parent to the child,
+     except for the fields which correspond to the header of the bank
+     struct which is used for pool and map management. We can take
+     advantage of the fact that those fields are laid out at the top
+     of the bank struct. */
 
-  /* TODO: Turn this into one giant memcpy. */
-  memcpy( new_bank->block_hash_queue, parent_bank->block_hash_queue, 50000UL );
-  memcpy( new_bank->fee_rate_governor, parent_bank->fee_rate_governor, sizeof(fd_fee_rate_governor_t) );
-  new_bank->capitalization              = parent_bank->capitalization;
-  new_bank->lamports_per_signature      = parent_bank->lamports_per_signature;
-  new_bank->prev_lamports_per_signature = parent_bank->prev_lamports_per_signature;
-  new_bank->transaction_count           = parent_bank->transaction_count;
-  new_bank->parent_signature_cnt        = parent_bank->parent_signature_cnt;
-  new_bank->tick_height                 = parent_bank->tick_height;
-  new_bank->max_tick_height             = parent_bank->max_tick_height;
-  new_bank->hashes_per_tick             = parent_bank->hashes_per_tick;
-  new_bank->ns_per_slot                 = parent_bank->ns_per_slot;
-  new_bank->ticks_per_slot              = parent_bank->ticks_per_slot;
-  new_bank->genesis_creation_time       = parent_bank->genesis_creation_time;
-  new_bank->slots_per_year              = parent_bank->slots_per_year;
-  new_bank->inflation                   = parent_bank->inflation;
-  new_bank->total_epoch_stake           = parent_bank->total_epoch_stake;
-  new_bank->eah_start_slot              = parent_bank->eah_start_slot;
-  new_bank->eah_stop_slot               = parent_bank->eah_stop_slot;
-  new_bank->block_height                = parent_bank->block_height;
-  new_bank->epoch_account_hash          = parent_bank->epoch_account_hash;
-  new_bank->execution_fees              = parent_bank->execution_fees;
-  new_bank->priority_fees               = parent_bank->priority_fees;
-  new_bank->signature_cnt               = parent_bank->signature_cnt;
-  new_bank->use_prev_epoch_stake        = parent_bank->use_prev_epoch_stake;
-  new_bank->poh                         = parent_bank->poh;
-  new_bank->last_restart_slot           = parent_bank->last_restart_slot;
-
-  new_bank->prev_slot                   = parent_bank->prev_slot;
-  new_bank->bank_hash                   = parent_bank->bank_hash;
-  new_bank->prev_bank_hash              = parent_bank->prev_bank_hash;
-  new_bank->genesis_hash                = parent_bank->genesis_hash;
-  new_bank->epoch_schedule              = parent_bank->epoch_schedule;
-  new_bank->rent                        = parent_bank->rent;
-  new_bank->lthash                      = parent_bank->lthash;
+  memcpy( (uchar *)new_bank + FD_BANK_HEADER_SIZE, (uchar *)parent_bank + FD_BANK_HEADER_SIZE, sizeof(fd_bank_t) - FD_BANK_HEADER_SIZE );
 
   /* Setup all of the CoW fields. */
   #define HAS_COW_1(name)                                     \
@@ -507,8 +475,6 @@ fd_banks_clone_from_parent( fd_banks_t * banks,
   #undef HAS_COW_1
   #undef HAS_LOCK_0
   #undef HAS_LOCK_1
-
-  FD_LOG_WARNING(("bank->clock_timestamp_votes_lock.value: %d", new_bank->clock_timestamp_votes_lock.value));
 
   return new_bank;
 }

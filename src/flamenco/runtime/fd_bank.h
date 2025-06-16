@@ -118,6 +118,8 @@ FD_PROTOTYPES_BEGIN
 
 #define FD_BANK_BLOCK_HASH_QUEUE_SIZE (50000UL)
 
+#define FD_BANK_HEADER_SIZE (40UL)
+
 struct fd_bank {
   /* Fields used for internal pool and bank management */
   ulong             slot;        /* slot this node is tracking, also the map key */
