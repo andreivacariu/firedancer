@@ -350,6 +350,7 @@ fd_banks_clone_from_parent( fd_banks_t * banks,
   new_bank->signature_cnt               = parent_bank->signature_cnt;
   new_bank->use_prev_epoch_stake        = parent_bank->use_prev_epoch_stake;
   new_bank->poh                         = parent_bank->poh;
+  new_bank->last_restart_slot           = parent_bank->last_restart_slot;
 
   /* Setup all of the CoW fields. */
   #define X(type, name, footprint, align)                     \

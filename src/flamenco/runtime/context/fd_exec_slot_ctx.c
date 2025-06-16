@@ -164,7 +164,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
                           fd_spad_t *                  runtime_spad ) {
 
   FD_TEST( slot_ctx->banks );
-  slot_ctx->bank = fd_banks_init_bank( slot_ctx->banks, manifest->bank.slot );
+  slot_ctx->bank = fd_banks_clone_from_parent( slot_ctx->banks, manifest->bank.slot, 0UL );
   FD_TEST( slot_ctx->bank );
   FD_LOG_WARNING(("BANK %p", (void*)slot_ctx->bank));
 
@@ -357,9 +357,8 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
      To find the last restart slot, take the highest hard fork slot
      number that is less or equal than the current slot number.
      (There might be some hard forks in the future, ignore these) */
-  fd_sol_sysvar_last_restart_slot_t * last_restart_slot = fd_bank_mgr_last_restart_slot_modify( slot_ctx->bank_mgr );
   do {
-    last_restart_slot->slot = 0UL;
+    slot_ctx->bank->last_restart_slot.slot = 0UL;
     if( FD_UNLIKELY( oldbank->hard_forks.hard_forks_len == 0 ) ) {
       /* SIMD-0047: The first restart slot should be `0` */
       break;
@@ -370,12 +369,11 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
     for( fd_slot_pair_t const *pair = tail; pair >= head; pair-- ) {
       if( pair->slot <= slot_ctx->slot ) {
-        last_restart_slot->slot = pair->slot;
+        slot_ctx->bank->last_restart_slot.slot = pair->slot;
         break;
       }
     }
   } while (0);
-  fd_bank_mgr_last_restart_slot_save( slot_ctx->bank_mgr );
 
   /* FIXME: Remove the magic number here. */
   fd_clock_timestamp_votes_global_t * clock_timestamp_votes = fd_bank_clock_timestamp_votes_modify( slot_ctx->banks, slot_ctx->bank );

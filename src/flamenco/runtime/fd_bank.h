@@ -44,32 +44,34 @@ struct fd_bank {
 
 
   /* Simple or frequently modified fields that are always copied over. */
-  uchar                  block_hash_queue[FD_BANK_BLOCK_HASH_QUEUE_SIZE]__attribute__((aligned(128UL)));
-  fd_fee_rate_governor_t fee_rate_governor;
-  ulong                  capitalization;
-  ulong                  lamports_per_signature;
-  ulong                  prev_lamports_per_signature;
-  ulong                  transaction_count;
-  ulong                  parent_signature_cnt;
-  ulong                  tick_height;
-  ulong                  max_tick_height;
-  ulong                  hashes_per_tick;
-  uint128                ns_per_slot;
-  ulong                  ticks_per_slot;
-  ulong                  genesis_creation_time;
-  double                 slots_per_year;
-  fd_inflation_t         inflation;
-  ulong                  total_epoch_stake;
-  ulong                  eah_start_slot;
-  ulong                  eah_stop_slot;
-  ulong                  eah_interval;
-  ulong                  block_height;
-  fd_hash_t              epoch_account_hash;
-  ulong                  execution_fees;
-  ulong                  priority_fees;
-  ulong                  signature_cnt;
-  ulong                  use_prev_epoch_stake;
-  fd_hash_t              poh;
+  uchar                             block_hash_queue[FD_BANK_BLOCK_HASH_QUEUE_SIZE]__attribute__((aligned(128UL)));
+  fd_fee_rate_governor_t            fee_rate_governor;
+  ulong                             capitalization;
+  ulong                             lamports_per_signature;
+  ulong                             prev_lamports_per_signature;
+  ulong                             transaction_count;
+  ulong                             parent_signature_cnt;
+  ulong                             tick_height;
+  ulong                             max_tick_height;
+  ulong                             hashes_per_tick;
+  uint128                           ns_per_slot;
+  ulong                             ticks_per_slot;
+  ulong                             genesis_creation_time;
+  double                            slots_per_year;
+  fd_inflation_t                    inflation;
+  ulong                             total_epoch_stake;
+  ulong                             eah_start_slot;
+  ulong                             eah_stop_slot;
+  ulong                             eah_interval;
+  ulong                             block_height;
+  fd_hash_t                         epoch_account_hash;
+  ulong                             execution_fees;
+  ulong                             priority_fees;
+  ulong                             signature_cnt;
+  ulong                             use_prev_epoch_stake;
+  fd_hash_t                         poh;
+  fd_sol_sysvar_last_restart_slot_t last_restart_slot;
+  fd_cluster_version_t              cluster_version;
 
   /* CoW Fields. These are only copied when explicitly requested by
      the caller. A lock is used to prevent contention between multiple

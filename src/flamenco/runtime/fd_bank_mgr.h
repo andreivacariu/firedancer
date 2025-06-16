@@ -122,9 +122,7 @@ if( FD_UNLIKELY( !bank_mgr ) ) {                                                
 /*  Type,                              name,                        id,   footprint,   align */
 #define FD_BANK_MGR_ITER(X)                                                                    \
   X(ulong,                             slot,                        1UL,  8UL,         8UL   ) \
-  X(fd_sol_sysvar_last_restart_slot_t, last_restart_slot,           30UL, 8UL,         8UL   ) \
   X(fd_rent_fresh_accounts_global_t,   rent_fresh_accounts,         31UL, 50000UL,     8UL   ) \
-  X(fd_cluster_version_t,              cluster_version,             32UL, 12UL,        4UL   ) \
   X(ulong,                             prev_slot,                   33UL, 8UL,         8UL   ) \
   X(fd_hash_t,                         bank_hash,                   34UL, 32UL,        8UL   ) \
   X(fd_hash_t,                         prev_bank_hash,              35UL, 32UL,        8UL   ) \

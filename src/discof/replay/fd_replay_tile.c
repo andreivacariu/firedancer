@@ -2443,20 +2443,6 @@ privileged_init( fd_topo_t *      topo,
     FD_LOG_ERR(( "no runtime_public" ));
   }
 
-  /**********************************************************************/
-  /* banks                                                              */
-  /**********************************************************************/
-
-  ulong banks_obj_id = fd_pod_queryf_ulong( topo->props, ULONG_MAX, "banks" );
-  if( FD_UNLIKELY( banks_obj_id==ULONG_MAX ) ) {
-    FD_LOG_ERR(( "no banks" ));
-  }
-
-  ctx->banks = fd_banks_join( fd_topo_obj_laddr( topo, banks_obj_id ) );
-  if( FD_UNLIKELY( !ctx->banks ) ) {
-    FD_LOG_ERR(( "failed to join banks" ));
-  }
-
   /* Open Funk */
   fd_funk_txn_start_write( NULL );
   fd_funk_t * funk;
@@ -2551,6 +2537,24 @@ unprivileged_init( fd_topo_t *      topo,
   ctx->status_cache_wksp = topo->workspaces[topo->objs[status_cache_obj_id].wksp_id].wksp;
   if( ctx->status_cache_wksp == NULL ) {
     FD_LOG_ERR(( "no status cache wksp" ));
+  }
+
+  /**********************************************************************/
+  /* banks                                                              */
+  /**********************************************************************/
+
+  ulong banks_obj_id = fd_pod_queryf_ulong( topo->props, ULONG_MAX, "banks" );
+  if( FD_UNLIKELY( banks_obj_id==ULONG_MAX ) ) {
+    FD_LOG_ERR(( "no banks" ));
+  }
+
+  ctx->banks = fd_banks_join( fd_topo_obj_laddr( topo, banks_obj_id ) );
+  if( FD_UNLIKELY( !ctx->banks ) ) {
+    FD_LOG_ERR(( "failed to join banks" ));
+  }
+  fd_bank_t * bank = fd_banks_init_bank( ctx->banks, 0UL );
+  if( FD_UNLIKELY( !bank ) ) {
+    FD_LOG_ERR(( "failed to init bank" ));
   }
 
   /**********************************************************************/
@@ -2683,12 +2687,11 @@ unprivileged_init( fd_topo_t *      topo,
 
   FD_BANK_MGR_DECL(bank_mgr, ctx->funk, NULL)
 
-  fd_cluster_version_t * cluster_version = fd_bank_mgr_cluster_version_modify( bank_mgr );
+  fd_cluster_version_t * cluster_version = &bank->cluster_version;
 
   if( FD_UNLIKELY( sscanf( tile->replay.cluster_version, "%u.%u.%u", &cluster_version->major, &cluster_version->minor, &cluster_version->patch )!=3 ) ) {
     FD_LOG_ERR(( "failed to decode cluster version, configured as \"%s\"", tile->replay.cluster_version ));
   }
-  fd_bank_mgr_cluster_version_save( bank_mgr );
 
   fd_features_t * features = fd_bank_mgr_features_modify( bank_mgr );
   fd_features_enable_cleaned_up( features, cluster_version );

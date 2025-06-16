@@ -233,10 +233,8 @@ void fd_builtin_programs_init( fd_exec_slot_ctx_t * slot_ctx ) {
     fd_write_builtin_account( slot_ctx, fd_solana_zk_elgamal_proof_program_id, "zk_elgamal_proof_program", 24UL );
   }
 
-  fd_cluster_version_t * cluster_version = fd_bank_mgr_cluster_version_query( slot_ctx->bank_mgr );
-
   /* Precompiles have empty account data */
-  if( cluster_version &&cluster_version->major<2 ) {
+  if( slot_ctx->bank->cluster_version.major==1 ) {
     char data[1] = {1};
     fd_write_builtin_account( slot_ctx, fd_solana_keccak_secp_256k_program_id, data, 1 );
     fd_write_builtin_account( slot_ctx, fd_solana_ed25519_sig_verify_program_id, data, 1 );
