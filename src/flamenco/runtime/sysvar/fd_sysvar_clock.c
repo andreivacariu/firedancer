@@ -127,6 +127,7 @@ estimate_timestamp( fd_exec_slot_ctx_t * slot_ctx ) {
   fd_clock_timestamp_votes_global_t const * clock_timestamp_votes = fd_bank_clock_timestamp_votes_query( slot_ctx->bank );
   fd_clock_timestamp_vote_t_mapnode_t * votes = !!clock_timestamp_votes ? fd_clock_timestamp_votes_votes_root_join( clock_timestamp_votes ) : NULL;
   if( NULL==votes ) {
+    fd_bank_clock_timestamp_votes_end_query( slot_ctx->bank );
     return timestamp_from_genesis( slot_ctx );
   }
 
@@ -134,7 +135,7 @@ estimate_timestamp( fd_exec_slot_ctx_t * slot_ctx ) {
   fd_clock_timestamp_vote_t * head = &votes->elem;
   ulong slots = slot_ctx->slot - head->slot;
   uint128 ns_correction = slot_ctx->bank->ns_per_slot * slots;
-  FD_LOG_WARNING(("ESTIMATED TIMESTAMP %ld", head->timestamp  + (long) (ns_correction / NS_IN_S) ));
+  fd_bank_clock_timestamp_votes_end_query( slot_ctx->bank );
   return head->timestamp  + (long) (ns_correction / NS_IN_S) ;
 }
 
@@ -209,6 +210,7 @@ fd_calculate_stake_weighted_timestamp( fd_exec_slot_ctx_t * slot_ctx,
 
   fd_clock_timestamp_votes_global_t const * clock_timestamp_votes = fd_bank_clock_timestamp_votes_query( slot_ctx->bank );
   if( FD_UNLIKELY( !clock_timestamp_votes ) ) {
+    fd_bank_clock_timestamp_votes_end_query( slot_ctx->bank );
     *result_timestamp = 0;
     return;
   }
@@ -300,6 +302,8 @@ fd_calculate_stake_weighted_timestamp( fd_exec_slot_ctx_t * slot_ctx,
       }
     }
   }
+
+  fd_bank_clock_timestamp_votes_end_query( slot_ctx->bank );
 
   *result_timestamp = 0;
   if( total_stake == 0 ) {

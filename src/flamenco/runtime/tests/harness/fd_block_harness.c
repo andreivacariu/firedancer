@@ -361,12 +361,16 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   *slot_bm = slot_ctx->slot;
   fd_bank_mgr_slot_save( bank_mgr );
 
-  slot_ctx->bank->fee_rate_governor = (fd_fee_rate_governor_t) { .target_lamports_per_signature  = 10000UL,
+  fd_fee_rate_governor_t * fee_rate_governor = fd_bank_fee_rate_governor_modify( slot_ctx->bank );
+
+  (*fee_rate_governor) = (fd_fee_rate_governor_t) { .target_lamports_per_signature  = 10000UL,
                                                        .target_signatures_per_slot     = 20000UL,
                                                        .min_lamports_per_signature     = 5000UL,
                                                        .max_lamports_per_signature     = 100000UL,
                                                        .burn_percent                   = 50,
   };
+
+  fd_bank_fee_rate_governor_end_modify( slot_ctx->bank );
 
   slot_ctx->bank->capitalization = test_ctx->slot_ctx.prev_epoch_capitalization;
 

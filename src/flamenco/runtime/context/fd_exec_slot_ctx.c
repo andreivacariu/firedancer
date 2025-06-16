@@ -243,7 +243,9 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* Fee Rate Governor */
 
-  slot_ctx->bank->fee_rate_governor = oldbank->fee_rate_governor;
+  fd_fee_rate_governor_t * fee_rate_governor = fd_bank_fee_rate_governor_modify( slot_ctx->bank );
+  fd_memcpy( fee_rate_governor, &oldbank->fee_rate_governor, sizeof(fd_fee_rate_governor_t) );
+  fd_bank_fee_rate_governor_end_modify( slot_ctx->bank );
 
   /* Capitalization */
 
@@ -378,6 +380,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
   fd_clock_timestamp_vote_t_mapnode_t * clock_pool = fd_clock_timestamp_vote_t_map_join( fd_clock_timestamp_vote_t_map_new(clock_pool_mem, 30000UL ) );
   clock_timestamp_votes->votes_pool_offset = (ulong)fd_clock_timestamp_vote_t_map_leave( clock_pool) - (ulong)clock_timestamp_votes;
   clock_timestamp_votes->votes_root_offset = 0UL;
+  fd_bank_clock_timestamp_votes_end_modify( slot_ctx->bank );
 
   recover_clock( slot_ctx, runtime_spad );
 

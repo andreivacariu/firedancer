@@ -2074,6 +2074,7 @@ publish_votes_to_plugin( fd_replay_tile_ctx_t * ctx,
     msg->commission      = (uchar)commission;
     msg->is_delinquent   = (uchar)fd_int_if(ctx->curr_slot >= 128UL, msg->last_vote <= ctx->curr_slot - 128UL, msg->last_vote == 0);
     ++i;
+    fd_bank_clock_timestamp_votes_end_query( ctx->slot_ctx->bank );
   }
   } FD_SPAD_FRAME_END;
 

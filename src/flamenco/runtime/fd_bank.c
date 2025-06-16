@@ -16,9 +16,19 @@ fd_bank_footprint( void ) {
 
 /* Bank accesssors */
 
-#define X(type, name, footprint, align)                                                                            \
+#define ACQUIRE_READ_0( name ) (void)bank;
+#define ACQUIRE_READ_1( name ) fd_rwlock_read( &bank->name##_lock );
+#define ACQUIRE_WRITE_0( name ) (void)bank;
+#define ACQUIRE_WRITE_1( name ) fd_rwlock_write( &bank->name##_lock );
+#define RELEASE_READ_0( name ) (void)bank;
+#define RELEASE_READ_1( name ) fd_rwlock_unread( &bank->name##_lock );
+#define RELEASE_WRITE_0( name ) (void)bank;
+#define RELEASE_WRITE_1( name ) fd_rwlock_unwrite( &bank->name##_lock );
+
+#define HAS_COW_1(type, name, footprint, align, has_lock)                                                          \
   type const *                                                                                                     \
   fd_bank_##name##_query( fd_bank_t * bank ) {                                                                     \
+    ACQUIRE_READ_##has_lock( name );                                                                               \
     /* If the pool element hasn't been setup yet, then return NULL */                                              \
     if( bank->name##_pool_idx==fd_bank_##name##_pool_idx_null( bank->name##_pool ) ) {                             \
       return NULL;                                                                                                 \
@@ -28,6 +38,7 @@ fd_bank_footprint( void ) {
   }                                                                                                                \
   type *                                                                                                           \
   fd_bank_##name##_modify( fd_bank_t * bank ) {                                                                    \
+    ACQUIRE_WRITE_##has_lock( name );                                                                              \
     /* If the dirty flag is set, then we already have a pool element */                                            \
     /* that was copied over for the current bank. We can simply just */                                            \
     /* query the pool element and return it. */                                                                    \
@@ -53,21 +64,52 @@ fd_bank_footprint( void ) {
     bank->name##_pool_idx = child_idx;                                                                             \
     bank->name##_dirty    = 1;                                                                                     \
     return (type *)child_##name->data;                                                                             \
+  }                                                                                                                \
+  void                                                                                                             \
+  fd_bank_##name##_end_query( fd_bank_t * bank ) {                                                                 \
+    RELEASE_READ_##has_lock( name );                                                                               \
+  }                                                                                                                \
+  void                                                                                                             \
+  fd_bank_##name##_end_modify( fd_bank_t * bank ) {                                                                \
+    RELEASE_WRITE_##has_lock( name );                                                                              \
   }
-FD_BANKS_COW_ITER(X)
-#undef X
 
-#define Y(type, name, has_lock_, override_, footprint_, align_) \
-  type const *                                                  \
-  fd_bank_##name##_query( fd_bank_t * bank ) {                  \
-    return (type *)&bank->name;                                 \
-  }                                                             \
-  type *                                                        \
-  fd_bank_##name##_modify( fd_bank_t * bank ) {                 \
-    return (type *)&bank->name;                                 \
+#define HAS_COW_0(type, name, footprint, align, has_lock)   \
+  type const *                                              \
+  fd_bank_##name##_query( fd_bank_t * bank ) {              \
+    ACQUIRE_READ_##has_lock( name );                        \
+    return (type const *)fd_type_pun_const( bank->name );   \
+  }                                                         \
+  type *                                                    \
+  fd_bank_##name##_modify( fd_bank_t * bank ) {             \
+    ACQUIRE_WRITE_##has_lock( name );                       \
+    return (type *)fd_type_pun( bank->name );               \
+  }                                                         \
+  void                                                      \
+  fd_bank_##name##_end_query( fd_bank_t * bank ) {          \
+    RELEASE_READ_##has_lock( name );                        \
+  }                                                         \
+  void                                                      \
+  fd_bank_##name##_end_modify( fd_bank_t * bank ) {         \
+    RELEASE_WRITE_##has_lock( name );                       \
   }
-FD_BANKS_FLAT_ITER(Y)
-#undef Y
+
+#define X(type, name, footprint, align, cow, has_lock) \
+  HAS_COW_##cow(type, name, footprint, align, has_lock)
+FD_BANKS_ITER(X)
+#undef X
+#undef HAS_COW_0
+#undef HAS_COW_1
+#undef HAS_LOCK_0
+#undef HAS_LOCK_1
+#undef ACQUIRE_READ_0
+#undef ACQUIRE_READ_1
+#undef ACQUIRE_WRITE_0
+#undef ACQUIRE_WRITE_1
+#undef RELEASE_READ_0
+#undef RELEASE_READ_1
+#undef RELEASE_WRITE_0
+#undef RELEASE_WRITE_1
 
 /**********************************************************************/
 
@@ -83,10 +125,20 @@ fd_banks_footprint( ulong max_banks ) {
   l = FD_LAYOUT_APPEND( l, fd_banks_align(),      sizeof(fd_banks_t) );
   l = FD_LAYOUT_APPEND( l, fd_banks_pool_align(), fd_banks_pool_footprint( max_banks ) );
   l = FD_LAYOUT_APPEND( l, fd_banks_map_align(),  fd_banks_map_footprint( max_banks ) );
-  #define X(type, name, footprint, align) \
+
+  /* Need to count the footprint for all of the CoW pools. */
+  #define HAS_COW_1(name) \
     l = FD_LAYOUT_APPEND( l, fd_bank_##name##_pool_align(), fd_bank_##name##_pool_footprint( max_banks ) );
-  FD_BANKS_COW_ITER(X)
+
+  /* Do nothing for these. */
+  #define HAS_COW_0(name)
+
+  #define X(type, name, footprint, align, cow, has_lock) \
+    HAS_COW_##cow(name)
+  FD_BANKS_ITER(X)
   #undef X
+  #undef HAS_COW_0
+  #undef HAS_COW_1
 
   return FD_LAYOUT_FINI( l, fd_banks_align() );
 }
@@ -115,11 +167,19 @@ fd_banks_new( void * shmem, ulong max_banks ) {
   void * map_mem  = FD_SCRATCH_ALLOC_APPEND( l, fd_banks_map_align(),  fd_banks_map_footprint( max_banks ) );
 
   /* Need to layout all of the CoW pools. */
-  #define X(type, name, footprint, align)                                                                                               \
+  #define HAS_COW_1(name) \
     void * name##_pool_mem = FD_SCRATCH_ALLOC_APPEND( l, fd_bank_##name##_pool_align(), fd_bank_##name##_pool_footprint( max_banks ) ); \
     memset( name##_pool_mem, 0, fd_bank_##name##_pool_footprint( max_banks ) );
-  FD_BANKS_COW_ITER(X)
+
+  /* Do nothing for these. */
+  #define HAS_COW_0(name)
+
+  #define X(type, name, footprint, align, cow, has_lock) \
+    HAS_COW_##cow(name)
+  FD_BANKS_ITER(X)
   #undef X
+  #undef HAS_COW_0
+  #undef HAS_COW_1
 
   if( FD_UNLIKELY( FD_SCRATCH_ALLOC_FINI( l, fd_banks_align() ) != (ulong)banks + fd_banks_footprint( max_banks ) ) ) {
     FD_LOG_WARNING(( "fd_banks_new: bad layout" ));
@@ -150,8 +210,8 @@ fd_banks_new( void * shmem, ulong max_banks ) {
     return NULL;
   }
 
-  /* Now, new join all of the CoW pools. */
-  #define X(type, name, footprint, align)                                         \
+  /* Now, call _new() and _join() for all of the CoW pools. */
+  #define HAS_COW_1(name)                                                         \
     banks->name##_pool = fd_bank_##name##_pool_new( name##_pool_mem, max_banks ); \
     if( FD_UNLIKELY( !banks->name##_pool ) ) {                                    \
       FD_LOG_WARNING(( "Failed to create " #name " pool" ));                      \
@@ -162,8 +222,16 @@ fd_banks_new( void * shmem, ulong max_banks ) {
       FD_LOG_WARNING(( "Failed to join " #name " pool" ));                        \
       return NULL;                                                                \
     }
-  FD_BANKS_COW_ITER(X)
+
+  /* Do nothing for these. */
+  #define HAS_COW_0(name)
+
+  #define X(type, name, footprint, align, cow, has_lock) \
+    HAS_COW_##cow(name)
+  FD_BANKS_ITER(X)
   #undef X
+  #undef HAS_COW_0
+  #undef HAS_COW_1
 
   banks->max_banks = max_banks;
   banks->magic     = FD_BANKS_MAGIC;
@@ -194,10 +262,21 @@ fd_banks_join( void * mem ) {
   banks           = FD_SCRATCH_ALLOC_APPEND( l, fd_banks_align(),      sizeof(fd_banks_t) );
   void * pool_mem = FD_SCRATCH_ALLOC_APPEND( l, fd_banks_pool_align(), fd_banks_pool_footprint( banks->max_banks ) );
   void * map_mem  = FD_SCRATCH_ALLOC_APPEND( l, fd_banks_map_align(),  fd_banks_map_footprint( banks->max_banks ) );
-  #define X(type, name, footprint, align) \
+
+  /* Need to layout all of the CoW pools. */
+  #define HAS_COW_1(name) \
     void * name##_pool_mem = FD_SCRATCH_ALLOC_APPEND( l, fd_bank_##name##_pool_align(), fd_bank_##name##_pool_footprint( banks->max_banks ) );
-  FD_BANKS_COW_ITER(X)
+
+  /* Do nothing for these. */
+  #define HAS_COW_0(name)
+
+  #define X(type, name, footprint, align, cow, has_lock) \
+    HAS_COW_##cow(name)
+  FD_BANKS_ITER(X)
   #undef X
+  #undef HAS_COW_0
+  #undef HAS_COW_1
+
   FD_SCRATCH_ALLOC_FINI( l, fd_banks_align() );
 
   banks->pool = fd_banks_pool_join( pool_mem );
@@ -212,14 +291,24 @@ fd_banks_join( void * mem ) {
     return NULL;
   }
 
-  #define X(type, name, footprint, align) \
-    banks->name##_pool = fd_bank_##name##_pool_join( name##_pool_mem ); \
-    if( FD_UNLIKELY( !banks->name##_pool ) ) { \
-      FD_LOG_WARNING(( "Failed to join " #name " pool" )); \
-      return NULL; \
+  /* Now, call _join() for all of the CoW pools. */
+  #define HAS_COW_1(name)                                                         \
+    banks->name##_pool = fd_bank_##name##_pool_join( name##_pool_mem );           \
+    if( FD_UNLIKELY( !banks->name##_pool ) ) {                                    \
+      FD_LOG_WARNING(( "Failed to join " #name " pool" ));                        \
+      return NULL;                                                                \
     }
-  FD_BANKS_COW_ITER(X)
+
+  /* Do nothing for these. */
+  #define HAS_COW_0(name)
+
+  #define X(type, name, footprint, align, cow, has_lock) \
+    HAS_COW_##cow(name)
+  FD_BANKS_ITER(X)
   #undef X
+  #undef HAS_COW_0
+  #undef HAS_COW_1
+
 
   return banks;
 }
@@ -248,14 +337,30 @@ fd_banks_init_bank( fd_banks_t * banks, ulong slot ) {
   bank->sibling_idx = null_idx;
 
   /* Set all CoW fields to null. */
-  #define X(type, name, footprint, align)                                         \
+  #define HAS_COW_1(name)                                                         \
     bank->name##_pool     = banks->name##_pool;                                   \
     FD_TEST( bank->name##_pool );                                                 \
-    FD_LOG_WARNING(("__FUNC %s %p", __func__, (void*)bank->name##_pool)); \
     bank->name##_pool_idx = fd_bank_##name##_pool_idx_null( banks->name##_pool ); \
     bank->name##_dirty    = 0;
-  FD_BANKS_COW_ITER(X)
+
+  /* Do nothing for these. */
+  #define HAS_COW_0(name)
+
+  #define HAS_LOCK_1(name) \
+    fd_rwlock_unwrite(&bank->name##_lock);
+  #define HAS_LOCK_0(name)
+
+  #define X(type, name, footprint, align, cow, has_lock) \
+    HAS_COW_##cow(name);                                 \
+    HAS_LOCK_##has_lock(name)
+  FD_BANKS_ITER(X)
   #undef X
+  #undef HAS_COW_0
+  #undef HAS_COW_1
+  #undef HAS_LOCK_0
+  #undef HAS_LOCK_1
+
+  FD_LOG_WARNING(("bank->clock_timestamp_votes_lock.value: %d", bank->clock_timestamp_votes_lock.value));
 
   fd_banks_map_ele_insert( banks->map, bank, banks->pool );
 
@@ -345,7 +450,7 @@ fd_banks_clone_from_parent( fd_banks_t * banks,
 
   /* TODO: Turn this into one giant memcpy. */
   memcpy( new_bank->block_hash_queue, parent_bank->block_hash_queue, 50000UL );
-  new_bank->fee_rate_governor           = parent_bank->fee_rate_governor;
+  memcpy( new_bank->fee_rate_governor, parent_bank->fee_rate_governor, sizeof(fd_fee_rate_governor_t) );
   new_bank->capitalization              = parent_bank->capitalization;
   new_bank->lamports_per_signature      = parent_bank->lamports_per_signature;
   new_bank->prev_lamports_per_signature = parent_bank->prev_lamports_per_signature;
@@ -380,12 +485,30 @@ fd_banks_clone_from_parent( fd_banks_t * banks,
   new_bank->lthash                      = parent_bank->lthash;
 
   /* Setup all of the CoW fields. */
-  #define X(type, name, footprint, align)                     \
+  #define HAS_COW_1(name)                                     \
     new_bank->name##_pool_idx = parent_bank->name##_pool_idx; \
     new_bank->name##_dirty    = 0UL;                          \
     new_bank->name##_pool     = banks->name##_pool;
-  FD_BANKS_COW_ITER(X)
+
+  /* Do nothing for these. */
+  #define HAS_COW_0(name)
+
+  /* Setup locks for new bank as free. */
+  #define HAS_LOCK_1(name) \
+    fd_rwlock_unwrite(&new_bank->name##_lock);
+  #define HAS_LOCK_0(name)
+
+  #define X(type, name, footprint, align, cow, has_lock) \
+    HAS_COW_##cow(name);                                 \
+    HAS_LOCK_##has_lock(name)
+  FD_BANKS_ITER(X)
   #undef X
+  #undef HAS_COW_0
+  #undef HAS_COW_1
+  #undef HAS_LOCK_0
+  #undef HAS_LOCK_1
+
+  FD_LOG_WARNING(("bank->clock_timestamp_votes_lock.value: %d", new_bank->clock_timestamp_votes_lock.value));
 
   return new_bank;
 }
@@ -439,24 +562,39 @@ fd_banks_publish( fd_banks_t * banks, ulong slot ) {
     fd_bank_t * next = fd_banks_pool_ele( banks->pool, head->next );
 
     /* Decide if we need to free any CoW fields. */
-    #define X(type, name, footprint, align)                                             \
+    #define HAS_COW_1(name)                                                             \
       if( head->name##_dirty && head->name##_pool_idx!=new_root->name##_pool_idx ) {    \
         fd_bank_##name##_pool_idx_release( banks->name##_pool, head->name##_pool_idx ); \
       }
-    FD_BANKS_COW_ITER(X)
+    /* Do nothing for these. */
+    #define HAS_COW_0(name)
+
+    #define X(type, name, footprint, align, cow, has_lock) \
+      HAS_COW_##cow(name)
+    FD_BANKS_ITER(X)
     #undef X
+    #undef HAS_COW_0
+    #undef HAS_COW_1
+
 
     fd_banks_pool_ele_release( banks->pool, head );
     head = next;
   }
 
   /* Need to update the root to be the owner of any CoW fields. */
-  #define X(type, name, footprint, align) \
+  #define HAS_COW_1(name)                                                                   \
     if( new_root->name##_pool_idx!=fd_bank_##name##_pool_idx_null( banks->name##_pool ) ) { \
       new_root->name##_dirty = 1;                                                           \
     }
-  FD_BANKS_COW_ITER(X)
+  /* Do nothing for these. */
+  #define HAS_COW_0(name)
+
+  #define X(type, name, footprint, align, cow, has_lock) \
+    HAS_COW_##cow(name)
+  FD_BANKS_ITER(X)
   #undef X
+  #undef HAS_COW_0
+  #undef HAS_COW_1
 
   new_root->parent_idx = null_idx;
   banks->root_idx      = fd_banks_map_idx_query( banks->map, &slot, null_idx, banks->pool );

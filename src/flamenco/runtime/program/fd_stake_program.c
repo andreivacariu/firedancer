@@ -3281,7 +3281,6 @@ static void
 fd_stakes_remove_stake_delegation( fd_txn_account_t *   stake_account,
                                    fd_bank_t *          bank ) {
 
-  fd_rwlock_write( &bank->stake_account_keys_lock );
   fd_account_keys_global_t *         stake_account_keys = fd_bank_stake_account_keys_modify( bank );
   fd_account_keys_pair_t_mapnode_t * account_keys_pool  = fd_account_keys_account_keys_pool_join( stake_account_keys );
   fd_account_keys_pair_t_mapnode_t * account_keys_root  = fd_account_keys_account_keys_root_join( stake_account_keys );
@@ -3302,7 +3301,7 @@ fd_stakes_remove_stake_delegation( fd_txn_account_t *   stake_account,
   fd_account_keys_account_keys_pool_update( stake_account_keys, account_keys_pool );
   fd_account_keys_account_keys_root_update( stake_account_keys, account_keys_root );
 
-  fd_rwlock_unwrite( &bank->stake_account_keys_lock );
+  fd_bank_stake_account_keys_end_modify( bank );
 }
 
 /* Updates stake delegation in epoch stakes */
@@ -3325,8 +3324,6 @@ fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
     return;
   }
 
-
-  fd_rwlock_write( &bank->stake_account_keys_lock );
   fd_account_keys_global_t * stake_account_keys = fd_bank_stake_account_keys_modify( bank );
 
   fd_account_keys_pair_t_mapnode_t * account_keys_pool = NULL;
@@ -3366,7 +3363,8 @@ fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
 
   fd_account_keys_account_keys_pool_update( stake_account_keys, account_keys_pool );
   fd_account_keys_account_keys_root_update( stake_account_keys, account_keys_root );
-  fd_rwlock_unwrite( &bank->stake_account_keys_lock );
+
+  fd_bank_stake_account_keys_end_modify( bank );
 }
 
 void

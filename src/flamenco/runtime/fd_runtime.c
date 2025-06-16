@@ -97,7 +97,6 @@ fd_runtime_register_new_fresh_account( fd_pubkey_t const  * pubkey,
                                        fd_bank_mgr_t *      bank_mgr,
                                        fd_bank_t *          bank ) {
 
-  fd_rwlock_write( &bank->rent_fresh_accounts_lock );
   fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( bank );
 
   fd_rent_fresh_account_t *         fresh_accounts      = fd_rent_fresh_accounts_fresh_accounts_join( rent_fresh_accounts );
@@ -126,7 +125,7 @@ fd_runtime_register_new_fresh_account( fd_pubkey_t const  * pubkey,
 
   rent_fresh_accounts->total_count++;
 
-  fd_rwlock_unwrite( &bank->rent_fresh_accounts_lock );
+  fd_bank_rent_fresh_accounts_end_modify( bank );
 }
 
 void
@@ -147,6 +146,8 @@ fd_runtime_repartition_fresh_account_partitions( fd_exec_slot_ctx_t * slot_ctx )
                                                                 *slots_per_epoch_ptr );
     }
   }
+
+  fd_bank_rent_fresh_accounts_end_modify( slot_ctx->bank );
 }
 
 void
@@ -992,7 +993,7 @@ static void
 fd_runtime_new_fee_rate_governor_derived( fd_exec_slot_ctx_t *   slot_ctx,
                                           ulong                  latest_singatures_per_slot ) {
 
-  fd_fee_rate_governor_t * base_fee_rate_governor = &slot_ctx->bank->fee_rate_governor;
+  fd_fee_rate_governor_t const * base_fee_rate_governor = fd_bank_fee_rate_governor_query( slot_ctx->bank );
 
   fd_fee_rate_governor_t me = {
     .target_signatures_per_slot    = base_fee_rate_governor->target_signatures_per_slot,
@@ -1042,7 +1043,9 @@ fd_runtime_new_fee_rate_governor_derived( fd_exec_slot_ctx_t *   slot_ctx,
     slot_ctx->bank->prev_lamports_per_signature = slot_ctx->bank->lamports_per_signature;
   }
 
-  slot_ctx->bank->fee_rate_governor = me;
+  fd_fee_rate_governor_t * fee_rate_governor = fd_bank_fee_rate_governor_modify( slot_ctx->bank );
+  *fee_rate_governor = me;
+  fd_bank_fee_rate_governor_end_modify( slot_ctx->bank );
 
   slot_ctx->bank->lamports_per_signature = new_lamports_per_signature;
 }
@@ -3482,7 +3485,9 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
   block_hash_queue->ages_root_offset = (ulong)ages_root - (ulong)block_hash_queue;
   block_hash_queue->max_age          = FD_BLOCKHASH_QUEUE_MAX_ENTRIES;
 
-  slot_ctx->bank->fee_rate_governor = genesis_block->fee_rate_governor;
+  fd_fee_rate_governor_t * fee_rate_governor = fd_bank_fee_rate_governor_modify( slot_ctx->bank );
+  *fee_rate_governor = genesis_block->fee_rate_governor;
+  fd_bank_fee_rate_governor_end_modify( slot_ctx->bank );
 
   slot_ctx->bank->lamports_per_signature = 0UL;
 

@@ -2172,8 +2172,6 @@ fd_vote_record_timestamp_vote_with_slot( fd_pubkey_t const *  vote_acc,
                                          ulong                slot,
                                          fd_bank_t *          bank ) {
 
-  fd_rwlock_write( &bank->clock_timestamp_votes_lock );
-
   fd_clock_timestamp_votes_global_t * clock_timestamp_votes = fd_bank_clock_timestamp_votes_modify( bank );
 
   fd_clock_timestamp_vote_t_mapnode_t * pool = fd_clock_timestamp_votes_votes_pool_join( clock_timestamp_votes );
@@ -2203,7 +2201,7 @@ fd_vote_record_timestamp_vote_with_slot( fd_pubkey_t const *  vote_acc,
   fd_clock_timestamp_votes_votes_pool_update( clock_timestamp_votes, pool );
   fd_clock_timestamp_votes_votes_root_update( clock_timestamp_votes, root );
 
-  fd_rwlock_unwrite( &bank->clock_timestamp_votes_lock );
+  fd_bank_clock_timestamp_votes_end_modify( bank );
 }
 
 // https://github.com/anza-xyz/agave/blob/v2.0.1/sdk/program/src/vote/state/mod.rs#L751
@@ -3038,11 +3036,10 @@ fd_vote_store_account( fd_txn_account_t *   vote_account,
       return;
   }
 
-  fd_rwlock_write( &bank->vote_account_keys_lock );
   if( vote_account->vt->get_lamports( vote_account ) == 0 ) {
     remove_vote_account( vote_account, bank_mgr, bank );
   } else {
     upsert_vote_account( vote_account, bank_mgr, bank );
   }
-  fd_rwlock_unwrite( &bank->vote_account_keys_lock );
+  fd_bank_vote_account_keys_end_modify( bank );
 }

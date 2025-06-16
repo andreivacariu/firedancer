@@ -90,11 +90,13 @@ fd_runtime_fuzz_txn_ctx_create( fd_runtime_fuzz_runner_t *         runner,
 
   slot_ctx->bank->prev_lamports_per_signature = 5000UL;
 
-  slot_ctx->bank->fee_rate_governor.burn_percent                  = 50;
-  slot_ctx->bank->fee_rate_governor.min_lamports_per_signature    = 0;
-  slot_ctx->bank->fee_rate_governor.max_lamports_per_signature    = 0;
-  slot_ctx->bank->fee_rate_governor.target_lamports_per_signature = 10000;
-  slot_ctx->bank->fee_rate_governor.target_signatures_per_slot    = 20000;
+  fd_fee_rate_governor_t * fee_rate_governor = fd_bank_fee_rate_governor_modify( slot_ctx->bank );
+  fee_rate_governor->burn_percent                  = 50;
+  fee_rate_governor->min_lamports_per_signature    = 0;
+  fee_rate_governor->max_lamports_per_signature    = 0;
+  fee_rate_governor->target_lamports_per_signature = 10000;
+  fee_rate_governor->target_signatures_per_slot    = 20000;
+  fd_bank_fee_rate_governor_end_modify( slot_ctx->bank );
 
   slot_ctx->bank->ticks_per_slot = 64;
 
