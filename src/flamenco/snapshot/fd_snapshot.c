@@ -69,7 +69,7 @@ restore_status_cache( void *                  ctx,
 static int
 restore_rent_fresh_account( fd_exec_slot_ctx_t * slot_ctx,
                             fd_pubkey_t const  * pubkey ) {
-  fd_runtime_register_new_fresh_account( pubkey, slot_ctx->bank_mgr );
+  fd_runtime_register_new_fresh_account( pubkey, slot_ctx->bank_mgr, slot_ctx->banks, slot_ctx->bank );
   return 0;
 }
 

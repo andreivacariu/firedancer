@@ -1236,9 +1236,8 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
 
   /* if it is an epoch boundary, push out stake weights */
 
-  ulong * prev_slot = fd_bank_mgr_prev_slot_query( fork->slot_ctx->bank_mgr );
   if( fork->slot_ctx->slot != 0 ) {
-    is_new_epoch_in_new_block = (int)fd_runtime_is_epoch_boundary( fork->slot_ctx, fork->slot_ctx->slot, *prev_slot );
+    is_new_epoch_in_new_block = (int)fd_runtime_is_epoch_boundary( fork->slot_ctx, fork->slot_ctx->slot, fork->slot_ctx->bank->prev_slot );
   }
 
   /* Update starting PoH hash for the new slot for tick verification later */
@@ -1250,9 +1249,7 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
   // curr_block_info->in_poh_hash = fork->slot_ctx->slot_bank.poh;
   fd_block_map_publish( query );
 
-  prev_slot = fd_bank_mgr_prev_slot_modify( fork->slot_ctx->bank_mgr );
-  *prev_slot = fork->slot_ctx->slot;
-  fd_bank_mgr_prev_slot_save( fork->slot_ctx->bank_mgr );
+  fork->slot_ctx->bank->prev_slot = fork->slot_ctx->slot;
 
   fork->slot_ctx->slot = curr_slot;
 
@@ -1789,9 +1786,7 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx,
                                ctx->slot_ctx->slot,
                                ctx->runtime_spad );
 
-    ulong * prev_slot = fd_bank_mgr_prev_slot_modify( ctx->slot_ctx->bank_mgr );
-    *prev_slot = 0UL;
-    fd_bank_mgr_prev_slot_save( ctx->slot_ctx->bank_mgr );
+    ctx->slot_ctx->bank->prev_slot = 0UL;
     ctx->slot_ctx->slot      = 1UL;
 
     ulong hashcnt_per_slot = ctx->slot_ctx->bank->hashes_per_tick * ctx->slot_ctx->bank->ticks_per_slot;
@@ -1835,7 +1830,7 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx,
   }
 
   ctx->curr_slot     = snapshot_slot;
-  ctx->parent_slot   = *fd_bank_mgr_prev_slot_query( ctx->slot_ctx->bank_mgr );
+  ctx->parent_slot   = ctx->slot_ctx->bank->prev_slot;
   ctx->snapshot_slot = snapshot_slot;
   ctx->flags         = EXEC_FLAG_READY_NEW;
 

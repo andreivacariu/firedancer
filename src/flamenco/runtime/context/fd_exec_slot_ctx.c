@@ -312,9 +312,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* Prev Slot */
 
-  ulong * prev_slot = fd_bank_mgr_prev_slot_modify( slot_ctx->bank_mgr );
-  *prev_slot = oldbank->parent_slot;
-  fd_bank_mgr_prev_slot_save( slot_ctx->bank_mgr );
+  slot_ctx->bank->prev_slot = oldbank->parent_slot;
 
   /* Execution Fees */
 
@@ -560,7 +558,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
   fd_bank_mgr_lthash_save( slot_ctx->bank_mgr );
 
 
-  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_mgr_rent_fresh_accounts_modify( slot_ctx->bank_mgr );
+  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_query( slot_ctx->banks, slot_ctx->bank );
 
   /* Setup rent fresh accounts */
   rent_fresh_accounts->total_count        = 0UL;
@@ -569,8 +567,6 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
   fd_rent_fresh_account_t * fresh_accounts = (fd_rent_fresh_account_t *)fd_ulong_align_up( (ulong)rent_fresh_accounts + sizeof(fd_rent_fresh_accounts_global_t), FD_RENT_FRESH_ACCOUNT_ALIGN );
   memset( fresh_accounts, 0, rent_fresh_accounts->fresh_accounts_len * sizeof(fd_rent_fresh_account_t) );
   fd_rent_fresh_accounts_fresh_accounts_update( rent_fresh_accounts, fresh_accounts );
-
-  fd_bank_mgr_rent_fresh_accounts_save( slot_ctx->bank_mgr );
 
   /* Setup next epoch stakes */
 

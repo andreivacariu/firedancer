@@ -352,6 +352,14 @@ fd_banks_clone_from_parent( fd_banks_t * banks,
   new_bank->poh                         = parent_bank->poh;
   new_bank->last_restart_slot           = parent_bank->last_restart_slot;
 
+  new_bank->prev_slot                   = parent_bank->prev_slot;
+  new_bank->bank_hash                   = parent_bank->bank_hash;
+  new_bank->prev_bank_hash              = parent_bank->prev_bank_hash;
+  new_bank->genesis_hash                = parent_bank->genesis_hash;
+  new_bank->epoch_schedule              = parent_bank->epoch_schedule;
+  new_bank->rent                        = parent_bank->rent;
+  new_bank->lthash                      = parent_bank->lthash;
+
   /* Setup all of the CoW fields. */
   #define X(type, name, footprint, align)                     \
     new_bank->name##_pool_idx = parent_bank->name##_pool_idx; \

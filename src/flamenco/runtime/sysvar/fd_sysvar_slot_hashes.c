@@ -117,14 +117,11 @@ FD_SPAD_FRAME_BEGIN( runtime_spad ) {
     }
   }
 
-  ulong * prev_slot_bm = fd_bank_mgr_prev_slot_query( slot_ctx->bank_mgr );
-  ulong   prev_slot = !!prev_slot_bm ? *prev_slot_bm : 0UL;
-
   if( !found ) {
     // https://github.com/firedancer-io/solana/blob/08a1ef5d785fe58af442b791df6c4e83fe2e7c74/runtime/src/bank.rs#L2371
     fd_slot_hash_t slot_hash = {
       .hash = *fd_bank_mgr_bank_hash_query( slot_ctx->bank_mgr ), // parent hash?
-      .slot = prev_slot,   // parent_slot
+      .slot = slot_ctx->bank->prev_slot,   // parent_slot
     };
     FD_LOG_DEBUG(( "fd_sysvar_slot_hash_update:  slot %lu,  hash %s", slot_hash.slot, FD_BASE58_ENC_32_ALLOCA( slot_hash.hash.key ) ));
 

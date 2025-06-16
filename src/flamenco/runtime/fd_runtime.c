@@ -94,9 +94,13 @@ fd_runtime_compute_max_tick_height( ulong   ticks_per_slot,
 
 void
 fd_runtime_register_new_fresh_account( fd_pubkey_t const  * pubkey,
-                                       fd_bank_mgr_t *      bank_mgr ) {
+                                       fd_bank_mgr_t *      bank_mgr,
+                                       fd_banks_t *         banks,
+                                       fd_bank_t *          bank ) {
 
-  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_mgr_rent_fresh_accounts_modify( bank_mgr );
+  fd_rwlock_write( &bank->rent_fresh_accounts_lock );
+  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( banks, bank );
+
   fd_rent_fresh_account_t *         fresh_accounts      = fd_rent_fresh_accounts_fresh_accounts_join( rent_fresh_accounts );
 
   /* Insert the new account into the partition */
@@ -123,7 +127,7 @@ fd_runtime_register_new_fresh_account( fd_pubkey_t const  * pubkey,
 
   rent_fresh_accounts->total_count++;
 
-  fd_bank_mgr_rent_fresh_accounts_save( bank_mgr );
+  fd_rwlock_unwrite( &bank->rent_fresh_accounts_lock );
 }
 
 void
@@ -133,7 +137,7 @@ fd_runtime_repartition_fresh_account_partitions( fd_exec_slot_ctx_t * slot_ctx )
   ulong * part_width_ptr = fd_bank_mgr_part_width_query( slot_ctx->bank_mgr );
   ulong * slots_per_epoch_ptr = fd_bank_mgr_slots_per_epoch_query( slot_ctx->bank_mgr );
 
-  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_mgr_rent_fresh_accounts_modify( slot_ctx->bank_mgr );
+  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( slot_ctx->banks, slot_ctx->bank );
   fd_rent_fresh_account_t *         fresh_accounts      = fd_rent_fresh_accounts_fresh_accounts_join( rent_fresh_accounts );
 
   for( ulong i = 0UL; i < rent_fresh_accounts->fresh_accounts_len; i++ ) {
@@ -144,8 +148,6 @@ fd_runtime_repartition_fresh_account_partitions( fd_exec_slot_ctx_t * slot_ctx )
                                                                 *slots_per_epoch_ptr );
     }
   }
-
-  fd_bank_mgr_rent_fresh_accounts_save( slot_ctx->bank_mgr );
 }
 
 void
@@ -432,18 +434,15 @@ fd_runtime_update_rent_epoch( fd_exec_slot_ctx_t * slot_ctx ) {
     return;
   }
 
-  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_mgr_rent_fresh_accounts_modify( slot_ctx->bank_mgr );
+  fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( slot_ctx->banks, slot_ctx->bank );
   fd_rent_fresh_account_t *         fresh_accounts      = fd_rent_fresh_accounts_fresh_accounts_join( rent_fresh_accounts );
 
   /* Common case: do nothing if we have no rent fresh accounts */
   if( FD_LIKELY( rent_fresh_accounts->total_count == 0UL ) ) {
-    fd_bank_mgr_rent_fresh_accounts_save( slot_ctx->bank_mgr );
     return;
   }
 
-  ulong * prev_slot = fd_bank_mgr_prev_slot_query( slot_ctx->bank_mgr );
-  ulong slot0 = ( *prev_slot == 0 ) ? 0 :
-    *prev_slot + 1;   /* Accomodate skipped slots */
+  ulong slot0 = ( slot_ctx->bank->prev_slot == 0 ) ? 0 : slot_ctx->bank->prev_slot + 1;   /* Accomodate skipped slots */
   ulong slot1 = slot_ctx->slot;
 
   for( ulong s = slot0; s <= slot1; ++s ) {
@@ -464,7 +463,6 @@ fd_runtime_update_rent_epoch( fd_exec_slot_ctx_t * slot_ctx ) {
       }
     }
   }
-  fd_bank_mgr_rent_fresh_accounts_save( slot_ctx->bank_mgr );
 }
 
 static void
@@ -2023,7 +2021,7 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
       int fresh_account = acc_rec->vt->is_mutable( acc_rec ) &&
          acc_rec->vt->get_lamports( acc_rec ) && acc_rec->vt->get_rent_epoch( acc_rec ) != FD_RENT_EXEMPT_RENT_EPOCH;
       if( FD_UNLIKELY( fresh_account ) ) {
-        fd_runtime_register_new_fresh_account( txn_ctx->accounts[0].pubkey, bank_mgr );
+        fd_runtime_register_new_fresh_account( txn_ctx->accounts[0].pubkey, bank_mgr, banks, bank );
       }
     }
   }
@@ -3760,7 +3758,7 @@ fd_runtime_process_genesis_block( fd_exec_slot_ctx_t * slot_ctx,
       }
 
       fd_funk_rec_key_t const * pubkey = rec->pair.key;
-      fd_runtime_register_new_fresh_account( (fd_pubkey_t * const ) fd_type_pun_const(&pubkey->uc[0]), slot_ctx->bank_mgr );
+      fd_runtime_register_new_fresh_account( (fd_pubkey_t * const ) fd_type_pun_const(&pubkey->uc[0]), slot_ctx->bank_mgr, slot_ctx->banks, slot_ctx->bank );
     }
   }
 
@@ -4260,12 +4258,10 @@ fd_runtime_block_pre_execute_process_new_epoch( fd_exec_slot_ctx_t * slot_ctx,
   /* Update block height. */
   slot_ctx->bank->block_height += 1UL;
 
-  ulong * prev_slot = fd_bank_mgr_prev_slot_query( slot_ctx->bank_mgr );
-
   if( slot_ctx->slot != 0UL ) {
     ulong             slot_idx;
     fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
-    ulong             prev_epoch = fd_slot_to_epoch( epoch_schedule, *prev_slot, &slot_idx );
+    ulong             prev_epoch = fd_slot_to_epoch( epoch_schedule, slot_ctx->bank->prev_slot, &slot_idx );
     ulong             new_epoch  = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, &slot_idx );
     if( FD_UNLIKELY( slot_idx==1UL && new_epoch==0UL ) ) {
       /* The block after genesis has a height of 1. */
@@ -4411,9 +4407,7 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
 
   slot_ctx->bank->transaction_count += block_info.txn_cnt;
 
-  ulong * prev_slot = fd_bank_mgr_prev_slot_modify( slot_ctx->bank_mgr );
-  *prev_slot = slot;
-  fd_bank_mgr_prev_slot_save( slot_ctx->bank_mgr );
+  slot_ctx->bank->prev_slot = slot;
   // FIXME: this shouldn't be doing this, it doesn't work with forking. punting changing it though
   // slot_ctx->slot = slot+1UL;
 

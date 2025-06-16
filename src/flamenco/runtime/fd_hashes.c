@@ -203,7 +203,7 @@ fd_should_include_epoch_accounts_hash( fd_exec_slot_ctx_t * slot_ctx ) {
   }
 
   ulong calculation_stop = slot_ctx->bank->eah_stop_slot;
-  ulong prev_slot = *fd_bank_mgr_prev_slot_query( slot_ctx->bank_mgr );
+  ulong prev_slot = slot_ctx->bank->prev_slot;
   return prev_slot < calculation_stop && (slot_ctx->slot >= calculation_stop);
 }
 

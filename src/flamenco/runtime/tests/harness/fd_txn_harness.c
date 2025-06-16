@@ -84,9 +84,7 @@ fd_runtime_fuzz_txn_ctx_create( fd_runtime_fuzz_runner_t *         runner,
 
   /* Setup Bank manager */
 
-  ulong * prev_slot = fd_bank_mgr_prev_slot_modify( slot_ctx->bank_mgr );
-  *prev_slot = slot_ctx->slot - 1; // Can underflow, but its fine since it will correctly be ULONG_MAX
-  fd_bank_mgr_prev_slot_save( slot_ctx->bank_mgr );
+  slot_ctx->bank->prev_slot = slot_ctx->slot - 1;
 
   slot_ctx->bank->lamports_per_signature = 5000UL;
 
