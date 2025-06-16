@@ -2969,6 +2969,7 @@ remove_vote_account( fd_txn_account_t *   vote_account,
   fd_account_keys_pair_t_mapnode_t * vote_account_keys_root = fd_account_keys_account_keys_root_join( vote_account_keys );
 
   if( FD_UNLIKELY( vote_account_keys_pool==NULL ) ) {
+    fd_bank_vote_account_keys_end_modify( bank );
     FD_LOG_DEBUG(("Vote accounts pool does not exist"));
     return;
   }
@@ -2981,6 +2982,8 @@ remove_vote_account( fd_txn_account_t *   vote_account,
   }
 
   fd_account_keys_account_keys_pool_update( vote_account_keys, vote_account_keys_pool );
+
+  fd_bank_vote_account_keys_end_modify( bank );
 }
 
 static void
@@ -2997,6 +3000,7 @@ upsert_vote_account( fd_txn_account_t *   vote_account,
   fd_account_keys_pair_t_mapnode_t * vote_account_keys_root = fd_account_keys_account_keys_root_join( vote_account_keys );
 
   if( FD_UNLIKELY( vote_account_keys_pool==NULL ) ) {
+    fd_bank_vote_account_keys_end_modify( bank );
     FD_LOG_DEBUG(( "Vote accounts pool does not exist" ));
     return;
   }
@@ -3021,7 +3025,9 @@ upsert_vote_account( fd_txn_account_t *   vote_account,
 
     fd_memcpy( &new_node->elem.key, vote_account->pubkey, sizeof(fd_pubkey_t));
     fd_account_keys_pair_t_map_insert( vote_account_keys_pool, &vote_account_keys_root, new_node );
+    fd_bank_vote_account_keys_end_modify( bank );
   } else {
+    fd_bank_vote_account_keys_end_modify( bank );
     remove_vote_account( vote_account, bank_mgr, bank );
   }
 }
@@ -3041,5 +3047,4 @@ fd_vote_store_account( fd_txn_account_t *   vote_account,
   } else {
     upsert_vote_account( vote_account, bank_mgr, bank );
   }
-  fd_bank_vote_account_keys_end_modify( bank );
 }

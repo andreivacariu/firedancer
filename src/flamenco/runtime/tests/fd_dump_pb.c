@@ -441,6 +441,7 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
   //                                                                 epoch_ctx->epoch_bank.stakes.vote_accounts.vote_accounts_root );
   ulong stake_account_cnt = 0;
   ulong vote_account_t_cnt = 0;
+  fd_bank_stake_account_keys_end_query( slot_ctx->bank );
 
 
   fd_vote_accounts_global_t * next_epoch_stakes = fd_bank_mgr_next_epoch_stakes_query( bank_mgr );

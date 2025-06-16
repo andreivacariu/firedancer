@@ -3343,6 +3343,7 @@ fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
     fd_memcpy( key.elem.key.uc, stake_account->pubkey->uc, sizeof(fd_pubkey_t) );
     if( account_keys_pool==NULL) {
       FD_LOG_DEBUG(("Stake accounts pool does not exist"));
+      fd_bank_stake_account_keys_end_modify( bank );
       return;
     }
     fd_account_keys_pair_t_mapnode_t * stake_entry = fd_account_keys_pair_t_map_find( account_keys_pool, account_keys_root, &key );
