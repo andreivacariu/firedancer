@@ -343,6 +343,8 @@ fd_populate_vote_accounts( fd_exec_slot_ctx_t *       slot_ctx,
     }
   }
 
+  fd_bank_vote_account_keys_end_modify( slot_ctx->bank );
+
   fd_compute_stake_delegations_t task_args  = {
     .epoch                     = stakes->epoch,
     .stake_history             = history,
@@ -481,6 +483,8 @@ fd_refresh_vote_accounts( fd_exec_slot_ctx_t *       slot_ctx,
       fd_stake_weight_t_map_insert( pool, &root, entry );
     }
   }
+
+  fd_bank_vote_account_keys_end_modify( slot_ctx->bank );
 
   fd_compute_stake_delegations_t task_args  = {
     .epoch                     = stakes->epoch,

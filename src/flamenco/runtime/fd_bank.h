@@ -21,12 +21,38 @@ FD_PROTOTYPES_BEGIN
    state of some parent bank, but it can also be responsible for
    publishing the state to prune off rooted slots.
 
+   The usage pattern is as follows:
+
+   To create an initial bank:
+   fd_bank_t * bank_init = fd_bank_init_bank( banks, slot );
+
+   To clone bank from parent banks:
+   fd_bank_t * bank_clone = fd_banks_clone_from_parent( banks, slot, parent_slot );
+
+   To publish a bank (aka update the root bank):
+   fd_bank_t * bank_publish = fd_banks_publish( banks, slot );
+
+   To query some arbitrary bank:
+   fd_bank_t * bank_query = fd_banks_get_bank( banks, slot );
+
+   To query a field in the bank:
+   fd_struct_t * field = fd_bank_field_query( bank );
+   ... do the read ...
+   fd_bank_field_end_query( bank );
+
+   To modify a field in the bank:
+   fd_struct_t * field = fd_bank_field_modify( bank );
+   ... do the read/write ...
+   fd_bank_field_end_modify( bank );
+
    fd_banks_t also supports CoW semantics for more complex data
    structures which are not written to frequently. However, this is
    abstracted away from the caller who should only access/modify the
-   fields using getters and setters: fd_bank_{*}_{query,modfiy}(). */
+   fields using getters and setters: fd_bank_{*}_{query,modfiy}().
 
-/**********************************************************************/
+   As a note, the end_query() and end_modify() calls are not required
+   if a field doesn't use RW-locks. */
+
 
 /* Define additional fields to the bank struct here. */
 
@@ -90,8 +116,6 @@ FD_PROTOTYPES_BEGIN
 #undef POOL_NAME
 #undef POOL_T
 
-/**********************************************************************/
-
 #define FD_BANK_BLOCK_HASH_QUEUE_SIZE (50000UL)
 
 struct fd_bank {
@@ -103,9 +127,10 @@ struct fd_bank {
   ulong             sibling_idx; /* index of the right-sibling in the node pool */
 
   /* First, layout all non-CoW fields contiguously. This is done to
-     allow for cloning the bank state with a simple memcpy. */
+     allow for cloning the bank state with a simple memcpy. Each
+     non-CoW field is just represented as a byte array. */
 
-  #define HAS_COW_1(type, name, footprint, align) /* Do nothing for these. */
+  #define HAS_COW_1(type, name, footprint, align)
 
   #define HAS_COW_0(type, name, footprint, align) \
     uchar name[footprint] __attribute__((aligned(align)));
@@ -118,14 +143,16 @@ struct fd_bank {
   #undef HAS_COW_1
 
   /* Now, layout all information needed for CoW fields. These are only
-     copied when explicitly requested by the caller. */
+     copied when explicitly requested by the caller. The field's data
+     is located at teh pool idx in the pool. If the dirty flag has been
+     set, then the element has been copied over for this bank. */
 
   #define HAS_COW_1(type, name, footprint, align) \
     int                  name##_dirty;            \
     ulong                name##_pool_idx;         \
     fd_bank_##name##_t * name##_pool;
 
-  #define HAS_COW_0(type, name, footprint, align) /* Do nothing for these. */
+  #define HAS_COW_0(type, name, footprint, align)
 
   #define X(type, name, footprint, align, cow, has_lock) \
     HAS_COW_##cow(type, name, footprint, align)

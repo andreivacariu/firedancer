@@ -3015,6 +3015,7 @@ upsert_vote_account( fd_txn_account_t *   vote_account,
     // Skip duplicates
     if( FD_LIKELY( fd_account_keys_pair_t_map_find( vote_account_keys_pool, vote_account_keys_root, &key ) ||
                    fd_vote_accounts_pair_global_t_map_find( stakes_vote_accounts_pool, stakes_vote_accounts_root, &vote_acc )  ) ) {
+      fd_bank_vote_account_keys_end_modify( bank );
       return;
     }
 
