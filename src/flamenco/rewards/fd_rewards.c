@@ -98,7 +98,7 @@ slot_in_year_for_inflation( fd_exec_slot_ctx_t * slot_ctx ) {
   fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
 
   ulong num_slots = get_inflation_num_slots( slot_ctx, epoch_schedule, slot_ctx->slot );
-  return (double)num_slots / (double)slot_ctx->bank->slots_per_year;
+  return (double)num_slots / (double)fd_bank_slots_per_year_get( slot_ctx->bank );
 }
 
 /* For a given stake and vote_state, calculate how many points were earned (credits * stake) and new value
@@ -282,7 +282,7 @@ epoch_duration_in_years( fd_exec_slot_ctx_t *    slot_ctx,
 
   fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
   ulong slots_in_epoch = get_slots_in_epoch( prev_epoch, epoch_schedule );
-  return (double)slots_in_epoch / (double)slot_ctx->bank->slots_per_year;
+  return (double)slots_in_epoch / (double)fd_bank_slots_per_year_get( slot_ctx->bank );
 }
 
 /* https://github.com/anza-xyz/agave/blob/7117ed9653ce19e8b2dea108eff1f3eb6a3378a7/runtime/src/bank.rs#L2128 */
@@ -293,8 +293,8 @@ calculate_previous_epoch_inflation_rewards( fd_exec_slot_ctx_t *                
                                             fd_prev_epoch_inflation_rewards_t * rewards ) {
     double slot_in_year = slot_in_year_for_inflation( slot_ctx );
 
-    rewards->validator_rate               = validator( &slot_ctx->bank->inflation, slot_in_year );
-    rewards->foundation_rate              = foundation( &slot_ctx->bank->inflation, slot_in_year );
+    rewards->validator_rate               = validator( fd_bank_inflation_query( slot_ctx->bank ), slot_in_year );
+    rewards->foundation_rate              = foundation( fd_bank_inflation_query( slot_ctx->bank ), slot_in_year );
     rewards->prev_epoch_duration_in_years = epoch_duration_in_years( slot_ctx, prev_epoch );
     rewards->validator_rewards            = (ulong)(rewards->validator_rate * (double)prev_epoch_capitalization * rewards->prev_epoch_duration_in_years);
     FD_LOG_DEBUG(( "Rewards %lu, Rate %.16f, Duration %.18f Capitalization %lu Slot in year %.16f", rewards->validator_rewards, rewards->validator_rate, rewards->prev_epoch_duration_in_years, prev_epoch_capitalization, slot_in_year ));

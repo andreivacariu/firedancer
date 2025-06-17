@@ -334,8 +334,9 @@ runtime_replay( fd_ledger_args_t * ledger_args ) {
 
 
     ulong * max_tick_height = fd_bank_max_tick_height_modify( ledger_args->slot_ctx->bank );
-    if( FD_UNLIKELY( FD_RUNTIME_EXECUTE_SUCCESS != fd_runtime_compute_max_tick_height( ledger_args->slot_ctx->bank->ticks_per_slot, slot, max_tick_height ) ) ) {
-      FD_LOG_ERR(( "couldn't compute max tick height slot %lu ticks_per_slot %lu", slot, ledger_args->slot_ctx->bank->ticks_per_slot ));
+    ulong ticks_per_slot = fd_bank_ticks_per_slot_get( ledger_args->slot_ctx->bank );
+    if( FD_UNLIKELY( FD_RUNTIME_EXECUTE_SUCCESS != fd_runtime_compute_max_tick_height( ticks_per_slot, slot, max_tick_height ) ) ) {
+      FD_LOG_ERR(( "couldn't compute max tick height slot %lu ticks_per_slot %lu", slot, ticks_per_slot ));
     }
     fd_bank_max_tick_height_end_modify( ledger_args->slot_ctx->bank );
 

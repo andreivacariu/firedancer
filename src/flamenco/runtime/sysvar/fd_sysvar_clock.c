@@ -27,7 +27,7 @@ static long
 timestamp_from_genesis( fd_exec_slot_ctx_t * slot_ctx ) {
   /* TODO: maybe make types of timestamps the same throughout the runtime codebase. as Solana uses a signed representation */
 
-  return (long)(slot_ctx->bank->genesis_creation_time + ((slot_ctx->slot * slot_ctx->bank->ns_per_slot) / NS_IN_S));
+  return (long)(fd_bank_genesis_creation_time_get( slot_ctx->bank) + ((slot_ctx->slot * fd_bank_ns_per_slot_get( slot_ctx->bank )) / NS_IN_S));
 }
 
 void
@@ -96,7 +96,7 @@ bound_timestamp_estimate( fd_exec_slot_ctx_t * slot_ctx,
 
   /* Determine offsets from start of epoch */
   /* TODO: handle epoch boundary case */
-  uint128 poh_estimate_offset = slot_ctx->bank->ns_per_slot * slot_ctx->slot;
+  uint128 poh_estimate_offset = fd_bank_ns_per_slot_get( slot_ctx->bank ) * slot_ctx->slot;
   uint128 estimate_offset = (uint128)( ( estimate - epoch_start_timestamp ) * NS_IN_S );
 
   uint128 max_delta_fast = ( poh_estimate_offset * MAX_ALLOWABLE_DRIFT_FAST ) / 100;
@@ -134,7 +134,7 @@ estimate_timestamp( fd_exec_slot_ctx_t * slot_ctx ) {
   /* TODO: actually take the stake-weighted median. For now, just use the root node. */
   fd_clock_timestamp_vote_t * head = &votes->elem;
   ulong slots = slot_ctx->slot - head->slot;
-  uint128 ns_correction = slot_ctx->bank->ns_per_slot * slots;
+  uint128 ns_correction = fd_bank_ns_per_slot_get( slot_ctx->bank ) * slots;
   fd_bank_clock_timestamp_votes_end_query( slot_ctx->bank );
   return head->timestamp  + (long) (ns_correction / NS_IN_S) ;
 }
@@ -187,7 +187,7 @@ fd_calculate_stake_weighted_timestamp( fd_exec_slot_ctx_t * slot_ctx,
   fd_bank_mgr_t bank_mgr_obj;
   fd_bank_mgr_t * bank_mgr = fd_bank_mgr_join( &bank_mgr_obj, slot_ctx->funk, slot_ctx->funk_txn );
 
-  ulong slot_duration = (ulong)slot_ctx->bank->ns_per_slot;
+  ulong slot_duration = (ulong)fd_bank_ns_per_slot_get( slot_ctx->bank );
   fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( slot_ctx->funk,
                                                               slot_ctx->funk_txn,
                                                               runtime_spad );

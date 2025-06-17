@@ -281,23 +281,23 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* NS Per Slot */
 
-  slot_ctx->bank->ns_per_slot = oldbank->ns_per_slot;
+  fd_bank_ns_per_slot_set( slot_ctx->bank, oldbank->ns_per_slot );
 
   /* Ticks Per Slot */
 
-  slot_ctx->bank->ticks_per_slot = oldbank->ticks_per_slot;
+  fd_bank_ticks_per_slot_set( slot_ctx->bank, oldbank->ticks_per_slot );
 
   /* Genesis Creation Time */
 
-  slot_ctx->bank->genesis_creation_time = oldbank->genesis_creation_time;
+  fd_bank_genesis_creation_time_set( slot_ctx->bank, oldbank->genesis_creation_time );
 
   /* Slots Per Year */
 
-  slot_ctx->bank->slots_per_year = oldbank->slots_per_year;
+  fd_bank_slots_per_year_set( slot_ctx->bank, oldbank->slots_per_year );
 
   /* Inflation */
 
-  slot_ctx->bank->inflation = oldbank->inflation;
+  fd_bank_inflation_set( slot_ctx->bank, oldbank->inflation );
 
   /* Block Height */
 

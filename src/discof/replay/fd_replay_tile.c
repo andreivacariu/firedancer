@@ -1254,10 +1254,11 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
   fd_bank_tick_height_set( ctx->slot_ctx->bank, fd_bank_max_tick_height_get( ctx->slot_ctx->bank ) );
 
   ulong * max_tick_height = fd_bank_max_tick_height_modify( ctx->slot_ctx->bank );
-  if( FD_UNLIKELY( FD_RUNTIME_EXECUTE_SUCCESS != fd_runtime_compute_max_tick_height( ctx->slot_ctx->bank->ticks_per_slot,
+  ulong   ticks_per_slot  = fd_bank_ticks_per_slot_get( ctx->slot_ctx->bank );
+  if( FD_UNLIKELY( FD_RUNTIME_EXECUTE_SUCCESS != fd_runtime_compute_max_tick_height( ticks_per_slot,
                                                                                      curr_slot,
                                                                                      max_tick_height ) ) ) {
-    FD_LOG_ERR(( "couldn't compute tick height/max tick height slot %lu ticks_per_slot %lu", curr_slot, ctx->slot_ctx->bank->ticks_per_slot ));
+    FD_LOG_ERR(( "couldn't compute tick height/max tick height slot %lu ticks_per_slot %lu", curr_slot, ticks_per_slot ));
   }
   fd_bank_max_tick_height_end_modify( ctx->slot_ctx->bank );
 
@@ -1336,8 +1337,8 @@ init_poh( fd_replay_tile_ctx_t * ctx ) {
   fd_poh_init_msg_t * msg = fd_chunk_to_laddr( bank_out->mem, bank_out->chunk );
   FD_TEST( ctx->slot_ctx->bank_mgr && ctx->slot_ctx->bank_mgr->funk && ctx->slot_ctx->bank_mgr->funk_txn );
   msg->hashcnt_per_tick = fd_bank_hashes_per_tick_get( ctx->slot_ctx->bank );
-  msg->ticks_per_slot   = ctx->slot_ctx->bank->ticks_per_slot;
-  msg->tick_duration_ns = (ulong)(ctx->slot_ctx->bank->ns_per_slot) / ctx->slot_ctx->bank->ticks_per_slot;
+  msg->ticks_per_slot   = fd_bank_ticks_per_slot_get( ctx->slot_ctx->bank );
+  msg->tick_duration_ns = (ulong)(fd_bank_ns_per_slot_get( ctx->slot_ctx->bank )) / fd_bank_ticks_per_slot_get( ctx->slot_ctx->bank );
 
   fd_block_hash_queue_global_t * bhq       = (fd_block_hash_queue_global_t *)&ctx->slot_ctx->bank->block_hash_queue[0];
   fd_hash_t *                    last_hash = fd_block_hash_queue_last_hash_join( bhq );
@@ -1789,7 +1790,7 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx,
     ctx->slot_ctx->bank->prev_slot = 0UL;
     ctx->slot_ctx->slot      = 1UL;
 
-    ulong hashcnt_per_slot = fd_bank_hashes_per_tick_get( ctx->slot_ctx->bank ) * ctx->slot_ctx->bank->ticks_per_slot;
+    ulong hashcnt_per_slot = fd_bank_hashes_per_tick_get( ctx->slot_ctx->bank ) * fd_bank_ticks_per_slot_get( ctx->slot_ctx->bank );
     while(hashcnt_per_slot--) {
       fd_sha256_hash( ctx->slot_ctx->bank->poh.hash, 32UL, ctx->slot_ctx->bank->poh.hash );
     }

@@ -263,19 +263,21 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   // self.max_tick_height = (self.slot + 1) * self.ticks_per_slot;
   fd_bank_max_tick_height_set( slot_ctx->bank, test_ctx->epoch_ctx.hashes_per_tick );
 
-  slot_ctx->bank->ticks_per_slot = test_ctx->epoch_ctx.ticks_per_slot;
+  fd_bank_ticks_per_slot_set( slot_ctx->bank, test_ctx->epoch_ctx.ticks_per_slot );
 
-  slot_ctx->bank->ns_per_slot = 400000000; // TODO: restore from input
+  fd_bank_ns_per_slot_set( slot_ctx->bank, 400000000 ); // TODO: restore from input
 
-  slot_ctx->bank->genesis_creation_time = test_ctx->epoch_ctx.genesis_creation_time;
+  fd_bank_genesis_creation_time_set( slot_ctx->bank, test_ctx->epoch_ctx.genesis_creation_time );
 
-  slot_ctx->bank->slots_per_year = test_ctx->epoch_ctx.slots_per_year;
+  fd_bank_slots_per_year_set( slot_ctx->bank, test_ctx->epoch_ctx.slots_per_year );
 
-  slot_ctx->bank->inflation.initial         = test_ctx->epoch_ctx.inflation.initial;
-  slot_ctx->bank->inflation.terminal        = test_ctx->epoch_ctx.inflation.terminal;
-  slot_ctx->bank->inflation.taper           = test_ctx->epoch_ctx.inflation.taper;
-  slot_ctx->bank->inflation.foundation      = test_ctx->epoch_ctx.inflation.foundation;
-  slot_ctx->bank->inflation.foundation_term = test_ctx->epoch_ctx.inflation.foundation_term;
+  fd_inflation_t * inflation = fd_bank_inflation_modify( slot_ctx->bank );
+  inflation->initial         = test_ctx->epoch_ctx.inflation.initial;
+  inflation->terminal        = test_ctx->epoch_ctx.inflation.terminal;
+  inflation->taper           = test_ctx->epoch_ctx.inflation.taper;
+  inflation->foundation      = test_ctx->epoch_ctx.inflation.foundation;
+  inflation->foundation_term = test_ctx->epoch_ctx.inflation.foundation_term;
+  fd_bank_inflation_end_modify( slot_ctx->bank );
 
   slot_ctx->bank->block_height = test_ctx->slot_ctx.block_height;
 

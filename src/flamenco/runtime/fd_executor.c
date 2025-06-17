@@ -469,7 +469,7 @@ load_transaction_account( fd_exec_txn_ctx_t * txn_ctx,
       txn_ctx->collected_rent += fd_runtime_collect_rent_from_account( txn_ctx->slot,
                                                                        fd_bank_mgr_epoch_schedule_query( txn_ctx->bank_mgr ),
                                                                        fd_bank_mgr_rent_query( txn_ctx->bank_mgr ),
-                                                                       txn_ctx->bank->slots_per_year,
+                                                                       fd_bank_slots_per_year_get( txn_ctx->bank ),
                                                                        &txn_ctx->features,
                                                                        acct,
                                                                        epoch );
@@ -847,7 +847,7 @@ fd_executor_validate_transaction_fee_payer( fd_exec_txn_ctx_t * txn_ctx ) {
   txn_ctx->collected_rent += fd_runtime_collect_rent_from_account( txn_ctx->slot,
                                                                   fd_bank_mgr_epoch_schedule_query( txn_ctx->bank_mgr ),
                                                                   fd_bank_mgr_rent_query( txn_ctx->bank_mgr ),
-                                                                  txn_ctx->bank->slots_per_year,
+                                                                  fd_bank_slots_per_year_get( txn_ctx->bank ),
                                                                   &txn_ctx->features,
                                                                   fee_payer_rec,
                                                                   epoch );

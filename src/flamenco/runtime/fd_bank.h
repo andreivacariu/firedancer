@@ -71,7 +71,12 @@ FD_PROTOTYPES_BEGIN
   X(ulong,                             parent_signature_cnt,        sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Parent signature count */              \
   X(ulong,                             tick_height,                 sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Tick height */                         \
   X(ulong,                             max_tick_height,             sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Max tick height */ \
-  X(ulong,                             hashes_per_tick,             sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Hashes per tick */
+  X(ulong,                             hashes_per_tick,             sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Hashes per tick */ \
+  X(uint128,                           ns_per_slot,                 sizeof(uint128),                alignof(uint128),                0,   0    )  /* NS per slot */ \
+  X(ulong,                             ticks_per_slot,              sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Ticks per slot */ \
+  X(ulong,                             genesis_creation_time,       sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Genesis creation time */ \
+  X(double,                            slots_per_year,              sizeof(double),                 alignof(double),                 0,   0    )  /* Slots per year */ \
+  X(fd_inflation_t,                    inflation,                   sizeof(fd_inflation_t),          alignof(fd_inflation_t),        0,   0    )  /* Inflation */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need
@@ -185,11 +190,6 @@ struct fd_bank {
   #undef HAS_LOCK_0
   #undef HAS_LOCK_1
 
-  uint128                           ns_per_slot;
-  ulong                             ticks_per_slot;
-  ulong                             genesis_creation_time;
-  double                            slots_per_year;
-  fd_inflation_t                    inflation;
   ulong                             total_epoch_stake;
   ulong                             eah_start_slot;
   ulong                             eah_stop_slot;

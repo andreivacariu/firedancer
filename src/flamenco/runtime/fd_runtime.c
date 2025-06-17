@@ -332,7 +332,7 @@ fd_runtime_use_multi_epoch_collection( fd_exec_slot_ctx_t const * slot_ctx, ulon
   ulong epoch = fd_slot_to_epoch( schedule, slot, &off );
   ulong slots_per_normal_epoch = fd_epoch_slot_cnt( schedule, schedule->first_normal_epoch );
 
-  ulong slot_count_in_two_day = fd_runtime_slot_count_in_two_day( slot_ctx->bank->ticks_per_slot );
+  ulong slot_count_in_two_day = fd_runtime_slot_count_in_two_day( fd_bank_ticks_per_slot_get( slot_ctx->bank ) );
 
   int use_multi_epoch_collection = ( epoch >= schedule->first_normal_epoch )
       && ( slots_per_normal_epoch < slot_count_in_two_day );
@@ -349,7 +349,7 @@ fd_runtime_num_rent_partitions( fd_exec_slot_ctx_t const * slot_ctx, ulong slot 
   ulong epoch = fd_slot_to_epoch( schedule, slot, &off );
   ulong slots_per_epoch = fd_epoch_slot_cnt( schedule, epoch );
 
-  ulong slot_count_in_two_day = fd_runtime_slot_count_in_two_day( slot_ctx->bank->ticks_per_slot );
+  ulong slot_count_in_two_day = fd_runtime_slot_count_in_two_day( fd_bank_ticks_per_slot_get( slot_ctx->bank ) );
 
   int use_multi_epoch_collection = fd_runtime_use_multi_epoch_collection( slot_ctx, slot );
 
@@ -372,7 +372,7 @@ fd_runtime_get_rent_partition( fd_exec_slot_ctx_t const * slot_ctx, ulong slot )
   ulong off;
   ulong epoch = fd_slot_to_epoch( schedule, slot, &off );
   ulong slot_count_per_epoch = fd_epoch_slot_cnt( schedule, epoch );
-  ulong slot_count_in_two_day = fd_runtime_slot_count_in_two_day( slot_ctx->bank->ticks_per_slot );
+  ulong slot_count_in_two_day = fd_runtime_slot_count_in_two_day( fd_bank_ticks_per_slot_get( slot_ctx->bank ) );
 
   ulong base_epoch;
   ulong epoch_count_in_cycle;
@@ -3468,7 +3468,7 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
 
   slot_ctx->bank->block_height = 0UL;
 
-  slot_ctx->bank->inflation = genesis_block->inflation;
+  fd_bank_inflation_set( slot_ctx->bank, genesis_block->inflation );
 
   fd_block_hash_queue_global_t *      block_hash_queue = (fd_block_hash_queue_global_t *)&slot_ctx->bank->block_hash_queue[0];
   uchar *                             last_hash_mem    = (uchar *)fd_ulong_align_up( (ulong)block_hash_queue + sizeof(fd_block_hash_queue_global_t), alignof(fd_hash_t) );
@@ -3500,13 +3500,13 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
 
   fd_bank_hashes_per_tick_set( slot_ctx->bank, !!poh->hashes_per_tick ? poh->hashes_per_tick : 0UL );
 
-  slot_ctx->bank->ns_per_slot = target_tick_duration * genesis_block->ticks_per_slot;
+  fd_bank_ns_per_slot_set( slot_ctx->bank, target_tick_duration * genesis_block->ticks_per_slot );
 
-  slot_ctx->bank->ticks_per_slot = genesis_block->ticks_per_slot;
+  fd_bank_ticks_per_slot_set( slot_ctx->bank, genesis_block->ticks_per_slot );
 
-  slot_ctx->bank->genesis_creation_time = genesis_block->creation_time;
+  fd_bank_genesis_creation_time_set( slot_ctx->bank, genesis_block->creation_time );
 
-  slot_ctx->bank->slots_per_year = SECONDS_PER_YEAR * (1000000000.0 / (double)target_tick_duration) / (double)genesis_block->ticks_per_slot;
+  fd_bank_slots_per_year_set( slot_ctx->bank, SECONDS_PER_YEAR * (1000000000.0 / (double)target_tick_duration) / (double)genesis_block->ticks_per_slot );
 
   slot_ctx->bank->signature_cnt = 0UL;
 
@@ -3719,7 +3719,7 @@ fd_runtime_process_genesis_block( fd_exec_slot_ctx_t * slot_ctx,
                                   fd_spad_t *          runtime_spad ) {
 
 
-  ulong hashcnt_per_slot = fd_bank_hashes_per_tick_get( slot_ctx->bank ) * slot_ctx->bank->ticks_per_slot;
+  ulong hashcnt_per_slot = fd_bank_hashes_per_tick_get( slot_ctx->bank ) * fd_bank_ticks_per_slot_get( slot_ctx->bank );
   while( hashcnt_per_slot-- ) {
     fd_sha256_hash( slot_ctx->bank->poh.hash, sizeof(fd_hash_t), slot_ctx->bank->poh.hash );
   }

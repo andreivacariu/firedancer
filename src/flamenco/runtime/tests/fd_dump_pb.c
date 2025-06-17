@@ -506,18 +506,19 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
   block_context->epoch_ctx.has_features               = true;
   dump_sorted_features( fd_bank_mgr_features_query( bank_mgr ), &block_context->epoch_ctx.features, spad );
   block_context->epoch_ctx.hashes_per_tick            = fd_bank_hashes_per_tick_get( slot_ctx->bank );
-  block_context->epoch_ctx.ticks_per_slot             = slot_ctx->bank->ticks_per_slot;
-  block_context->epoch_ctx.slots_per_year             = slot_ctx->bank->slots_per_year;
+  block_context->epoch_ctx.ticks_per_slot             = fd_bank_ticks_per_slot_get( slot_ctx->bank );
+  block_context->epoch_ctx.slots_per_year             = fd_bank_slots_per_year_get( slot_ctx->bank );
   block_context->epoch_ctx.has_inflation              = true;
 
+  fd_inflation_t const * inflation = fd_bank_inflation_query( slot_ctx->bank );
   block_context->epoch_ctx.inflation                  = (fd_exec_test_inflation_t) {
-    .initial         = slot_ctx->bank->inflation.initial,
-    .terminal        = slot_ctx->bank->inflation.terminal,
-    .taper           = slot_ctx->bank->inflation.taper,
-    .foundation      = slot_ctx->bank->inflation.foundation,
-    .foundation_term = slot_ctx->bank->inflation.foundation_term,
+    .initial         = inflation->initial,
+    .terminal        = inflation->terminal,
+    .taper           = inflation->taper,
+    .foundation      = inflation->foundation,
+    .foundation_term = inflation->foundation_term,
   };
-  block_context->epoch_ctx.genesis_creation_time      = slot_ctx->bank->genesis_creation_time;
+  block_context->epoch_ctx.genesis_creation_time      = fd_bank_genesis_creation_time_get( slot_ctx->bank );
 
   /* Dumping stake accounts for this epoch */
 

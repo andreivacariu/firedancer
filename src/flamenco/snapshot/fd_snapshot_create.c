@@ -641,7 +641,7 @@ fd_snapshot_create_populate_bank( fd_snapshot_ctx_t *   snapshot_ctx,
   // bank->hashes_per_tick                       = fd_spad_alloc( snapshot_ctx->spad, alignof(ulong), sizeof(ulong) );
   // *bank->hashes_per_tick                      = epoch_bank->hashes_per_tick;
 
-  bank->ticks_per_slot                        = FD_TICKS_PER_SLOT;
+  // bank->ticks_per_slot                        = FD_TICKS_PER_SLOT;
   // bank->ns_per_slot                           = epoch_bank->ns_per_slot;
   // bank->genesis_creation_time                 = epoch_bank->genesis_creation_time;
   // bank->slots_per_year                        = epoch_bank->slots_per_year;
