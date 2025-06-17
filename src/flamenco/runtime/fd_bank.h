@@ -56,7 +56,7 @@ FD_PROTOTYPES_BEGIN
 
 /* Define additional fields to the bank struct here. */
 
-#define FD_BANKS_ITER(X)                                                                                                                                                          \
+#define FD_BANKS_ITER(X)                                                                                                                                                              \
   /* type,                             name,                  footprint,                      align,                           CoW, has lock */                                       \
   X(fd_clock_timestamp_votes_global_t, clock_timestamp_votes, 5000000UL,                      128UL,                           1,   1    )  /* TODO: This needs to get sized out */   \
   X(fd_account_keys_global_t,          stake_account_keys,    100000000UL,                    128UL,                           1,   1    )  /* Supports roughly 3M stake accounts */  \
@@ -277,11 +277,13 @@ typedef struct fd_banks fd_banks_t;
 
 /* Bank accesssors */
 
-#define X(type, name, footprint, align, cow, has_lock)     \
-  type const * fd_bank_##name##_query( fd_bank_t * bank ); \
-  void fd_bank_##name##_end_query( fd_bank_t * bank );     \
-  type * fd_bank_##name##_modify( fd_bank_t * bank );      \
-  void fd_bank_##name##_end_modify( fd_bank_t * bank );
+#define X(type, name, footprint, align, cow, has_lock)       \
+  type const * fd_bank_##name##_query( fd_bank_t * bank );   \
+  void fd_bank_##name##_end_query( fd_bank_t * bank );       \
+  type * fd_bank_##name##_modify( fd_bank_t * bank );        \
+  void fd_bank_##name##_end_modify( fd_bank_t * bank );      \
+  void fd_bank_##name##_set( fd_bank_t * bank, type value ); \
+  type fd_bank_##name##_get( fd_bank_t * bank );
 FD_BANKS_ITER(X)
 #undef X
 

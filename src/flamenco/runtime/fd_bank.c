@@ -72,6 +72,16 @@ fd_bank_footprint( void ) {
   void                                                                                                             \
   fd_bank_##name##_end_modify( fd_bank_t * bank ) {                                                                \
     RELEASE_WRITE_##has_lock( name );                                                                              \
+  }                                                                                                               \
+  void                                                                                                             \
+  fd_bank_##name##_set( fd_bank_t * bank, type value ) {                                                           \
+    (void)bank; (void)value;                                                                                       \
+    FD_LOG_CRIT(( "fd_bank_##name##_set: not implemented" ));                                                      \
+  }                                                                                                                \
+  type                                                                                                             \
+  fd_bank_##name##_get( fd_bank_t * bank ) {                                                                       \
+    (void)bank;                                                                                                    \
+    FD_LOG_CRIT(( "fd_bank_##name##_get: not implemented" ));                                                      \
   }
 
 #define HAS_COW_0(type, name, footprint, align, has_lock)   \
@@ -92,6 +102,17 @@ fd_bank_footprint( void ) {
   void                                                      \
   fd_bank_##name##_end_modify( fd_bank_t * bank ) {         \
     RELEASE_WRITE_##has_lock( name );                       \
+  }                                                         \
+  void                                                      \
+  fd_bank_##name##_set( fd_bank_t * bank, type value ) {    \
+    FD_STORE( type, bank->name, value );                    \
+  }                                                         \
+  type                                                      \
+  fd_bank_##name##_get( fd_bank_t * bank ) {                \
+    ACQUIRE_READ_##has_lock( name );                        \
+    type val = FD_LOAD( type, bank->name );                 \
+    RELEASE_READ_##has_lock( name );                        \
+    return val;                                             \
   }
 
 #define X(type, name, footprint, align, cow, has_lock) \
