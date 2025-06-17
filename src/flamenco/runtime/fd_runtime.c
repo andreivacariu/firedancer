@@ -1044,9 +1044,9 @@ fd_runtime_new_fee_rate_governor_derived( fd_exec_slot_ctx_t *   slot_ctx,
   }
 
   if( FD_UNLIKELY( old_lamports_per_signature==0UL ) ) {
-    slot_ctx->bank->prev_lamports_per_signature = new_lamports_per_signature;
+    fd_bank_prev_lamports_per_signature_set( slot_ctx->bank, new_lamports_per_signature );
   } else {
-    slot_ctx->bank->prev_lamports_per_signature = old_lamports_per_signature;
+    fd_bank_prev_lamports_per_signature_set( slot_ctx->bank, old_lamports_per_signature );
   }
 
   fd_bank_fee_rate_governor_set( slot_ctx->bank, me );
@@ -1062,7 +1062,7 @@ fd_runtime_block_sysvar_update_pre_execute( fd_exec_slot_ctx_t * slot_ctx,
   // );
   /* https://github.com/firedancer-io/solana/blob/dab3da8e7b667d7527565bddbdbecf7ec1fb868e/runtime/src/bank.rs#L1312-L1314 */
 
-  fd_runtime_new_fee_rate_governor_derived( slot_ctx, slot_ctx->bank->parent_signature_cnt );
+  fd_runtime_new_fee_rate_governor_derived( slot_ctx, fd_bank_parent_signature_cnt_get( slot_ctx->bank ) );
 
   // TODO: move all these out to a fd_sysvar_update() call...
   long clock_update_time      = -fd_log_wallclock();
@@ -2896,15 +2896,15 @@ fd_runtime_process_new_epoch( fd_exec_slot_ctx_t * slot_ctx,
      https://github.com/anza-xyz/agave/blob/v2.1.0/runtime/src/bank.rs#L6627-L6649 */
 
   if( FD_FEATURE_JUST_ACTIVATED( slot_ctx, update_hashes_per_tick6 ) ) {
-    slot_ctx->bank->hashes_per_tick = UPDATED_HASHES_PER_TICK6;
+    fd_bank_hashes_per_tick_set( slot_ctx->bank, UPDATED_HASHES_PER_TICK6 );
   } else if( FD_FEATURE_JUST_ACTIVATED( slot_ctx, update_hashes_per_tick5 ) ) {
-    slot_ctx->bank->hashes_per_tick = UPDATED_HASHES_PER_TICK5;
+    fd_bank_hashes_per_tick_set( slot_ctx->bank, UPDATED_HASHES_PER_TICK5 );
   } else if( FD_FEATURE_JUST_ACTIVATED( slot_ctx, update_hashes_per_tick4 ) ) {
-    slot_ctx->bank->hashes_per_tick = UPDATED_HASHES_PER_TICK4;
+    fd_bank_hashes_per_tick_set( slot_ctx->bank, UPDATED_HASHES_PER_TICK4 );
   } else if( FD_FEATURE_JUST_ACTIVATED( slot_ctx, update_hashes_per_tick3 ) ) {
-    slot_ctx->bank->hashes_per_tick = UPDATED_HASHES_PER_TICK3;
+    fd_bank_hashes_per_tick_set( slot_ctx->bank, UPDATED_HASHES_PER_TICK3 );
   } else if( FD_FEATURE_JUST_ACTIVATED( slot_ctx, update_hashes_per_tick2 ) ) {
-    slot_ctx->bank->hashes_per_tick = UPDATED_HASHES_PER_TICK2;
+    fd_bank_hashes_per_tick_set( slot_ctx->bank, UPDATED_HASHES_PER_TICK2 );
   }
 
   /* Get the new rate activation epoch */
@@ -3494,11 +3494,11 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
 
   fd_bank_lamports_per_signature_set( slot_ctx->bank, 0UL );
 
-  slot_ctx->bank->prev_lamports_per_signature = 0UL;
+  fd_bank_prev_lamports_per_signature_set( slot_ctx->bank, 0UL );
 
-  slot_ctx->bank->max_tick_height = genesis_block->ticks_per_slot * (slot_ctx->slot + 1);
+  fd_bank_max_tick_height_set( slot_ctx->bank, genesis_block->ticks_per_slot * (slot_ctx->slot + 1) );
 
-  slot_ctx->bank->hashes_per_tick = !!poh->hashes_per_tick ? poh->hashes_per_tick : 0UL;
+  fd_bank_hashes_per_tick_set( slot_ctx->bank, !!poh->hashes_per_tick ? poh->hashes_per_tick : 0UL );
 
   slot_ctx->bank->ns_per_slot = target_tick_duration * genesis_block->ticks_per_slot;
 
@@ -3719,7 +3719,7 @@ fd_runtime_process_genesis_block( fd_exec_slot_ctx_t * slot_ctx,
                                   fd_spad_t *          runtime_spad ) {
 
 
-  ulong hashcnt_per_slot = slot_ctx->bank->hashes_per_tick * slot_ctx->bank->ticks_per_slot;
+  ulong hashcnt_per_slot = fd_bank_hashes_per_tick_get( slot_ctx->bank ) * slot_ctx->bank->ticks_per_slot;
   while( hashcnt_per_slot-- ) {
     fd_sha256_hash( slot_ctx->bank->poh.hash, sizeof(fd_hash_t), slot_ctx->bank->poh.hash );
   }
@@ -4081,9 +4081,9 @@ fd_runtime_block_verify_tpool( fd_exec_slot_ctx_t *    slot_ctx,
                                                       slot_ctx->slot,
                                                       block_data,
                                                       FD_SHRED_DATA_PAYLOAD_MAX_PER_SLOT,
-                                                      slot_ctx->bank->tick_height,
-                                                      slot_ctx->bank->max_tick_height,
-                                                      slot_ctx->bank->hashes_per_tick
+                                                      fd_bank_tick_height_get( slot_ctx->bank ),
+                                                      fd_bank_max_tick_height_get( slot_ctx->bank ),
+                                                      fd_bank_hashes_per_tick_get( slot_ctx->bank )
   );
   if( FD_UNLIKELY( tick_res != FD_BLOCK_OK ) ) {
     FD_LOG_WARNING(( "failed to verify ticks res %lu slot %lu", tick_res, slot_ctx->slot ));
@@ -4413,7 +4413,7 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
                 tps,
                 FD_BASE58_ENC_32_ALLOCA( leader ) ));
 
-  slot_ctx->bank->transaction_count += block_info.txn_cnt;
+  fd_bank_transaction_count_set( slot_ctx->bank, fd_bank_transaction_count_get( slot_ctx->bank ) + block_info.txn_cnt );
 
   slot_ctx->bank->prev_slot = slot;
   // FIXME: this shouldn't be doing this, it doesn't work with forking. punting changing it though

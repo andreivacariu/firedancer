@@ -257,27 +257,27 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* Previous Lamports Per Signature */
 
-  slot_ctx->bank->prev_lamports_per_signature = manifest->lamports_per_signature;
+  fd_bank_prev_lamports_per_signature_set( slot_ctx->bank, manifest->lamports_per_signature );
 
   /* Transaction Count */
 
-  slot_ctx->bank->transaction_count = oldbank->transaction_count;
+  fd_bank_transaction_count_set( slot_ctx->bank, oldbank->transaction_count );
 
   /* Parent Signature Count */
 
-  slot_ctx->bank->parent_signature_cnt = oldbank->signature_count;
+  fd_bank_parent_signature_cnt_set( slot_ctx->bank, oldbank->signature_count );
 
   /* Tick Height */
 
-  slot_ctx->bank->tick_height = oldbank->tick_height;
+  fd_bank_tick_height_set( slot_ctx->bank, oldbank->tick_height );
 
   /* Max Tick Height */
 
-  slot_ctx->bank->max_tick_height = oldbank->max_tick_height;
+  fd_bank_max_tick_height_set( slot_ctx->bank, oldbank->max_tick_height );
 
   /* Hashes Per Tick */
 
-  slot_ctx->bank->hashes_per_tick = !!oldbank->hashes_per_tick ? *oldbank->hashes_per_tick : 0UL;
+  fd_bank_hashes_per_tick_set( slot_ctx->bank, !!oldbank->hashes_per_tick ? *oldbank->hashes_per_tick : 0UL );
 
   /* NS Per Slot */
 

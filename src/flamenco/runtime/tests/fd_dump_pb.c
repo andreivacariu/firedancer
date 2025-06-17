@@ -498,14 +498,14 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
   fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_query( bank_mgr );
   fd_memcpy( block_context->slot_ctx.parent_bank_hash, bank_hash, sizeof(fd_pubkey_t) );
   block_context->slot_ctx.prev_slot                 = slot_ctx->bank->prev_slot;
-  block_context->slot_ctx.prev_lps                  = slot_ctx->bank->prev_lamports_per_signature;
+  block_context->slot_ctx.prev_lps                  = fd_bank_prev_lamports_per_signature_get( slot_ctx->bank );
   block_context->slot_ctx.prev_epoch_capitalization = fd_bank_capitalization_get( slot_ctx->bank );
 
   /* BlockContext -> EpochContext */
   block_context->has_epoch_ctx                        = true;
   block_context->epoch_ctx.has_features               = true;
   dump_sorted_features( fd_bank_mgr_features_query( bank_mgr ), &block_context->epoch_ctx.features, spad );
-  block_context->epoch_ctx.hashes_per_tick            = slot_ctx->bank->hashes_per_tick;
+  block_context->epoch_ctx.hashes_per_tick            = fd_bank_hashes_per_tick_get( slot_ctx->bank );
   block_context->epoch_ctx.ticks_per_slot             = slot_ctx->bank->ticks_per_slot;
   block_context->epoch_ctx.slots_per_year             = slot_ctx->bank->slots_per_year;
   block_context->epoch_ctx.has_inflation              = true;

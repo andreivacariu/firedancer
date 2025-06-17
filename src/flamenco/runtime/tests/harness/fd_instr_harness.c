@@ -320,7 +320,7 @@ fd_runtime_fuzz_instr_ctx_create( fd_runtime_fuzz_runner_t *           runner,
 
       fd_bank_lamports_per_signature_set( slot_ctx->bank, last->fee_calculator.lamports_per_signature );
 
-      slot_ctx->bank->prev_lamports_per_signature = last->fee_calculator.lamports_per_signature;
+      fd_bank_prev_lamports_per_signature_set( slot_ctx->bank, last->fee_calculator.lamports_per_signature );
     }
   }
 

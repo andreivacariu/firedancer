@@ -261,7 +261,7 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   slot_ctx->bank->prev_slot = test_ctx->slot_ctx.prev_slot;
 
   // self.max_tick_height = (self.slot + 1) * self.ticks_per_slot;
-  slot_ctx->bank->max_tick_height = test_ctx->epoch_ctx.hashes_per_tick;
+  fd_bank_max_tick_height_set( slot_ctx->bank, test_ctx->epoch_ctx.hashes_per_tick );
 
   slot_ctx->bank->ticks_per_slot = test_ctx->epoch_ctx.ticks_per_slot;
 
@@ -376,7 +376,7 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
 
   fd_bank_lamports_per_signature_set( slot_ctx->bank, 5000UL );
 
-  slot_ctx->bank->prev_lamports_per_signature = test_ctx->slot_ctx.prev_lps;
+  fd_bank_prev_lamports_per_signature_set( slot_ctx->bank, test_ctx->slot_ctx.prev_lps );
 
   /* Initialize the blockhash queue and recent blockhashes sysvar from the input blockhash queue */
   fd_block_hash_queue_global_t * block_hash_queue = (fd_block_hash_queue_global_t *)&slot_ctx->bank->block_hash_queue[0];
@@ -429,7 +429,7 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
     fd_block_block_hash_entry_t const * last = deq_fd_block_block_hash_entry_t_peek_head_const( rbh->hashes );
     if( last && last->fee_calculator.lamports_per_signature!=0UL ) {
       fd_bank_lamports_per_signature_set( slot_ctx->bank, last->fee_calculator.lamports_per_signature );
-      slot_ctx->bank->prev_lamports_per_signature = last->fee_calculator.lamports_per_signature;
+      fd_bank_prev_lamports_per_signature_set( slot_ctx->bank, last->fee_calculator.lamports_per_signature );
     }
   }
 

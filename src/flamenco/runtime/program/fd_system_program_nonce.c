@@ -218,7 +218,7 @@ fd_system_program_advance_nonce_account( fd_exec_instr_ctx_t *   ctx,
           .authority      = data->authority,
           .durable_nonce  = next_durable_nonce,
           .fee_calculator = {
-            .lamports_per_signature = ctx->txn_ctx->bank->prev_lamports_per_signature
+            .lamports_per_signature = fd_bank_prev_lamports_per_signature_get( ctx->txn_ctx->bank )
           }
         } }
       } }
@@ -581,7 +581,7 @@ fd_system_program_initialize_nonce_account( fd_exec_instr_ctx_t *   ctx,
           .authority      = *authorized,
           .durable_nonce  = durable_nonce,
           .fee_calculator = {
-            .lamports_per_signature = ctx->txn_ctx->bank->prev_lamports_per_signature
+            .lamports_per_signature = fd_bank_prev_lamports_per_signature_get( ctx->txn_ctx->bank )
           }
         } }
       } }
@@ -1002,7 +1002,7 @@ fd_check_transaction_age( fd_exec_txn_ctx_t * txn_ctx ) {
               .authority      = state->inner.current.inner.initialized.authority,
               .durable_nonce  = next_durable_nonce,
               .fee_calculator = {
-                .lamports_per_signature = txn_ctx->bank->prev_lamports_per_signature
+                .lamports_per_signature = fd_bank_prev_lamports_per_signature_get( txn_ctx->bank )
               }
             } }
           } }

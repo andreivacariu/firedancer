@@ -201,7 +201,7 @@ fd_calculate_stake_weighted_timestamp( fd_exec_slot_ctx_t * slot_ctx,
   uchar *            pool_mem = fd_spad_alloc( runtime_spad, stake_ts_pool_align(), stake_ts_pool_footprint( 10240UL ) );
   stake_ts_ele_t *   pool     = stake_ts_pool_join( stake_ts_pool_new( pool_mem, 10240UL ) );
 
-  uint txn_cnt = (uint)slot_ctx->bank->transaction_count;
+  uint txn_cnt = (uint)fd_bank_transaction_count_get( slot_ctx->bank );
 
   fd_rng_t           _rng[1];
   fd_rng_t *         rng      = fd_rng_join( fd_rng_new( _rng, txn_cnt, 0UL ) );

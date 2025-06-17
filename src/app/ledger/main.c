@@ -330,11 +330,14 @@ runtime_replay( fd_ledger_args_t * ledger_args ) {
       continue;
     }
 
-    ledger_args->slot_ctx->bank->tick_height = ledger_args->slot_ctx->bank->max_tick_height;
+    fd_bank_tick_height_set( ledger_args->slot_ctx->bank, fd_bank_max_tick_height_get( ledger_args->slot_ctx->bank ) );
 
-    if( FD_UNLIKELY( FD_RUNTIME_EXECUTE_SUCCESS != fd_runtime_compute_max_tick_height( ledger_args->slot_ctx->bank->ticks_per_slot, slot, &ledger_args->slot_ctx->bank->max_tick_height ) ) ) {
+
+    ulong * max_tick_height = fd_bank_max_tick_height_modify( ledger_args->slot_ctx->bank );
+    if( FD_UNLIKELY( FD_RUNTIME_EXECUTE_SUCCESS != fd_runtime_compute_max_tick_height( ledger_args->slot_ctx->bank->ticks_per_slot, slot, max_tick_height ) ) ) {
       FD_LOG_ERR(( "couldn't compute max tick height slot %lu ticks_per_slot %lu", slot, ledger_args->slot_ctx->bank->ticks_per_slot ));
     }
+    fd_bank_max_tick_height_end_modify( ledger_args->slot_ctx->bank );
 
     FD_LOG_WARNING(("CLONING BANK %lu FROM %lu", slot, prev_slot));
     ledger_args->slot_ctx->bank = fd_banks_clone_from_parent( ledger_args->slot_ctx->banks, slot, prev_slot );

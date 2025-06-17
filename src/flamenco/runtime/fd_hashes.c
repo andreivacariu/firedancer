@@ -221,9 +221,9 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
   *prev_bank_hash = *bank_hash;
   fd_bank_mgr_prev_bank_hash_save( slot_ctx->bank_mgr );
 
-  slot_ctx->bank->parent_signature_cnt = slot_ctx->bank->signature_cnt;
+  fd_bank_parent_signature_cnt_set( slot_ctx->bank, slot_ctx->bank->signature_cnt );
 
-  slot_ctx->bank->prev_lamports_per_signature = fd_bank_lamports_per_signature_get( slot_ctx->bank );
+  fd_bank_lamports_per_signature_set( slot_ctx->bank, fd_bank_lamports_per_signature_get( slot_ctx->bank ) );
 
   fd_hash_t account_delta_hash;
 
