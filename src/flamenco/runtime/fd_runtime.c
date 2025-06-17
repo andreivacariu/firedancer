@@ -221,15 +221,15 @@ fd_runtime_update_leaders( fd_exec_slot_ctx_t * slot_ctx,
       FD_LOG_ERR(( "Slot count exceeeded max" ));
     }
 
-    void * epoch_leaders_mem = fd_bank_mgr_epoch_leaders_modify( slot_ctx->bank_mgr );
-    fd_epoch_leaders_t * leaders           = fd_epoch_leaders_join( fd_epoch_leaders_new( epoch_leaders_mem,
-                                                                                                     epoch,
-                                                                                                     slot0,
-                                                                                                     slot_cnt,
-                                                                                                     stake_weight_cnt,
-                                                                                                     epoch_weights,
-                                                                                                     0UL ) );
-    fd_bank_mgr_epoch_leaders_save( slot_ctx->bank_mgr );
+    void * epoch_leaders_mem = fd_bank_epoch_leaders_modify( slot_ctx->bank );
+    fd_epoch_leaders_t * leaders = fd_epoch_leaders_join( fd_epoch_leaders_new( epoch_leaders_mem,
+                                                                                           epoch,
+                                                                                           slot0,
+                                                                                           slot_cnt,
+                                                                                           stake_weight_cnt,
+                                                                                           epoch_weights,
+                                                                                           0UL ) );
+    fd_bank_epoch_leaders_end_modify( slot_ctx->bank );
     if( FD_UNLIKELY( !leaders ) ) {
       FD_LOG_ERR(( "Unable to init and join fd_epoch_leaders" ));
     }
@@ -502,7 +502,7 @@ fd_runtime_freeze( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
       /* do_create=1 because we might wanna pay fees to a leader
          account that we've purged due to 0 balance. */
 
-      fd_epoch_leaders_t * leaders = fd_bank_mgr_epoch_leaders_query( slot_ctx->bank_mgr );
+      fd_epoch_leaders_t const * leaders = fd_bank_epoch_leaders_query( slot_ctx->bank );
       if( FD_UNLIKELY( !leaders ) ) {
         FD_LOG_WARNING(( "fd_runtime_freeze: leaders not found" ));
         break;
@@ -520,6 +520,8 @@ fd_runtime_freeze( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
         burn = fd_ulong_sat_add( burn, fees );
         break;
       }
+
+      fd_bank_epoch_leaders_end_query( slot_ctx->bank );
 
       if ( FD_LIKELY( FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, validate_fee_collector_account ) ) ) {
         ulong _burn;
@@ -4416,8 +4418,8 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
   block_eval_time          += fd_log_wallclock();
   double block_eval_time_ms = (double)block_eval_time * 1e-6;
   double tps                = (double) block_info.txn_cnt / ((double)block_eval_time * 1e-9);
-  fd_epoch_leaders_t * leaders = fd_bank_mgr_epoch_leaders_query( slot_ctx->bank_mgr );
-  fd_pubkey_t const *  leader  = fd_epoch_leaders_get( leaders, slot );
+  fd_epoch_leaders_t const * leaders = fd_bank_epoch_leaders_query( slot_ctx->bank );
+  fd_pubkey_t const *        leader  = fd_epoch_leaders_get( leaders, slot );
   FD_LOG_INFO(( "evaluated block successfully - slot: %lu, elapsed: %6.6f ms, signatures: %lu, txns: %lu, tps: %6.6f, leader: %s",
                 slot,
                 block_eval_time_ms,
@@ -4425,6 +4427,7 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
                 block_info.txn_cnt,
                 tps,
                 FD_BASE58_ENC_32_ALLOCA( leader ) ));
+  fd_bank_epoch_leaders_end_query( slot_ctx->bank );
 
   fd_bank_transaction_count_set( slot_ctx->bank, fd_bank_transaction_count_get( slot_ctx->bank ) + block_info.txn_cnt );
 
