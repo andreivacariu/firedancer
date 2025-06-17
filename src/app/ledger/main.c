@@ -938,8 +938,6 @@ ingest( fd_ledger_args_t * args ) {
   init_tpool( args );
   init_exec_spads( args, 1 );
 
-  fd_spad_t * spad = args->runtime_spad;
-
   fd_funk_t * funk = args->funk;
 
   args->valloc = allocator_setup( args->wksp );
@@ -951,21 +949,21 @@ ingest( fd_ledger_args_t * args ) {
   slot_ctx->funk       = funk;
   slot_ctx->blockstore = args->blockstore;
 
-  if( args->status_cache_wksp ) {
-    void * status_cache_mem = fd_spad_alloc_check( spad,
-                                                   fd_txncache_align(),
-                                                   fd_txncache_footprint( FD_TXNCACHE_DEFAULT_MAX_ROOTED_SLOTS,
-                                                                              FD_TXNCACHE_DEFAULT_MAX_LIVE_SLOTS,
-                                                                              MAX_CACHE_TXNS_PER_SLOT,
-                                                                              FD_TXNCACHE_DEFAULT_MAX_CONSTIPATED_SLOTS ) );
-    FD_TEST( status_cache_mem );
-    slot_ctx->status_cache  = fd_txncache_join( fd_txncache_new( status_cache_mem,
-                                                                 FD_TXNCACHE_DEFAULT_MAX_ROOTED_SLOTS,
-                                                                 FD_TXNCACHE_DEFAULT_MAX_LIVE_SLOTS,
-                                                                 MAX_CACHE_TXNS_PER_SLOT,
-                                                                 FD_TXNCACHE_DEFAULT_MAX_CONSTIPATED_SLOTS ) );
-    FD_TEST( slot_ctx->status_cache );
-  }
+  // if( args->status_cache_wksp ) {
+  //   void * status_cache_mem = fd_spad_alloc_check( spad,
+  //                                                  fd_txncache_align(),
+  //                                                  fd_txncache_footprint( FD_TXNCACHE_DEFAULT_MAX_ROOTED_SLOTS,
+  //                                                                             FD_TXNCACHE_DEFAULT_MAX_LIVE_SLOTS,
+  //                                                                             MAX_CACHE_TXNS_PER_SLOT,
+  //                                                                             FD_TXNCACHE_DEFAULT_MAX_CONSTIPATED_SLOTS ) );
+  //   FD_TEST( status_cache_mem );
+  //   slot_ctx->status_cache  = fd_txncache_join( fd_txncache_new( status_cache_mem,
+  //                                                                FD_TXNCACHE_DEFAULT_MAX_ROOTED_SLOTS,
+  //                                                                FD_TXNCACHE_DEFAULT_MAX_LIVE_SLOTS,
+  //                                                                MAX_CACHE_TXNS_PER_SLOT,
+  //                                                                FD_TXNCACHE_DEFAULT_MAX_CONSTIPATED_SLOTS ) );
+  //   FD_TEST( slot_ctx->status_cache );
+  // }
 
   /* Load in snapshot(s) */
   if( args->snapshot ) {
@@ -1133,20 +1131,20 @@ replay( fd_ledger_args_t * args ) {
   *slot_bm = 0UL;
   fd_bank_mgr_slot_save( args->slot_ctx->bank_mgr );
 
-  void * status_cache_mem = fd_spad_alloc_check( spad,
-      FD_TXNCACHE_ALIGN,
-      fd_txncache_footprint( FD_TXNCACHE_DEFAULT_MAX_ROOTED_SLOTS,
-                             FD_TXNCACHE_DEFAULT_MAX_LIVE_SLOTS,
-                             MAX_CACHE_TXNS_PER_SLOT,
-                             FD_TXNCACHE_DEFAULT_MAX_CONSTIPATED_SLOTS) );
-  args->slot_ctx->status_cache = fd_txncache_join( fd_txncache_new( status_cache_mem,
-                                                                    FD_TXNCACHE_DEFAULT_MAX_ROOTED_SLOTS,
-                                                                    FD_TXNCACHE_DEFAULT_MAX_LIVE_SLOTS,
-                                                                    MAX_CACHE_TXNS_PER_SLOT,
-                                                                    FD_TXNCACHE_DEFAULT_MAX_CONSTIPATED_SLOTS ) );
-  if( FD_UNLIKELY( !args->slot_ctx->status_cache ) ) {
-    FD_LOG_ERR(( "Status cache was not allocated" ));
-  }
+  // void * status_cache_mem = fd_spad_alloc_check( spad,
+  //     FD_TXNCACHE_ALIGN,
+  //     fd_txncache_footprint( FD_TXNCACHE_DEFAULT_MAX_ROOTED_SLOTS,
+  //                            FD_TXNCACHE_DEFAULT_MAX_LIVE_SLOTS,
+  //                            MAX_CACHE_TXNS_PER_SLOT,
+  //                            FD_TXNCACHE_DEFAULT_MAX_CONSTIPATED_SLOTS) );
+  // args->slot_ctx->status_cache = fd_txncache_join( fd_txncache_new( status_cache_mem,
+  //                                                                   FD_TXNCACHE_DEFAULT_MAX_ROOTED_SLOTS,
+  //                                                                   FD_TXNCACHE_DEFAULT_MAX_LIVE_SLOTS,
+  //                                                                   MAX_CACHE_TXNS_PER_SLOT,
+  //                                                                   FD_TXNCACHE_DEFAULT_MAX_CONSTIPATED_SLOTS ) );
+  // if( FD_UNLIKELY( !args->slot_ctx->status_cache ) ) {
+  //   FD_LOG_ERR(( "Status cache was not allocated" ));
+  // }
 
   /* Check number of records in funk. If rec_cnt == 0, then it can be assumed
      that you need to load in snapshot(s). */
@@ -1274,7 +1272,7 @@ initial_setup( int argc, char ** argv, fd_ledger_args_t * args ) {
   ulong        snapshot_tcnt         = fd_env_strip_cmdline_ulong ( &argc, &argv, "--snapshot-tcnt",         NULL, 0UL                                                );
   double       allowed_mem_delta     = fd_env_strip_cmdline_double( &argc, &argv, "--allowed-mem-delta",     NULL, 0.1                                                );
   ulong        thread_mem_bound      = fd_env_strip_cmdline_ulong ( &argc, &argv, "--thread-mem-bound",      NULL, FD_RUNTIME_TRANSACTION_EXECUTION_FOOTPRINT_DEFAULT );
-  ulong        runtime_mem_bound     = fd_env_strip_cmdline_ulong ( &argc, &argv, "--runtime-mem-bound",     NULL, (ulong)30e9                                        );
+  ulong        runtime_mem_bound     = fd_env_strip_cmdline_ulong ( &argc, &argv, "--runtime-mem-bound",     NULL, (ulong)10e9                                        );
 
   if( FD_UNLIKELY( !verify_acc_hash ) ) {
     /* We've got full snapshots that contain all 0s for the account

@@ -372,6 +372,7 @@ fd_snapshot_load_all( const char *         source_cstr,
                       fd_spad_t * *        exec_spads,
                       ulong                exec_spad_cnt,
                       fd_spad_t *          runtime_spad ) {
+  FD_SPAD_FRAME_BEGIN( runtime_spad ) {
 
   fd_exec_para_cb_ctx_t exec_para_ctx = {
     .func       = fd_accounts_hash_counter_and_gather_tpool_cb,
@@ -398,6 +399,8 @@ fd_snapshot_load_all( const char *         source_cstr,
     FD_SNAPSHOT_RESTORE_STATUS_CACHE | FD_SNAPSHOT_RESTORE_MANIFEST );
   fd_snapshot_load_accounts( ctx );
   fd_snapshot_load_fini( ctx );
+
+  } FD_SPAD_FRAME_END;
 
 }
 
