@@ -439,12 +439,14 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   for( ushort i=0; i<test_ctx->blockhash_queue_count; ++i ) {
     fd_block_block_hash_entry_t blockhash_entry;
     memcpy( &blockhash_entry.blockhash, test_ctx->blockhash_queue[i]->bytes, sizeof(fd_hash_t) );
-    slot_ctx->bank->poh = blockhash_entry.blockhash;
+    fd_bank_poh_set( slot_ctx->bank, blockhash_entry.blockhash );
     fd_sysvar_recent_hashes_update( slot_ctx, runner->spad );
   }
 
   // Set the current poh from the input (we skip POH verification in this fuzzing target)
-  fd_memcpy( slot_ctx->bank->poh.hash, test_ctx->slot_ctx.poh, sizeof(fd_hash_t) );
+  fd_hash_t * poh = fd_bank_poh_modify( slot_ctx->bank );
+  fd_memcpy( poh->hash, test_ctx->slot_ctx.poh, sizeof(fd_hash_t) );
+  fd_bank_poh_end_modify( slot_ctx->bank );
 
   /* Make a new funk transaction since we're done loading in accounts for context */
   fd_funk_txn_xid_t fork_xid[1] = {0};

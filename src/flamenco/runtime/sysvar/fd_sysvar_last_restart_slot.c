@@ -12,7 +12,8 @@ fd_sysvar_last_restart_slot_init( fd_exec_slot_ctx_t * slot_ctx ) {
     return;
   }
 
-  ulong sz = fd_sol_sysvar_last_restart_slot_size( &slot_ctx->bank->last_restart_slot );
+
+  ulong sz = fd_sol_sysvar_last_restart_slot_size( fd_bank_last_restart_slot_query( slot_ctx->bank ) );
   uchar enc[ sz ];
   fd_memset( enc, 0, sz );
 
@@ -20,7 +21,7 @@ fd_sysvar_last_restart_slot_init( fd_exec_slot_ctx_t * slot_ctx ) {
     .data    = enc,
     .dataend = enc + sz,
   };
-  int err = fd_sol_sysvar_last_restart_slot_encode( &slot_ctx->bank->last_restart_slot, &encode );
+  int err = fd_sol_sysvar_last_restart_slot_encode( fd_bank_last_restart_slot_query( slot_ctx->bank ), &encode );
   FD_TEST( err==FD_BINCODE_SUCCESS );
 
   fd_sysvar_set( slot_ctx,
@@ -74,7 +75,7 @@ fd_sysvar_last_restart_slot_update( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * r
 
   /* https://github.com/solana-labs/solana/blob/v1.18.18/runtime/src/bank.rs#L2108-L2120 */
   /* FIXME: Query hard forks list */
-  ulong last_restart_slot = slot_ctx->bank->last_restart_slot.slot;
+  ulong last_restart_slot = fd_bank_last_restart_slot_get( slot_ctx->bank ).slot;
 
   /* https://github.com/solana-labs/solana/blob/v1.18.18/runtime/src/bank.rs#L2122-L2130 */
   if( !has_current_last_restart_slot || current_last_restart_slot != last_restart_slot ) {

@@ -3452,7 +3452,7 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
                                    fd_spad_t *                 runtime_spad ) {
   slot_ctx->slot = 0UL;
 
-  slot_ctx->bank->poh = *genesis_hash;
+  fd_bank_poh_set( slot_ctx->bank, *genesis_hash );
 
   fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_modify( slot_ctx->bank_mgr );
   memset( bank_hash->hash, 0, FD_SHA256_HASH_SZ );
@@ -3722,10 +3722,12 @@ fd_runtime_process_genesis_block( fd_exec_slot_ctx_t * slot_ctx,
                                   fd_spad_t *          runtime_spad ) {
 
 
+  fd_hash_t * poh = fd_bank_poh_modify( slot_ctx->bank );
   ulong hashcnt_per_slot = fd_bank_hashes_per_tick_get( slot_ctx->bank ) * fd_bank_ticks_per_slot_get( slot_ctx->bank );
   while( hashcnt_per_slot-- ) {
-    fd_sha256_hash( slot_ctx->bank->poh.hash, sizeof(fd_hash_t), slot_ctx->bank->poh.hash );
+    fd_sha256_hash( poh->hash, sizeof(fd_hash_t), poh->hash );
   }
+  fd_bank_poh_end_modify( slot_ctx->bank );
 
   fd_bank_execution_fees_set( slot_ctx->bank, 0UL );
 
@@ -4378,12 +4380,12 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
     *txn_cnt = block_info.txn_cnt;
 
     fd_hash_t poh_out = {0};
-    fd_hash_t poh_in = slot_ctx->bank->poh;
+    fd_hash_t poh_in = fd_bank_poh_get( slot_ctx->bank );
     if( FD_UNLIKELY( (ret = fd_runtime_block_verify_tpool( slot_ctx, &block_info, &poh_in, &poh_out, tpool, runtime_spad )) != FD_RUNTIME_EXECUTE_SUCCESS ) ) {
       break;
     }
 
-    slot_ctx->bank->poh = poh_out;
+    fd_bank_poh_set( slot_ctx->bank, poh_out );
 
     /* Dump the remainder of the block after preparation, POH verification, etc */
     if( FD_UNLIKELY( dump_block ) ) {

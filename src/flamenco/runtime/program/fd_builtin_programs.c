@@ -234,7 +234,7 @@ void fd_builtin_programs_init( fd_exec_slot_ctx_t * slot_ctx ) {
   }
 
   /* Precompiles have empty account data */
-  if( slot_ctx->bank->cluster_version.major==1 ) {
+  if( fd_bank_cluster_version_get( slot_ctx->bank ).major == 1 ) {
     char data[1] = {1};
     fd_write_builtin_account( slot_ctx, fd_solana_keccak_secp_256k_program_id, data, 1 );
     fd_write_builtin_account( slot_ctx, fd_solana_ed25519_sig_verify_program_id, data, 1 );

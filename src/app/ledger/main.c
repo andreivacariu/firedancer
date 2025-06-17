@@ -361,11 +361,11 @@ runtime_replay( fd_ledger_args_t * ledger_args ) {
     fd_hash_t expected;
     int err = fd_blockstore_block_hash_query( blockstore, slot, &expected );
     if( FD_UNLIKELY( err ) ) FD_LOG_ERR( ( "slot %lu is missing its hash", slot ) );
-    else if( FD_UNLIKELY( 0 != memcmp( ledger_args->slot_ctx->bank->poh.hash, expected.hash, sizeof(fd_hash_t) ) ) ) {
+    else if( FD_UNLIKELY( 0 != memcmp( fd_bank_poh_query( ledger_args->slot_ctx->bank ), expected.hash, sizeof(fd_hash_t) ) ) ) {
       char expected_hash[ FD_BASE58_ENCODED_32_SZ ];
       fd_acct_addr_cstr( expected_hash, expected.hash );
       char poh_hash[ FD_BASE58_ENCODED_32_SZ ];
-      fd_acct_addr_cstr( poh_hash, ledger_args->slot_ctx->bank->poh.hash );
+      fd_acct_addr_cstr( poh_hash, fd_bank_poh_query( ledger_args->slot_ctx->bank )->hash );
       FD_LOG_WARNING(( "PoH hash mismatch! slot=%lu expected=%s, got=%s",
                         slot,
                         expected_hash,
@@ -1120,13 +1120,15 @@ replay( fd_ledger_args_t * args ) {
 
   args->slot_ctx->bank = fd_banks_init_bank( args->slot_ctx->banks, 0UL );
 
-  args->slot_ctx->bank->cluster_version.major = args->cluster_version[0];
-  args->slot_ctx->bank->cluster_version.minor = args->cluster_version[1];
-  args->slot_ctx->bank->cluster_version.patch = args->cluster_version[2];
+  fd_cluster_version_t * cluster_version = fd_bank_cluster_version_modify( args->slot_ctx->bank );
+  cluster_version->major = args->cluster_version[0];
+  cluster_version->minor = args->cluster_version[1];
+  cluster_version->patch = args->cluster_version[2];
+  fd_bank_cluster_version_end_modify( args->slot_ctx->bank );
 
   fd_features_t * features = fd_bank_mgr_features_modify( args->slot_ctx->bank_mgr );
 
-  fd_features_enable_cleaned_up( features, &args->slot_ctx->bank->cluster_version );
+  fd_features_enable_cleaned_up( features, fd_bank_cluster_version_query( args->slot_ctx->bank ) );
   fd_features_enable_one_offs( features, args->one_off_features, args->one_off_features_cnt, 0UL );
 
   fd_bank_mgr_features_save( args->slot_ctx->bank_mgr );

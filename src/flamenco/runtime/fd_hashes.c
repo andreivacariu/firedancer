@@ -241,7 +241,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
     fd_sha256_append( &sha, (uchar const *) &account_delta_hash, sizeof( fd_hash_t  ) );
   fd_sha256_append( &sha, (uchar const *) fd_bank_signature_count_query( slot_ctx->bank ), sizeof( ulong ) );
 
-  fd_sha256_append( &sha, (uchar const *) slot_ctx->bank->poh.hash, sizeof( fd_hash_t ) );
+  fd_sha256_append( &sha, (uchar const *) fd_bank_poh_query( slot_ctx->bank )->hash, sizeof( fd_hash_t ) );
 
   fd_sha256_fini( &sha, hash->hash );
 
@@ -276,7 +276,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
         prev_bank_hash,
         FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, remove_accounts_delta_hash) ? NULL : account_delta_hash.hash,
         lthash,
-        slot_ctx->bank->poh.hash,
+        fd_bank_poh_query( slot_ctx->bank )->hash,
         fd_bank_signature_count_get( slot_ctx->bank ) );
   }
 
@@ -293,7 +293,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
                     FD_BASE58_ENC_32_ALLOCA( prev_bank_hash ),
                     FD_LTHASH_ENC_32_ALLOCA( (fd_lthash_value_t *) fd_bank_mgr_lthash_query( slot_ctx->bank_mgr )->lthash ),
                     fd_bank_signature_count_get( slot_ctx->bank ),
-                    FD_BASE58_ENC_32_ALLOCA( slot_ctx->bank->poh.hash ) ));
+                    FD_BASE58_ENC_32_ALLOCA( fd_bank_poh_query( slot_ctx->bank )->hash ) ));
   } else {
     FD_LOG_NOTICE(( "\n\n[Replay]\n"
                     "slot:             %lu\n"
@@ -309,7 +309,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
                     FD_BASE58_ENC_32_ALLOCA( account_delta_hash.hash ),
                     FD_LTHASH_ENC_32_ALLOCA( (fd_lthash_value_t *) fd_bank_mgr_lthash_query( slot_ctx->bank_mgr )->lthash ),
                     fd_bank_signature_count_get( slot_ctx->bank ),
-                    FD_BASE58_ENC_32_ALLOCA( slot_ctx->bank->poh.hash ) ));
+                    FD_BASE58_ENC_32_ALLOCA( fd_bank_poh_query( slot_ctx->bank )->hash ) ));
   }
 }
 

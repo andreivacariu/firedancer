@@ -1511,7 +1511,10 @@ exec_slice( fd_replay_tile_ctx_t * ctx,
     fd_block_map_prepare( ctx->blockstore->block_map, &ctx->curr_slot, NULL, query, FD_MAP_FLAG_BLOCKING );
     fd_block_info_t * block_info = fd_block_map_query_ele( query );
 
-    memcpy( ctx->slot_ctx->bank->poh.hash, hdr->hash, sizeof(fd_hash_t) );
+    fd_hash_t * poh = fd_bank_poh_modify( ctx->slot_ctx->bank );
+    memcpy( poh, hdr->hash, sizeof(fd_hash_t) );
+    fd_bank_poh_end_modify( ctx->slot_ctx->bank );
+
     block_info->flags = fd_uchar_set_bit( block_info->flags, FD_BLOCK_FLAG_PROCESSED );
     FD_COMPILER_MFENCE();
     block_info->flags = fd_uchar_clear_bit( block_info->flags, FD_BLOCK_FLAG_REPLAYING );
@@ -1793,9 +1796,11 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx,
     ctx->slot_ctx->slot      = 1UL;
 
     ulong hashcnt_per_slot = fd_bank_hashes_per_tick_get( ctx->slot_ctx->bank ) * fd_bank_ticks_per_slot_get( ctx->slot_ctx->bank );
+    fd_hash_t * poh = fd_bank_poh_modify( ctx->slot_ctx->bank );
     while(hashcnt_per_slot--) {
-      fd_sha256_hash( ctx->slot_ctx->bank->poh.hash, 32UL, ctx->slot_ctx->bank->poh.hash );
+      fd_sha256_hash( poh->hash, 32UL, poh->hash );
     }
+    fd_bank_poh_end_modify( ctx->slot_ctx->bank );
 
     FD_TEST( fd_runtime_block_execute_prepare( ctx->slot_ctx, ctx->runtime_spad ) == 0 );
     fd_runtime_block_info_t info = { .signature_cnt = 0 };
@@ -2661,7 +2666,7 @@ unprivileged_init( fd_topo_t *      topo,
 
   FD_BANK_MGR_DECL(bank_mgr, ctx->funk, NULL)
 
-  fd_cluster_version_t * cluster_version = &bank->cluster_version;
+  fd_cluster_version_t * cluster_version = fd_bank_cluster_version_modify( bank );
 
   if( FD_UNLIKELY( sscanf( tile->replay.cluster_version, "%u.%u.%u", &cluster_version->major, &cluster_version->minor, &cluster_version->patch )!=3 ) ) {
     FD_LOG_ERR(( "failed to decode cluster version, configured as \"%s\"", tile->replay.cluster_version ));
@@ -2669,6 +2674,8 @@ unprivileged_init( fd_topo_t *      topo,
 
   fd_features_t * features = fd_bank_mgr_features_modify( bank_mgr );
   fd_features_enable_cleaned_up( features, cluster_version );
+
+  fd_bank_cluster_version_end_modify( bank );
 
   char const * one_off_features[16];
   for (ulong i = 0; i < tile->replay.enable_features_cnt; i++) {

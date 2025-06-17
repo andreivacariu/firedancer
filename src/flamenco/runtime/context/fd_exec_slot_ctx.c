@@ -326,7 +326,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
   /* PoH */
 
   if( oldbank->blockhash_queue.last_hash ) {
-    slot_ctx->bank->poh = *oldbank->blockhash_queue.last_hash;
+    fd_bank_poh_set( slot_ctx->bank, *oldbank->blockhash_queue.last_hash );
   }
 
   /* Prev Bank Hash */
@@ -357,7 +357,10 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
      number that is less or equal than the current slot number.
      (There might be some hard forks in the future, ignore these) */
   do {
-    slot_ctx->bank->last_restart_slot.slot = 0UL;
+    fd_sol_sysvar_last_restart_slot_t * last_restart_slot = fd_bank_last_restart_slot_modify( slot_ctx->bank );
+    last_restart_slot->slot = 0UL;
+    fd_bank_last_restart_slot_end_modify( slot_ctx->bank );
+
     if( FD_UNLIKELY( oldbank->hard_forks.hard_forks_len == 0 ) ) {
       /* SIMD-0047: The first restart slot should be `0` */
       break;
@@ -368,7 +371,9 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
     for( fd_slot_pair_t const *pair = tail; pair >= head; pair-- ) {
       if( pair->slot <= slot_ctx->slot ) {
-        slot_ctx->bank->last_restart_slot.slot = pair->slot;
+        fd_sol_sysvar_last_restart_slot_t * last_restart_slot = fd_bank_last_restart_slot_modify( slot_ctx->bank );
+        last_restart_slot->slot = pair->slot;
+        fd_bank_last_restart_slot_end_modify( slot_ctx->bank );
         break;
       }
     }

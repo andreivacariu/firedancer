@@ -122,7 +122,7 @@ fd_sysvar_recent_hashes_update( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runti
   FD_SPAD_FRAME_BEGIN( runtime_spad ) {
   /* Update the blockhash queue */
 
-  register_blockhash( slot_ctx, &slot_ctx->bank->poh );
+  register_blockhash( slot_ctx, fd_bank_poh_query( slot_ctx->bank ) );
 
   /* Derive the new sysvar recent blockhashes from the blockhash queue */
   ulong   sz        = FD_RECENT_BLOCKHASHES_ACCOUNT_MAX_SIZE;

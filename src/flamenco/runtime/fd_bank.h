@@ -57,36 +57,39 @@ FD_PROTOTYPES_BEGIN
 /* Define additional fields to the bank struct here. */
 
 #define FD_BANKS_ITER(X)                                                                                                                                                                    \
-  /* type,                             name,                        footprint,                      align,                           CoW, has lock */                                       \
-  X(fd_clock_timestamp_votes_global_t, clock_timestamp_votes,       5000000UL,                      128UL,                           1,   1    )  /* TODO: This needs to get sized out */   \
-  X(fd_account_keys_global_t,          stake_account_keys,          100000000UL,                    128UL,                           1,   1    )  /* Supports roughly 3M stake accounts */  \
-  X(fd_account_keys_global_t,          vote_account_keys,           3200000UL,                      128UL,                           1,   1    )  /* Supports roughly 100k vote accounts */ \
-  X(fd_rent_fresh_accounts_global_t,   rent_fresh_accounts,         50000UL,                        128UL,                           1,   1    )  /* Rent fresh accounts */                 \
-  X(fd_block_hash_queue_global_t,      block_hash_queue,            50000UL,                        128UL,                           0,   0    )  /* Block hash queue */                    \
-  X(fd_fee_rate_governor_t,            fee_rate_governor,           sizeof(fd_fee_rate_governor_t), alignof(fd_fee_rate_governor_t), 0,   0    )  /* Fee rate governor */                   \
-  X(ulong,                             capitalization,              sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Capitalization */                      \
-  X(ulong,                             lamports_per_signature,      sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Lamports per signature */              \
-  X(ulong,                             prev_lamports_per_signature, sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Previous lamports per signature */     \
-  X(ulong,                             transaction_count,           sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Transaction count */                   \
-  X(ulong,                             parent_signature_cnt,        sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Parent signature count */              \
-  X(ulong,                             tick_height,                 sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Tick height */                         \
-  X(ulong,                             max_tick_height,             sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Max tick height */ \
-  X(ulong,                             hashes_per_tick,             sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Hashes per tick */ \
-  X(uint128,                           ns_per_slot,                 sizeof(uint128),                alignof(uint128),                0,   0    )  /* NS per slot */ \
-  X(ulong,                             ticks_per_slot,              sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Ticks per slot */ \
-  X(ulong,                             genesis_creation_time,       sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Genesis creation time */ \
-  X(double,                            slots_per_year,              sizeof(double),                 alignof(double),                 0,   0    )  /* Slots per year */ \
-  X(fd_inflation_t,                    inflation,                   sizeof(fd_inflation_t),          alignof(fd_inflation_t),        0,   0    )  /* Inflation */ \
-  X(ulong,                             total_epoch_stake,           sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Total epoch stake */ \
-  X(ulong,                             eah_start_slot,              sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* EAH start slot */ \
-  X(ulong,                             eah_stop_slot,               sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* EAH stop slot */ \
-  X(ulong,                             eah_interval,                sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* EAH interval */ \
-  X(ulong,                             block_height,                sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Block height */ \
-  X(fd_hash_t,                         epoch_account_hash,          sizeof(fd_hash_t),              alignof(fd_hash_t),              0,   0    )  /* Epoch account hash */ \
-  X(ulong,                             execution_fees,              sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Execution fees */ \
-  X(ulong,                             priority_fees,               sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Priority fees */ \
-  X(ulong,                             signature_count,             sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Signature count */ \
-  X(ulong,                             use_prev_epoch_stake,        sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Use prev epoch stake */
+  /* type,                             name,                        footprint,                                 align,                                      CoW, has lock */                                       \
+  X(fd_clock_timestamp_votes_global_t, clock_timestamp_votes,       5000000UL,                                 128UL,                                      1,   1    )  /* TODO: This needs to get sized out */   \
+  X(fd_account_keys_global_t,          stake_account_keys,          100000000UL,                               128UL,                                      1,   1    )  /* Supports roughly 3M stake accounts */  \
+  X(fd_account_keys_global_t,          vote_account_keys,           3200000UL,                                 128UL,                                      1,   1    )  /* Supports roughly 100k vote accounts */ \
+  X(fd_rent_fresh_accounts_global_t,   rent_fresh_accounts,         50000UL,                                   128UL,                                      1,   1    )  /* Rent fresh accounts */                 \
+  X(fd_block_hash_queue_global_t,      block_hash_queue,            50000UL,                                   128UL,                                      0,   0    )  /* Block hash queue */                    \
+  X(fd_fee_rate_governor_t,            fee_rate_governor,           sizeof(fd_fee_rate_governor_t),            alignof(fd_fee_rate_governor_t),            0,   0    )  /* Fee rate governor */                   \
+  X(ulong,                             capitalization,              sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Capitalization */                      \
+  X(ulong,                             lamports_per_signature,      sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Lamports per signature */              \
+  X(ulong,                             prev_lamports_per_signature, sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Previous lamports per signature */     \
+  X(ulong,                             transaction_count,           sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Transaction count */                   \
+  X(ulong,                             parent_signature_cnt,        sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Parent signature count */              \
+  X(ulong,                             tick_height,                 sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Tick height */                         \
+  X(ulong,                             max_tick_height,             sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Max tick height */ \
+  X(ulong,                             hashes_per_tick,             sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Hashes per tick */ \
+  X(uint128,                           ns_per_slot,                 sizeof(uint128),                           alignof(uint128),                           0,   0    )  /* NS per slot */ \
+  X(ulong,                             ticks_per_slot,              sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Ticks per slot */ \
+  X(ulong,                             genesis_creation_time,       sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Genesis creation time */ \
+  X(double,                            slots_per_year,              sizeof(double),                            alignof(double),                            0,   0    )  /* Slots per year */ \
+  X(fd_inflation_t,                    inflation,                   sizeof(fd_inflation_t),                    alignof(fd_inflation_t),                    0,   0    )  /* Inflation */ \
+  X(ulong,                             total_epoch_stake,           sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Total epoch stake */ \
+  X(ulong,                             eah_start_slot,              sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* EAH start slot */ \
+  X(ulong,                             eah_stop_slot,               sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* EAH stop slot */ \
+  X(ulong,                             eah_interval,                sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* EAH interval */ \
+  X(ulong,                             block_height,                sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Block height */ \
+  X(fd_hash_t,                         epoch_account_hash,          sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* Epoch account hash */ \
+  X(ulong,                             execution_fees,              sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Execution fees */ \
+  X(ulong,                             priority_fees,               sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Priority fees */ \
+  X(ulong,                             signature_count,             sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Signature count */ \
+  X(ulong,                             use_prev_epoch_stake,        sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Use prev epoch stake */ \
+  X(fd_hash_t,                         poh,                         sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* PoH */ \
+  X(fd_sol_sysvar_last_restart_slot_t, last_restart_slot,           sizeof(fd_sol_sysvar_last_restart_slot_t), alignof(fd_sol_sysvar_last_restart_slot_t), 0,   0    )  /* Last restart slot */ \
+  X(fd_cluster_version_t,              cluster_version,             sizeof(fd_cluster_version_t),              alignof(fd_cluster_version_t),              0,   0    )  /* Cluster version */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need
@@ -199,10 +202,6 @@ struct fd_bank {
   #undef X
   #undef HAS_LOCK_0
   #undef HAS_LOCK_1
-
-  fd_hash_t                         poh;
-  fd_sol_sysvar_last_restart_slot_t last_restart_slot;
-  fd_cluster_version_t              cluster_version;
 
   ulong                             prev_slot;
   fd_hash_t                         bank_hash;
