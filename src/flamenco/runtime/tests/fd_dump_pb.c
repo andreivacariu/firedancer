@@ -451,11 +451,12 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
                                                                          next_epoch_stakes_root );
   fd_bank_next_epoch_stakes_end_query( slot_ctx->bank );
 
-  fd_vote_accounts_global_t * epoch_stakes = fd_bank_mgr_epoch_stakes_query( bank_mgr );
+  fd_vote_accounts_global_t const * epoch_stakes = fd_bank_epoch_stakes_query( slot_ctx->bank );
   fd_vote_accounts_pair_global_t_mapnode_t * epoch_stakes_pool = fd_vote_accounts_vote_accounts_pool_join( epoch_stakes );
   fd_vote_accounts_pair_global_t_mapnode_t * epoch_stakes_root = fd_vote_accounts_vote_accounts_root_join( epoch_stakes );
   ulong vote_account_t_2_cnt  = fd_vote_accounts_pair_global_t_map_size( epoch_stakes_pool,
                                                                          epoch_stakes_root );
+  fd_bank_epoch_stakes_end_query( slot_ctx->bank );
 
   ulong total_num_accounts    = num_sysvar_entries +
                                 num_loaded_builtins +

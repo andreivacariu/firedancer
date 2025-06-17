@@ -186,8 +186,7 @@ fd_runtime_update_leaders( fd_exec_slot_ctx_t * slot_ctx,
   FD_LOG_INFO(( "schedule->first_normal_epoch = %lu", epoch_schedule->first_normal_epoch ));
   FD_LOG_INFO(( "schedule->first_normal_slot = %lu", epoch_schedule->first_normal_slot ));
 
-  FD_LOG_WARNING(("UPDATE LEADERS"));
-  fd_vote_accounts_global_t *                epoch_vaccs   = fd_bank_mgr_epoch_stakes_query( slot_ctx->bank_mgr );
+  fd_vote_accounts_global_t const *          epoch_vaccs   = fd_bank_epoch_stakes_query( slot_ctx->bank );
   fd_vote_accounts_pair_global_t_mapnode_t * vote_acc_pool = fd_vote_accounts_vote_accounts_pool_join( epoch_vaccs );
   fd_vote_accounts_pair_global_t_mapnode_t * vote_acc_root = fd_vote_accounts_vote_accounts_root_join( epoch_vaccs );
 
@@ -197,7 +196,9 @@ fd_runtime_update_leaders( fd_exec_slot_ctx_t * slot_ctx,
 
   fd_runtime_update_slots_per_epoch( slot_ctx, fd_epoch_slot_cnt( epoch_schedule, epoch ) );
 
-  ulong               vote_acc_cnt  = fd_vote_accounts_pair_global_t_map_size( vote_acc_pool, vote_acc_root );
+  ulong vote_acc_cnt  = fd_vote_accounts_pair_global_t_map_size( vote_acc_pool, vote_acc_root );
+  fd_bank_epoch_stakes_end_query( slot_ctx->bank );
+
   fd_stake_weight_t * epoch_weights = fd_spad_alloc_check( runtime_spad, alignof(fd_stake_weight_t), vote_acc_cnt * sizeof(fd_stake_weight_t) );
 
   ulong stake_weight_cnt = fd_stake_weights_by_node( epoch_vaccs, epoch_weights, runtime_spad );
@@ -2351,9 +2352,9 @@ fd_update_epoch_stakes( fd_exec_slot_ctx_t * slot_ctx ) {
 
   fd_vote_accounts_global_t const * next_epoch_stakes = fd_bank_next_epoch_stakes_query( slot_ctx->bank );
 
-  fd_vote_accounts_global_t * epoch_stakes = fd_bank_mgr_epoch_stakes_modify( slot_ctx->bank_mgr );
+  fd_vote_accounts_global_t * epoch_stakes = fd_bank_epoch_stakes_modify( slot_ctx->bank );
   fd_memcpy( epoch_stakes, next_epoch_stakes, total_sz );
-  fd_bank_mgr_epoch_stakes_save( slot_ctx->bank_mgr );
+  fd_bank_epoch_stakes_end_modify( slot_ctx->bank );
 
   fd_bank_next_epoch_stakes_end_query( slot_ctx->bank );
 

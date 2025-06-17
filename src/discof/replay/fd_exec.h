@@ -17,12 +17,13 @@ generate_stake_weight_msg( fd_exec_slot_ctx_t * slot_ctx,
                            ulong                epoch,
                            ulong              * stake_weight_msg_out ) {
 
-  fd_stake_weight_msg_t *     stake_weight_msg = (fd_stake_weight_msg_t *)fd_type_pun( stake_weight_msg_out );
-  fd_stake_weight_t     *     stake_weights    = (fd_stake_weight_t *)&stake_weight_msg_out[5];
-  fd_vote_accounts_global_t * vote_accounts    = fd_bank_mgr_epoch_stakes_query( slot_ctx->bank_mgr );
-  ulong                       stake_weight_idx = fd_stake_weights_by_node( vote_accounts,
+  fd_stake_weight_msg_t *           stake_weight_msg = (fd_stake_weight_msg_t *)fd_type_pun( stake_weight_msg_out );
+  fd_stake_weight_t     *           stake_weights    = (fd_stake_weight_t *)&stake_weight_msg_out[5];
+  fd_vote_accounts_global_t const * vote_accounts    = fd_bank_epoch_stakes_query( slot_ctx->bank );
+  ulong                             stake_weight_idx = fd_stake_weights_by_node( vote_accounts,
                                                                            stake_weights,
                                                                            runtime_spad );
+  fd_bank_epoch_stakes_end_query( slot_ctx->bank );
 
   fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
 

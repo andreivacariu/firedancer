@@ -457,7 +457,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
     /* Move current EpochStakes */
 
-    fd_vote_accounts_global_t * epoch_stakes = fd_bank_mgr_epoch_stakes_modify( slot_ctx->bank_mgr );
+    fd_vote_accounts_global_t * epoch_stakes = fd_bank_epoch_stakes_modify( slot_ctx->bank );
     uchar * epoch_stakes_pool_mem = (uchar *)fd_ulong_align_up( (ulong)epoch_stakes + sizeof(fd_vote_accounts_global_t), fd_vote_accounts_pair_global_t_map_align() );
     fd_vote_accounts_pair_global_t_mapnode_t * epoch_stakes_pool = fd_vote_accounts_pair_global_t_map_join( fd_vote_accounts_pair_global_t_map_new( epoch_stakes_pool_mem, 50000UL ) );
     fd_vote_accounts_pair_global_t_mapnode_t * epoch_stakes_root = NULL;
@@ -497,7 +497,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
     fd_vote_accounts_vote_accounts_pool_update( epoch_stakes, epoch_stakes_pool );
     fd_vote_accounts_vote_accounts_root_update( epoch_stakes, epoch_stakes_root );
-    fd_bank_mgr_epoch_stakes_save( slot_ctx->bank_mgr );
+    fd_bank_epoch_stakes_end_modify( slot_ctx->bank );
 
     /* Move next EpochStakes */
 

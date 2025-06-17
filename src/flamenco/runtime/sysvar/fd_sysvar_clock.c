@@ -184,9 +184,6 @@ fd_calculate_stake_weighted_timestamp( fd_exec_slot_ctx_t * slot_ctx,
                                        fd_spad_t *          runtime_spad ) {
   FD_SPAD_FRAME_BEGIN( runtime_spad ) {
 
-  fd_bank_mgr_t bank_mgr_obj;
-  fd_bank_mgr_t * bank_mgr = fd_bank_mgr_join( &bank_mgr_obj, slot_ctx->funk, slot_ctx->funk_txn );
-
   ulong slot_duration = (ulong)fd_bank_ns_per_slot_get( slot_ctx->bank );
   fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( slot_ctx->funk,
                                                               slot_ctx->funk_txn,
@@ -218,7 +215,7 @@ fd_calculate_stake_weighted_timestamp( fd_exec_slot_ctx_t * slot_ctx,
   fd_clock_timestamp_vote_t_mapnode_t * timestamp_votes_pool = fd_clock_timestamp_votes_votes_pool_join( clock_timestamp_votes );
   fd_clock_timestamp_vote_t_mapnode_t * timestamp_votes_root = fd_clock_timestamp_votes_votes_root_join( clock_timestamp_votes );
 
-  fd_vote_accounts_global_t * epoch_stakes = fd_bank_mgr_epoch_stakes_query( bank_mgr );
+  fd_vote_accounts_global_t const *          epoch_stakes  = fd_bank_epoch_stakes_query( slot_ctx->bank );
   fd_vote_accounts_pair_global_t_mapnode_t * vote_acc_pool = fd_vote_accounts_vote_accounts_pool_join( epoch_stakes );
   fd_vote_accounts_pair_global_t_mapnode_t * vote_acc_root = fd_vote_accounts_vote_accounts_root_join( epoch_stakes );
 
@@ -302,7 +299,7 @@ fd_calculate_stake_weighted_timestamp( fd_exec_slot_ctx_t * slot_ctx,
       }
     }
   }
-
+  fd_bank_epoch_stakes_end_query( slot_ctx->bank );
   fd_bank_clock_timestamp_votes_end_query( slot_ctx->bank );
 
   *result_timestamp = 0;

@@ -349,7 +349,7 @@ publish_stake_weights( fd_replay_tile_ctx_t * ctx,
                        fd_exec_slot_ctx_t *   slot_ctx ) {
   fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
 
-  fd_vote_accounts_global_t * epoch_stakes = fd_bank_mgr_epoch_stakes_query( slot_ctx->bank_mgr );
+  fd_vote_accounts_global_t const * epoch_stakes = fd_bank_epoch_stakes_query( slot_ctx->bank );
   fd_vote_accounts_pair_global_t_mapnode_t * epoch_stakes_root = fd_vote_accounts_vote_accounts_root_join( epoch_stakes );
 
   if( epoch_stakes_root!=NULL ) {
@@ -362,6 +362,8 @@ publish_stake_weights( fd_replay_tile_ctx_t * ctx,
     ctx->stake_out->chunk = fd_dcache_compact_next( ctx->stake_out->chunk, stake_weights_sz, ctx->stake_out->chunk0, ctx->stake_out->wmark );
     FD_LOG_NOTICE(("sending current epoch stake weights - epoch: %lu, stake_weight_cnt: %lu, start_slot: %lu, slot_cnt: %lu", stake_weights_msg[0], stake_weights_msg[1], stake_weights_msg[2], stake_weights_msg[3]));
   }
+
+  fd_bank_epoch_stakes_end_modify( slot_ctx->bank );
 
   fd_vote_accounts_global_t const * next_epoch_stakes = fd_bank_next_epoch_stakes_query( slot_ctx->bank );
   fd_vote_accounts_pair_global_t_mapnode_t * next_epoch_stakes_root = fd_vote_accounts_vote_accounts_root_join( next_epoch_stakes );
@@ -2006,9 +2008,9 @@ publish_votes_to_plugin( fd_replay_tile_ctx_t * ctx,
   fd_fork_t * fork = fd_fork_frontier_ele_query( ctx->forks->frontier, &ctx->curr_slot, NULL, ctx->forks->pool );
   if( FD_UNLIKELY ( !fork  ) ) return;
 
-  fd_vote_accounts_global_t * epoch_stakes = fd_bank_mgr_epoch_stakes_query( ctx->slot_ctx->bank_mgr );
-  fd_vote_accounts_pair_global_t_mapnode_t * epoch_stakes_pool = fd_vote_accounts_pair_global_t_map_join( epoch_stakes );
-  fd_vote_accounts_pair_global_t_mapnode_t * epoch_stakes_root = fd_vote_accounts_pair_global_t_map_join( epoch_stakes );
+  fd_vote_accounts_global_t const *          epoch_stakes      = fd_bank_epoch_stakes_query( ctx->slot_ctx->bank );
+  fd_vote_accounts_pair_global_t_mapnode_t * epoch_stakes_pool = fd_vote_accounts_vote_accounts_pool_join( epoch_stakes );
+  fd_vote_accounts_pair_global_t_mapnode_t * epoch_stakes_root = fd_vote_accounts_vote_accounts_root_join( epoch_stakes );
 
   ulong i = 0;
   FD_SPAD_FRAME_BEGIN( ctx->runtime_spad ) {
@@ -2084,6 +2086,8 @@ publish_votes_to_plugin( fd_replay_tile_ctx_t * ctx,
     fd_bank_clock_timestamp_votes_end_query( ctx->slot_ctx->bank );
   }
   } FD_SPAD_FRAME_END;
+
+  fd_bank_epoch_stakes_end_query( ctx->slot_ctx->bank );
 
   *(ulong *)dst = i;
 
