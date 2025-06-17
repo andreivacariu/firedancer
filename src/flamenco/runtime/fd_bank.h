@@ -98,7 +98,8 @@ FD_PROTOTYPES_BEGIN
   X(fd_rent_t,                         rent,                        sizeof(fd_rent_t),                         alignof(fd_rent_t),                         0,   0    )  /* Rent */ \
   X(fd_slot_lthash_t,                  lthash,                      sizeof(fd_slot_lthash_t),                  alignof(fd_slot_lthash_t),                  0,   0    )  /* LTHash */ \
   X(fd_vote_accounts_global_t,         next_epoch_stakes,           200000000UL,                               128UL,                                      1,   1    )  /* Next epoch stakes, ~4K per account * 50k vote accounts */ \
-  X(fd_vote_accounts_global_t,         epoch_stakes,                200000000UL,                               128UL,                                      1,   1    )  /* Epoch stakes ~4K per account * 50k vote accounts */
+  X(fd_vote_accounts_global_t,         epoch_stakes,                200000000UL,                               128UL,                                      1,   1    )  /* Epoch stakes ~4K per account * 50k vote accounts */ \
+  X(fd_epoch_reward_status_global_t,   epoch_reward_status,         160000000UL,                               128UL,                                      1,   1    )  /* Epoch reward status */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need
@@ -159,6 +160,12 @@ FD_PROTOTYPES_BEGIN
 
 #define POOL_NAME fd_bank_epoch_stakes_pool
 #define POOL_T    fd_bank_epoch_stakes_t
+#include "../../util/tmpl/fd_pool.c"
+#undef POOL_NAME
+#undef POOL_T
+
+#define POOL_NAME fd_bank_epoch_reward_status_pool
+#define POOL_T    fd_bank_epoch_reward_status_t
 #include "../../util/tmpl/fd_pool.c"
 #undef POOL_NAME
 #undef POOL_T
