@@ -275,7 +275,7 @@ runtime_replay( fd_ledger_args_t * ledger_args ) {
 
   for( ulong slot = start_slot; slot<=ledger_args->end_slot && !aborted; ++slot ) {
 
-    ledger_args->slot_ctx->bank->prev_slot = prev_slot;
+    fd_bank_prev_slot_set( ledger_args->slot_ctx->bank, prev_slot );
 
     FD_LOG_DEBUG(( "reading slot %lu", slot ));
 
@@ -381,7 +381,7 @@ runtime_replay( fd_ledger_args_t * ledger_args ) {
       }
     }
 
-    fd_hash_t * bank_hash_bm = fd_bank_mgr_bank_hash_query( ledger_args->slot_ctx->bank_mgr );
+    fd_hash_t const * bank_hash_bm = fd_bank_bank_hash_query( ledger_args->slot_ctx->bank );
     err = fd_blockstore_bank_hash_query( blockstore, slot, &expected );
     if( FD_UNLIKELY( err) ) {
       FD_LOG_ERR(( "slot %lu is missing its bank hash", slot ));

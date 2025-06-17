@@ -230,9 +230,8 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
   //fd_bank_mgr_block_hash_queue_save( slot_ctx->bank_mgr );
 
   /* Bank Hash */
-  fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_modify( slot_ctx->bank_mgr );
-  *bank_hash = oldbank->hash;
-  fd_bank_mgr_bank_hash_save( slot_ctx->bank_mgr );
+
+  fd_bank_bank_hash_set( slot_ctx->bank, oldbank->hash );
 
   /* Slot */
 
@@ -313,7 +312,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* Prev Slot */
 
-  slot_ctx->bank->prev_slot = oldbank->parent_slot;
+  fd_bank_prev_slot_set( slot_ctx->bank, oldbank->parent_slot );
 
   /* Execution Fees */
 
@@ -331,9 +330,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* Prev Bank Hash */
 
-  fd_hash_t * prev_bank_hash = fd_bank_mgr_prev_bank_hash_modify( slot_ctx->bank_mgr );
-  *prev_bank_hash = oldbank->parent_hash;
-  fd_bank_mgr_prev_bank_hash_save( slot_ctx->bank_mgr );
+  fd_bank_prev_bank_hash_set( slot_ctx->bank, oldbank->parent_hash );
 
   /* Epoch Schedule */
 

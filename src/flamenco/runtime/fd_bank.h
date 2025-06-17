@@ -89,7 +89,11 @@ FD_PROTOTYPES_BEGIN
   X(ulong,                             use_prev_epoch_stake,        sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Use prev epoch stake */ \
   X(fd_hash_t,                         poh,                         sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* PoH */ \
   X(fd_sol_sysvar_last_restart_slot_t, last_restart_slot,           sizeof(fd_sol_sysvar_last_restart_slot_t), alignof(fd_sol_sysvar_last_restart_slot_t), 0,   0    )  /* Last restart slot */ \
-  X(fd_cluster_version_t,              cluster_version,             sizeof(fd_cluster_version_t),              alignof(fd_cluster_version_t),              0,   0    )  /* Cluster version */
+  X(fd_cluster_version_t,              cluster_version,             sizeof(fd_cluster_version_t),              alignof(fd_cluster_version_t),              0,   0    )  /* Cluster version */ \
+  X(ulong,                             prev_slot,                   sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Previous slot */ \
+  X(fd_hash_t,                         bank_hash,                   sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* Bank hash */ \
+  X(fd_hash_t,                         prev_bank_hash,              sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* Previous bank hash */ \
+  X(fd_hash_t,                         genesis_hash,                sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* Genesis hash */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need
@@ -203,10 +207,6 @@ struct fd_bank {
   #undef HAS_LOCK_0
   #undef HAS_LOCK_1
 
-  ulong                             prev_slot;
-  fd_hash_t                         bank_hash;
-  fd_hash_t                         prev_bank_hash;
-  fd_hash_t                         genesis_hash;
   fd_epoch_schedule_t               epoch_schedule;
   fd_rent_t                         rent;
   fd_slot_lthash_t                  lthash;

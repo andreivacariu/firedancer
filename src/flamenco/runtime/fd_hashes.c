@@ -204,7 +204,7 @@ fd_should_include_epoch_accounts_hash( fd_exec_slot_ctx_t * slot_ctx ) {
   }
 
   ulong calculation_stop = fd_bank_eah_stop_slot_get( slot_ctx->bank );
-  ulong prev_slot = slot_ctx->bank->prev_slot;
+  ulong prev_slot = fd_bank_prev_slot_get( slot_ctx->bank );
   return prev_slot < calculation_stop && (slot_ctx->slot >= calculation_stop);
 }
 
@@ -216,11 +216,9 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
               fd_pubkey_hash_pair_t * dirty_keys,
               ulong                   dirty_key_cnt ) {
 
-  fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_query( slot_ctx->bank_mgr );
+  fd_hash_t const * bank_hash = fd_bank_bank_hash_query( slot_ctx->bank );
 
-  fd_hash_t * prev_bank_hash = fd_bank_mgr_prev_bank_hash_modify( slot_ctx->bank_mgr );
-  *prev_bank_hash = *bank_hash;
-  fd_bank_mgr_prev_bank_hash_save( slot_ctx->bank_mgr );
+  fd_bank_prev_bank_hash_set( slot_ctx->bank, *bank_hash );
 
   fd_bank_parent_signature_cnt_set( slot_ctx->bank, fd_bank_signature_count_get( slot_ctx->bank ) );
 
@@ -273,7 +271,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
     fd_solcap_write_bank_preimage(
         capture_ctx->capture,
         hash->hash,
-        prev_bank_hash,
+        fd_bank_prev_bank_hash_query( slot_ctx->bank ),
         FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, remove_accounts_delta_hash) ? NULL : account_delta_hash.hash,
         lthash,
         fd_bank_poh_query( slot_ctx->bank )->hash,
@@ -290,7 +288,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
                     "last_blockhash:   %s\n",
                     slot_ctx->slot,
                     FD_BASE58_ENC_32_ALLOCA( hash->hash ),
-                    FD_BASE58_ENC_32_ALLOCA( prev_bank_hash ),
+                    FD_BASE58_ENC_32_ALLOCA( fd_bank_prev_bank_hash_query( slot_ctx->bank ) ),
                     FD_LTHASH_ENC_32_ALLOCA( (fd_lthash_value_t *) fd_bank_mgr_lthash_query( slot_ctx->bank_mgr )->lthash ),
                     fd_bank_signature_count_get( slot_ctx->bank ),
                     FD_BASE58_ENC_32_ALLOCA( fd_bank_poh_query( slot_ctx->bank )->hash ) ));
@@ -305,7 +303,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
                     "last_blockhash:   %s\n",
                     slot_ctx->slot,
                     FD_BASE58_ENC_32_ALLOCA( hash->hash ),
-                    FD_BASE58_ENC_32_ALLOCA( prev_bank_hash ),
+                    FD_BASE58_ENC_32_ALLOCA( fd_bank_prev_bank_hash_query( slot_ctx->bank ) ),
                     FD_BASE58_ENC_32_ALLOCA( account_delta_hash.hash ),
                     FD_LTHASH_ENC_32_ALLOCA( (fd_lthash_value_t *) fd_bank_mgr_lthash_query( slot_ctx->bank_mgr )->lthash ),
                     fd_bank_signature_count_get( slot_ctx->bank ),

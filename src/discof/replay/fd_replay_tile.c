@@ -1017,7 +1017,7 @@ publish_slot_notifications( fd_replay_tile_ctx_t * ctx,
     msg->slot_exec.root = fd_fseq_query( ctx->published_wmark );
     msg->slot_exec.height = block_entry_block_height;
     msg->slot_exec.shred_cnt = fork->slot_ctx->shred_cnt;
-    fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_query( fork->slot_ctx->bank_mgr );
+    fd_hash_t const * bank_hash = fd_bank_bank_hash_query( fork->slot_ctx->bank );
     memcpy( &msg->slot_exec.bank_hash, bank_hash, sizeof( fd_hash_t ) );
     memcpy( &msg->slot_exec.identity, ctx->validator_identity_pubkey, sizeof( fd_pubkey_t ) );
     msg->slot_exec.ts = tsorig;
@@ -1237,7 +1237,7 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
   /* if it is an epoch boundary, push out stake weights */
 
   if( fork->slot_ctx->slot != 0 ) {
-    is_new_epoch_in_new_block = (int)fd_runtime_is_epoch_boundary( fork->slot_ctx, fork->slot_ctx->slot, fork->slot_ctx->bank->prev_slot );
+    is_new_epoch_in_new_block = (int)fd_runtime_is_epoch_boundary( fork->slot_ctx, fork->slot_ctx->slot, fd_bank_prev_slot_get( fork->slot_ctx->bank ) );
   }
 
   /* Update starting PoH hash for the new slot for tick verification later */
@@ -1249,7 +1249,7 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
   // curr_block_info->in_poh_hash = fork->slot_ctx->slot_bank.poh;
   fd_block_map_publish( query );
 
-  fork->slot_ctx->bank->prev_slot = fork->slot_ctx->slot;
+  fd_bank_prev_slot_set( fork->slot_ctx->bank, fork->slot_ctx->slot );
 
   fork->slot_ctx->slot = curr_slot;
 
@@ -1519,7 +1519,7 @@ exec_slice( fd_replay_tile_ctx_t * ctx,
     FD_COMPILER_MFENCE();
     block_info->flags = fd_uchar_clear_bit( block_info->flags, FD_BLOCK_FLAG_REPLAYING );
     memcpy( &block_info->block_hash, hdr->hash, sizeof(fd_hash_t) );
-    fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_query( fork->slot_ctx->bank_mgr );
+    fd_hash_t const * bank_hash = fd_bank_bank_hash_query( fork->slot_ctx->bank );
     memcpy( &block_info->bank_hash, bank_hash, sizeof(fd_hash_t) );
 
     fd_block_map_publish( query );
@@ -1792,7 +1792,7 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx,
                                ctx->slot_ctx->slot,
                                ctx->runtime_spad );
 
-    ctx->slot_ctx->bank->prev_slot = 0UL;
+    fd_bank_prev_slot_set( ctx->slot_ctx->bank, 0UL );
     ctx->slot_ctx->slot      = 1UL;
 
     ulong hashcnt_per_slot = fd_bank_hashes_per_tick_get( ctx->slot_ctx->bank ) * fd_bank_ticks_per_slot_get( ctx->slot_ctx->bank );
@@ -1838,7 +1838,7 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx,
   }
 
   ctx->curr_slot     = snapshot_slot;
-  ctx->parent_slot   = ctx->slot_ctx->bank->prev_slot;
+  ctx->parent_slot   = fd_bank_prev_slot_get( ctx->slot_ctx->bank );
   ctx->snapshot_slot = snapshot_slot;
   ctx->flags         = EXEC_FLAG_READY_NEW;
 
@@ -1951,12 +1951,10 @@ init_snapshot( fd_replay_tile_ctx_t * ctx,
   init_after_snapshot( ctx, stem );
 
   if( ctx->plugin_out->mem && strlen( ctx->genesis ) > 0 ) {
-    fd_hash_t * genesis_hash = fd_bank_mgr_genesis_hash_query( ctx->slot_ctx->bank_mgr );
-    replay_plugin_publish( ctx, stem, FD_PLUGIN_MSG_GENESIS_HASH_KNOWN, genesis_hash->hash, sizeof(fd_hash_t) );
+    replay_plugin_publish( ctx, stem, FD_PLUGIN_MSG_GENESIS_HASH_KNOWN, fd_bank_genesis_hash_query( ctx->slot_ctx->bank )->hash, sizeof(fd_hash_t) );
   }
 
   /* Redirect ctx->slot_ctx to point to the memory inside forks. */
-  FD_LOG_WARNING(("CURR SLOT %lu", ctx->curr_slot));
 
   fd_fork_t * fork = fd_forks_query( ctx->forks, ctx->curr_slot );
   ctx->slot_ctx = fork->slot_ctx;
@@ -2288,7 +2286,7 @@ after_credit( fd_replay_tile_ctx_t * ctx,
     fd_block_map_query_t query[1] = { 0 };
     fd_block_map_prepare( ctx->blockstore->block_map, &curr_slot, NULL, query, FD_MAP_FLAG_BLOCKING );
     fd_block_info_t * block_info = fd_block_map_query_ele( query );
-    block_info->bank_hash = *fd_bank_mgr_bank_hash_query( fork->slot_ctx->bank_mgr );
+    block_info->bank_hash = fd_bank_bank_hash_get( fork->slot_ctx->bank );
     fd_block_map_publish( query );
 
     fd_spad_pop( ctx->runtime_spad );
@@ -2309,7 +2307,7 @@ after_credit( fd_replay_tile_ctx_t * ctx,
     // FD_LOG_NOTICE(( "ulong_max? %d", ctx->tower_out_idx==ULONG_MAX ));
     if( FD_LIKELY( ctx->tower_out_idx!=ULONG_MAX && !ctx->read_only ) ) {
       uchar * chunk_laddr = fd_chunk_to_laddr( ctx->tower_out_mem, ctx->tower_out_chunk );
-      fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_query( ctx->slot_ctx->bank_mgr );
+      fd_hash_t const * bank_hash = fd_bank_bank_hash_query( ctx->slot_ctx->bank );
       fd_block_hash_queue_global_t * block_hash_queue = (fd_block_hash_queue_global_t *)&ctx->slot_ctx->bank->block_hash_queue[0];
       fd_hash_t * last_hash = fd_block_hash_queue_last_hash_join( block_hash_queue );
 
@@ -2357,7 +2355,7 @@ after_credit( fd_replay_tile_ctx_t * ctx,
     /* Bank hash comparison, and halt if there's a mismatch after replay  */
     /**********************************************************************/
 
-    fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_query( fork->slot_ctx->bank_mgr );
+    fd_hash_t const * bank_hash = fd_bank_bank_hash_query( fork->slot_ctx->bank );
     fd_bank_hash_cmp_t * bank_hash_cmp = child->slot_ctx->bank_hash_cmp;
     fd_bank_hash_cmp_lock( bank_hash_cmp );
     fd_bank_hash_cmp_insert( bank_hash_cmp, curr_slot, bank_hash, 1, 0 );

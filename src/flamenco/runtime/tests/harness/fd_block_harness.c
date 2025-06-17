@@ -225,9 +225,9 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   slot_ctx->runtime_wksp                = fd_wksp_containing( slot_ctx );
   slot_ctx->slot                        = slot;
 
-  fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_modify( slot_ctx->bank_mgr );
+  fd_hash_t * bank_hash = fd_bank_bank_hash_modify( slot_ctx->bank );
   fd_memcpy( bank_hash, test_ctx->slot_ctx.parent_bank_hash, sizeof(fd_hash_t) );
-  fd_bank_mgr_bank_hash_save( slot_ctx->bank_mgr );
+  fd_bank_bank_hash_end_modify( slot_ctx->bank );
 
 
   /* Initialize vote timestamps cache */
@@ -258,7 +258,7 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   fd_banks_t * banks = fd_banks_join( fd_banks_new( banks_mem, 1UL ) );
   slot_ctx->bank = fd_banks_init_bank( banks, slot );
 
-  slot_ctx->bank->prev_slot = test_ctx->slot_ctx.prev_slot;
+  fd_bank_prev_slot_set( slot_ctx->bank, test_ctx->slot_ctx.prev_slot );
 
   // self.max_tick_height = (self.slot + 1) * self.ticks_per_slot;
   fd_bank_max_tick_height_set( slot_ctx->bank, test_ctx->epoch_ctx.hashes_per_tick );
@@ -416,9 +416,9 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   fd_bank_rent_fresh_accounts_end_modify( slot_ctx->bank );
 
   // Set genesis hash to {0}
-  fd_hash_t * genesis_hash = fd_bank_mgr_genesis_hash_modify( bank_mgr );
+  fd_hash_t * genesis_hash = fd_bank_genesis_hash_modify( slot_ctx->bank );
   fd_memset( genesis_hash->hash, 0, sizeof(fd_hash_t) );
-  fd_bank_mgr_genesis_hash_save( bank_mgr );
+  fd_bank_genesis_hash_end_modify( slot_ctx->bank );
 
   // Use the latest lamports per signature
   fd_recent_block_hashes_global_t const * rbh_global = fd_sysvar_recent_hashes_read( funk, funk_txn, runner->spad );

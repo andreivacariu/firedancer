@@ -445,7 +445,8 @@ fd_runtime_update_rent_epoch( fd_exec_slot_ctx_t * slot_ctx ) {
     return;
   }
 
-  ulong slot0 = ( slot_ctx->bank->prev_slot == 0 ) ? 0 : slot_ctx->bank->prev_slot + 1;   /* Accomodate skipped slots */
+  ulong prev_slot = fd_bank_prev_slot_get( slot_ctx->bank );
+  ulong slot0 = ( prev_slot == 0 ) ? 0 : prev_slot + 1;   /* Accomodate skipped slots */
   ulong slot1 = slot_ctx->slot;
 
   for( ulong s = slot0; s <= slot1; ++s ) {
@@ -1645,7 +1646,7 @@ fd_runtime_block_execute_finalize_finish( fd_exec_slot_ctx_t *             slot_
                                           fd_accounts_hash_task_data_t *   task_data,
                                           ulong                            lt_hash_cnt ) {
 
-  fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_query( slot_ctx->bank_mgr );
+  fd_hash_t * bank_hash = fd_bank_bank_hash_modify( slot_ctx->bank );
   int err = fd_update_hash_bank_exec_hash( slot_ctx,
                                            bank_hash,
                                            capture_ctx,
@@ -1655,6 +1656,8 @@ fd_runtime_block_execute_finalize_finish( fd_exec_slot_ctx_t *             slot_
                                            lt_hash_cnt,
                                            block_info->signature_cnt,
                                            runtime_spad );
+
+  fd_bank_bank_hash_end_modify( slot_ctx->bank );
 
   if( FD_UNLIKELY( err ) ) {
     FD_LOG_ERR(( "Unable to hash at end of slot" ));
@@ -3454,9 +3457,9 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
 
   fd_bank_poh_set( slot_ctx->bank, *genesis_hash );
 
-  fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_modify( slot_ctx->bank_mgr );
+  fd_hash_t * bank_hash = fd_bank_bank_hash_modify( slot_ctx->bank );
   memset( bank_hash->hash, 0, FD_SHA256_HASH_SZ );
-  fd_bank_mgr_bank_hash_save( slot_ctx->bank_mgr );
+  fd_bank_bank_hash_end_modify( slot_ctx->bank );
 
   fd_poh_config_t const * poh  = &genesis_block->poh_config;
   uint128 target_tick_duration = ((uint128)poh->target_tick_duration.seconds * 1000000000UL + (uint128)poh->target_tick_duration.nanoseconds);
@@ -3776,13 +3779,15 @@ fd_runtime_process_genesis_block( fd_exec_slot_ctx_t * slot_ctx,
   fd_runtime_freeze( slot_ctx, runtime_spad );
 
   /* sort and update bank hash */
-  fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_query( slot_ctx->bank_mgr );
+  fd_hash_t * bank_hash = fd_bank_bank_hash_modify( slot_ctx->bank );
   int result = fd_update_hash_bank_tpool( slot_ctx,
                                           capture_ctx,
                                           bank_hash,
                                           0UL,
                                           NULL,
                                           runtime_spad );
+  fd_bank_bank_hash_end_modify( slot_ctx->bank );
+
   if( FD_UNLIKELY( result != FD_EXECUTOR_INSTR_SUCCESS ) ) {
     FD_LOG_ERR(( "Failed to update bank hash with error=%d", result ));
   }
@@ -3845,9 +3850,9 @@ fd_runtime_read_genesis( fd_exec_slot_ctx_t * slot_ctx,
   // The hash is generated from the raw data... don't mess with this..
   fd_sha256_hash( buf, sz, genesis_hash.uc );
 
-  fd_hash_t * genesis_hash_bm = fd_bank_mgr_genesis_hash_modify( slot_ctx->bank_mgr );
+  fd_hash_t * genesis_hash_bm = fd_bank_genesis_hash_modify( slot_ctx->bank );
   fd_memcpy( genesis_hash_bm, buf, sizeof(fd_hash_t) );
-  fd_bank_mgr_genesis_hash_save( slot_ctx->bank_mgr );
+  fd_bank_genesis_hash_end_modify( slot_ctx->bank );
 
   if( !is_snapshot ) {
     fd_runtime_init_bank_from_genesis( slot_ctx,
@@ -4277,7 +4282,7 @@ fd_runtime_block_pre_execute_process_new_epoch( fd_exec_slot_ctx_t * slot_ctx,
   if( slot_ctx->slot != 0UL ) {
     ulong             slot_idx;
     fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
-    ulong             prev_epoch = fd_slot_to_epoch( epoch_schedule, slot_ctx->bank->prev_slot, &slot_idx );
+    ulong             prev_epoch = fd_slot_to_epoch( epoch_schedule, fd_bank_prev_slot_get( slot_ctx->bank ), &slot_idx );
     ulong             new_epoch  = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, &slot_idx );
     if( FD_UNLIKELY( slot_idx==1UL && new_epoch==0UL ) ) {
       /* The block after genesis has a height of 1. */
@@ -4423,7 +4428,7 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
 
   fd_bank_transaction_count_set( slot_ctx->bank, fd_bank_transaction_count_get( slot_ctx->bank ) + block_info.txn_cnt );
 
-  slot_ctx->bank->prev_slot = slot;
+  fd_bank_prev_slot_set( slot_ctx->bank, slot );
   // FIXME: this shouldn't be doing this, it doesn't work with forking. punting changing it though
   // slot_ctx->slot = slot+1UL;
 

@@ -84,7 +84,7 @@ fd_runtime_fuzz_txn_ctx_create( fd_runtime_fuzz_runner_t *         runner,
 
   /* Setup Bank manager */
 
-  slot_ctx->bank->prev_slot = slot_ctx->slot - 1;
+  fd_bank_prev_slot_set( slot_ctx->bank, slot_ctx->slot - 1UL );
 
   fd_bank_lamports_per_signature_set( slot_ctx->bank, 5000UL );
 
@@ -245,9 +245,9 @@ fd_runtime_fuzz_txn_ctx_create( fd_runtime_fuzz_runner_t *         runner,
   // Blockhash_queue[end] = last (latest) hash
   // Blockhash_queue[0] = genesis hash
   if( num_blockhashes > 0 ) {
-    fd_hash_t * genesis_hash = fd_bank_mgr_genesis_hash_modify( slot_ctx->bank_mgr );
+    fd_hash_t * genesis_hash = fd_bank_genesis_hash_modify( slot_ctx->bank );
     memcpy( genesis_hash->hash, test_ctx->blockhash_queue[0]->bytes, sizeof(fd_hash_t) );
-    fd_bank_mgr_genesis_hash_save( slot_ctx->bank_mgr );
+    fd_bank_genesis_hash_end_modify( slot_ctx->bank );
 
     for( ulong i = 0; i < num_blockhashes; ++i ) {
       // Recent block hashes cap is 150 (actually 151), while blockhash queue capacity is 300 (actually 301)
@@ -259,9 +259,9 @@ fd_runtime_fuzz_txn_ctx_create( fd_runtime_fuzz_runner_t *         runner,
   } else {
     // Add a default empty blockhash and use it as genesis
     num_blockhashes = 1;
-    fd_hash_t * genesis_hash = fd_bank_mgr_genesis_hash_modify( slot_ctx->bank_mgr );
+    fd_hash_t * genesis_hash = fd_bank_genesis_hash_modify( slot_ctx->bank );
     memcpy( genesis_hash->hash, empty_bytes, sizeof(fd_hash_t) );
-    fd_bank_mgr_genesis_hash_save( slot_ctx->bank_mgr );
+    fd_bank_genesis_hash_end_modify( slot_ctx->bank );
     fd_block_block_hash_entry_t blockhash_entry;
     memcpy( &blockhash_entry.blockhash, empty_bytes, sizeof(fd_hash_t) );
     fd_bank_poh_set( slot_ctx->bank, blockhash_entry.blockhash );
