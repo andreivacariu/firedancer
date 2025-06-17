@@ -1,6 +1,7 @@
 #include "fd_runtime.h"
 #include "context/fd_capture_ctx.h"
 #include "fd_acc_mgr.h"
+#include "fd_bank.h"
 #include "fd_runtime_err.h"
 #include "fd_runtime_init.h"
 #include "fd_pubkey_utils.h"
@@ -305,7 +306,8 @@ fd_runtime_run_incinerator( fd_exec_slot_ctx_t * slot_ctx ) {
     return -1;
   }
 
-  slot_ctx->bank->capitalization = fd_ulong_sat_sub( slot_ctx->bank->capitalization, rec->vt->get_lamports( rec ) );
+  ulong new_capitalization = fd_ulong_sat_sub( fd_bank_capitalization_get( slot_ctx->bank ), rec->vt->get_lamports( rec ) );
+  fd_bank_capitalization_set( slot_ctx->bank, new_capitalization );
 
   rec->vt->set_lamports( rec, 0UL );
   fd_txn_account_mutable_fini( rec, slot_ctx->funk, slot_ctx->funk_txn );
@@ -537,9 +539,9 @@ fd_runtime_freeze( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
       slot_ctx->block_rewards.leader         = *leader;
     } while(0);
 
-    ulong old = slot_ctx->bank->capitalization;
-    slot_ctx->bank->capitalization = fd_ulong_sat_sub( slot_ctx->bank->capitalization, burn );
-    FD_LOG_DEBUG(( "fd_runtime_freeze: burn %lu, capitalization %lu->%lu ", burn, old, slot_ctx->bank->capitalization));
+    ulong old = fd_bank_capitalization_get( slot_ctx->bank );
+    fd_bank_capitalization_set( slot_ctx->bank, fd_ulong_sat_sub( old, burn ) );
+    FD_LOG_DEBUG(( "fd_runtime_freeze: burn %lu, capitalization %lu->%lu ", burn, old, fd_bank_capitalization_get( slot_ctx->bank ) ));
 
     slot_ctx->bank->execution_fees = 0UL;
 
@@ -1045,9 +1047,7 @@ fd_runtime_new_fee_rate_governor_derived( fd_exec_slot_ctx_t *   slot_ctx,
     slot_ctx->bank->prev_lamports_per_signature = slot_ctx->bank->lamports_per_signature;
   }
 
-  fd_fee_rate_governor_t * fee_rate_governor = fd_bank_fee_rate_governor_modify( slot_ctx->bank );
-  *fee_rate_governor = me;
-  fd_bank_fee_rate_governor_end_modify( slot_ctx->bank );
+  fd_bank_fee_rate_governor_set( slot_ctx->bank, me );
 
   slot_ctx->bank->lamports_per_signature = new_lamports_per_signature;
 }
@@ -2683,9 +2683,9 @@ fd_migrate_builtin_to_core_bpf( fd_exec_slot_ctx_t * slot_ctx,
   /* Update capitalization.
      https://github.com/anza-xyz/agave/blob/v2.1.0/runtime/src/bank/builtins/core_bpf_migration/mod.rs#L286-L297 */
   if( lamports_to_burn>lamports_to_fund ) {
-    slot_ctx->bank->capitalization -= lamports_to_burn - lamports_to_fund;
+    fd_bank_capitalization_set( slot_ctx->bank, fd_bank_capitalization_get( slot_ctx->bank ) - ( lamports_to_burn - lamports_to_fund ) );
   } else {
-    slot_ctx->bank->capitalization += lamports_to_fund - lamports_to_burn;
+    fd_bank_capitalization_set( slot_ctx->bank, fd_bank_capitalization_get( slot_ctx->bank ) + ( lamports_to_fund - lamports_to_burn ) );
   }
 
   /* Reclaim the source buffer account
@@ -3488,9 +3488,7 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
   block_hash_queue->ages_root_offset = (ulong)ages_root - (ulong)block_hash_queue;
   block_hash_queue->max_age          = FD_BLOCKHASH_QUEUE_MAX_ENTRIES;
 
-  fd_fee_rate_governor_t * fee_rate_governor = fd_bank_fee_rate_governor_modify( slot_ctx->bank );
-  *fee_rate_governor = genesis_block->fee_rate_governor;
-  fd_bank_fee_rate_governor_end_modify( slot_ctx->bank );
+  fd_bank_fee_rate_governor_set( slot_ctx->bank, genesis_block->fee_rate_governor );
 
   slot_ctx->bank->lamports_per_signature = 0UL;
 
@@ -3703,7 +3701,7 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
   //     .stake_history = {0}
   // };
 
-  slot_ctx->bank->capitalization = capitalization;
+  fd_bank_capitalization_set( slot_ctx->bank, capitalization );
 
   fd_clock_timestamp_votes_global_t * clock_timestamp_votes = fd_bank_clock_timestamp_votes_modify( slot_ctx->bank );
   uchar * clock_pool_mem = (uchar *)fd_ulong_align_up( (ulong)clock_timestamp_votes + sizeof(fd_clock_timestamp_votes_global_t), fd_clock_timestamp_vote_t_map_align() );

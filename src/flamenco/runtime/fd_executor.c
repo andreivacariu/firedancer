@@ -714,8 +714,7 @@ fd_executor_calculate_fee( fd_exec_txn_ctx_t *  txn_ctx,
     }
   }
 
-  fd_fee_rate_governor_t const * fee_rate_governor = fd_bank_fee_rate_governor_query( txn_ctx->bank );
-  ulong signature_fee = fd_executor_lamports_per_signature( fee_rate_governor ) * num_signatures;
+  ulong signature_fee = fd_executor_lamports_per_signature( fd_bank_fee_rate_governor_query( txn_ctx->bank ) ) * num_signatures;
 
   // TODO: as far as I can tell, this is always 0
   //

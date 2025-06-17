@@ -249,7 +249,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* Capitalization */
 
-  slot_ctx->bank->capitalization = oldbank->capitalization;
+  fd_bank_capitalization_set( slot_ctx->bank, oldbank->capitalization );
 
   /* Lamports Per Signature */
 

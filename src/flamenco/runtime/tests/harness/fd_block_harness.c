@@ -372,7 +372,7 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
 
   fd_bank_fee_rate_governor_end_modify( slot_ctx->bank );
 
-  slot_ctx->bank->capitalization = test_ctx->slot_ctx.prev_epoch_capitalization;
+  fd_bank_capitalization_set( slot_ctx->bank, test_ctx->slot_ctx.prev_epoch_capitalization );
 
   slot_ctx->bank->lamports_per_signature = 5000UL;
 
@@ -618,7 +618,7 @@ fd_runtime_fuzz_block_run( fd_runtime_fuzz_runner_t * runner,
     effects->has_error = !!( res );
 
     /* Capture capitalization */
-    effects->slot_capitalization = slot_ctx->bank->capitalization;
+    effects->slot_capitalization = fd_bank_capitalization_get( slot_ctx->bank );
 
     /* Capture hashes */
     // uchar out_lt_hash[32];

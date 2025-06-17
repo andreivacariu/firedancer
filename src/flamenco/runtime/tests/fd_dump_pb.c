@@ -499,7 +499,7 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
   fd_memcpy( block_context->slot_ctx.parent_bank_hash, bank_hash, sizeof(fd_pubkey_t) );
   block_context->slot_ctx.prev_slot                 = slot_ctx->bank->prev_slot;
   block_context->slot_ctx.prev_lps                  = slot_ctx->bank->prev_lamports_per_signature;
-  block_context->slot_ctx.prev_epoch_capitalization = slot_ctx->bank->capitalization;
+  block_context->slot_ctx.prev_epoch_capitalization = fd_bank_capitalization_get( slot_ctx->bank );
 
   /* BlockContext -> EpochContext */
   block_context->has_epoch_ctx                        = true;

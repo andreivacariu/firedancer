@@ -606,8 +606,6 @@ accumulate_stake_cache_delegations( fd_delegation_pair_t_mapnode_t * *      dele
   ulong activating   = 0UL;
   ulong deactivating = 0UL;
 
-  FD_LOG_WARNING(("ASDF"));
-
   FD_SPAD_FRAME_BEGIN( spad ) {
     for( fd_delegation_pair_t_mapnode_t * n =  delegations_roots[worker_idx];
                                           n != end_node;
@@ -636,7 +634,6 @@ accumulate_stake_cache_delegations( fd_delegation_pair_t_mapnode_t * *      dele
       }
 
       if( FD_UNLIKELY( stake_state.inner.stake.stake.delegation.stake == 0 ) ) {
-        FD_LOG_WARNING(("Stake is 0"));
         continue;
       }
 

@@ -37,9 +37,9 @@ fd_sysvar_set( fd_exec_slot_ctx_t * slot_ctx,
 
   /* https://github.com/anza-xyz/agave/blob/cbc8320d35358da14d79ebcada4dfb6756ffac79/runtime/src/bank.rs#L1826 */
   if( lamports_after > lamports_before ) {
-    slot_ctx->bank->capitalization += ( lamports_after - lamports_before );
+    fd_bank_capitalization_set( slot_ctx->bank, fd_bank_capitalization_get( slot_ctx->bank ) + ( lamports_after - lamports_before ) );
   } else if( lamports_after < lamports_before ) {
-    slot_ctx->bank->capitalization -= ( lamports_before - lamports_after );
+    fd_bank_capitalization_set( slot_ctx->bank, fd_bank_capitalization_get( slot_ctx->bank ) - ( lamports_before - lamports_after ) );
   }
 
   rec->vt->set_data_len( rec, sz );

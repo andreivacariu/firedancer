@@ -63,7 +63,8 @@ FD_PROTOTYPES_BEGIN
   X(fd_account_keys_global_t,          vote_account_keys,     3200000UL,                      128UL,                           1,   1    )  /* Supports roughly 100k vote accounts */ \
   X(fd_rent_fresh_accounts_global_t,   rent_fresh_accounts,   50000UL,                        128UL,                           1,   1    )  /* Rent fresh accounts */                 \
   X(fd_block_hash_queue_global_t,      block_hash_queue,      50000UL,                        128UL,                           0,   0    )  /* Block hash queue */                    \
-  X(fd_fee_rate_governor_t,            fee_rate_governor,     sizeof(fd_fee_rate_governor_t), alignof(fd_fee_rate_governor_t), 0,   0    )  /* Fee rate governor */
+  X(fd_fee_rate_governor_t,            fee_rate_governor,     sizeof(fd_fee_rate_governor_t), alignof(fd_fee_rate_governor_t), 0,   0    )  /* Fee rate governor */                   \
+  X(ulong,                             capitalization,        sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Capitalization */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need
@@ -177,7 +178,6 @@ struct fd_bank {
   #undef HAS_LOCK_0
   #undef HAS_LOCK_1
 
-  ulong                             capitalization;
   ulong                             lamports_per_signature;
   ulong                             prev_lamports_per_signature;
   ulong                             transaction_count;
