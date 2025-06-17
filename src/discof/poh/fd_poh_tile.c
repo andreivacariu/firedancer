@@ -2099,8 +2099,21 @@ fd_ext_shred_set_shred_version( ulong shred_version ) {
 
 void
 fd_ext_poh_publish_gossip_vote( uchar * data,
-                                ulong   data_len ) {
-  poh_link_publish( &gossip_dedup, 1UL, data, data_len );
+                                ulong   data_len,
+                                uint    ipv4,
+                                uchar * pubkey ) {
+  (void)pubkey;
+  uchar txn_with_header[ sizeof(fd_txn_m_t)+FD_TPU_MTU ];
+  *(fd_txn_m_t *)txn_with_header = (fd_txn_m_t) {
+      .reference_slot = 0UL,
+      .payload_sz = (ushort)data_len,
+      .source_ipv4 = ipv4,
+      .source_tpu = FD_TXN_M_TPU_SOURCE_GOSSIP,
+      .txn_t_sz = 0U,
+      .block_engine = { 0UL },
+  };
+  fd_memcpy(txn_with_header + sizeof(fd_txn_m_t), data, data_len);
+  poh_link_publish( &gossip_dedup, 1UL, txn_with_header, sizeof(fd_txn_m_t)+data_len );
 }
 
 void

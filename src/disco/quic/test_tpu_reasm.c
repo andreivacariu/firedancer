@@ -194,7 +194,7 @@ main( int     argc,
     FD_TEST( slot->k.state == FD_TPU_REASM_STATE_BUSY );
     FD_TEST( fd_tpu_reasm_frag( reasm, slot, transaction4, transaction4_sz, 0UL )
              == FD_TPU_REASM_SUCCESS );
-    FD_TEST( fd_tpu_reasm_publish( reasm, slot, mcache, base, seq, 0UL )
+    FD_TEST( fd_tpu_reasm_publish( reasm, slot, mcache, base, seq, 0UL, 0U, FD_TXN_M_TPU_SOURCE_QUIC )
              == FD_TPU_REASM_SUCCESS );
     FD_TEST( slot->k.state == FD_TPU_REASM_STATE_PUB );
     verify_state( reasm, mcache );
@@ -251,7 +251,7 @@ main( int     argc,
       } else {
         FD_TEST( fd_tpu_reasm_frag( reasm, slot, transaction4, transaction4_sz, 0UL )
                  == FD_TPU_REASM_SUCCESS );
-        FD_TEST( fd_tpu_reasm_publish( reasm, slot, mcache, base, seq, fd_rng_long( rng ) )
+        FD_TEST( fd_tpu_reasm_publish( reasm, slot, mcache, base, seq, fd_rng_long( rng ), 0U, FD_TXN_M_TPU_SOURCE_QUIC )
                  == FD_TPU_REASM_SUCCESS );
         seq = fd_seq_inc( seq, 1UL );
         check_free_diff( verify_state( reasm, mcache ), +1L );
