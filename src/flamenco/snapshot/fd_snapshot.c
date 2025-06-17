@@ -48,7 +48,7 @@ fd_hashes_load( fd_exec_slot_ctx_t * slot_ctx ) {
     FD_LOG_ERR(( "missing recent block hashes account" ));
   }
 
-  slot_ctx->bank->execution_fees = 0UL;
+  fd_bank_execution_fees_set( slot_ctx->bank, 0UL );
 }
 
 static int
@@ -458,10 +458,10 @@ fd_should_snapshot_include_epoch_accounts_hash(fd_exec_slot_ctx_t * slot_ctx) {
   }
 
   // We need to find the correct logic
-  if( slot_ctx->bank->eah_start_slot != ULONG_MAX ) {
+  if( fd_bank_eah_start_slot_get( slot_ctx->bank ) != ULONG_MAX ) {
     return 0;
   }
-  if( slot_ctx->bank->eah_stop_slot == ULONG_MAX ) {
+  if( fd_bank_eah_stop_slot_get( slot_ctx->bank ) == ULONG_MAX ) {
     return 0;
   }
   return 1;
@@ -495,7 +495,7 @@ fd_snapshot_hash( fd_exec_slot_ctx_t *    slot_ctx,
 
     fd_sha256_init( &h );
     fd_sha256_append( &h, (uchar const *) hash.hash, sizeof( fd_hash_t ) );
-    fd_sha256_append( &h, (uchar const *) &slot_ctx->bank->epoch_account_hash, sizeof( fd_hash_t ) );
+    fd_sha256_append( &h, (uchar const *) fd_bank_epoch_account_hash_query( slot_ctx->bank ), sizeof( fd_hash_t ) );
     fd_sha256_fini( &h, accounts_hash );
     return 0;
   }

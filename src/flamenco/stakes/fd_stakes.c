@@ -414,7 +414,7 @@ fd_populate_vote_accounts( fd_exec_slot_ctx_t *       slot_ctx,
 
   FD_LOG_WARNING(("TOTAL EPOCH STAKE %lu", total_epoch_stake));
 
-  slot_ctx->bank->total_epoch_stake = total_epoch_stake;
+  fd_bank_total_epoch_stake_set( slot_ctx->bank, total_epoch_stake );
 }
 
 /*
@@ -577,7 +577,7 @@ fd_refresh_vote_accounts( fd_exec_slot_ctx_t *       slot_ctx,
   fd_vote_accounts_vote_accounts_root_update( &stakes->vote_accounts, stakes_vote_accounts_root );
   fd_bank_mgr_stakes_save( slot_ctx->bank_mgr );
 
-  slot_ctx->bank->total_epoch_stake = total_epoch_stake;
+  fd_bank_total_epoch_stake_set( slot_ctx->bank, total_epoch_stake );
 
   vote_account_keys_pool = fd_account_keys_account_keys_pool_join( vote_account_keys );
   vote_account_keys_root = fd_account_keys_account_keys_root_join( vote_account_keys );

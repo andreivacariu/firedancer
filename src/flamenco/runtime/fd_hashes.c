@@ -1,5 +1,6 @@
 #include "fd_hashes.h"
 #include "fd_acc_mgr.h"
+#include "fd_bank.h"
 #include "fd_bank_mgr.h"
 #include "fd_blockstore.h"
 #include "fd_runtime.h"
@@ -156,9 +157,9 @@ fd_calculate_epoch_accounts_hash_values( fd_exec_slot_ctx_t * slot_ctx ) {
   ulong epoch = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, &slot_idx );
 
   if( FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, accounts_lt_hash) ) {
-    slot_ctx->bank->eah_start_slot = ULONG_MAX;
-    slot_ctx->bank->eah_stop_slot  = ULONG_MAX;
-    slot_ctx->bank->eah_interval = ULONG_MAX;
+    fd_bank_eah_start_slot_set( slot_ctx->bank, ULONG_MAX );
+    fd_bank_eah_stop_slot_set( slot_ctx->bank, ULONG_MAX );
+    fd_bank_eah_interval_set( slot_ctx->bank, ULONG_MAX );
     return;
   }
 
@@ -175,23 +176,23 @@ fd_calculate_epoch_accounts_hash_values( fd_exec_slot_ctx_t * slot_ctx ) {
   const ulong MINIMUM_CALCULATION_INTERVAL = MAX_LOCKOUT_HISTORY + CALCULATION_INTERVAL_BUFFER;
 
   if( calculation_interval < MINIMUM_CALCULATION_INTERVAL ) {
-    slot_ctx->bank->eah_start_slot = ULONG_MAX;
-    slot_ctx->bank->eah_stop_slot  = ULONG_MAX;
-    slot_ctx->bank->eah_interval = ULONG_MAX;
+    fd_bank_eah_start_slot_set( slot_ctx->bank, ULONG_MAX );
+    fd_bank_eah_stop_slot_set( slot_ctx->bank, ULONG_MAX );
+    fd_bank_eah_interval_set( slot_ctx->bank, ULONG_MAX );
     return;
   }
 
-  slot_ctx->bank->eah_start_slot = first_slot_in_epoch + calculation_offset_start;
-  if( slot_ctx->slot > slot_ctx->bank->eah_start_slot ) {
-    slot_ctx->bank->eah_start_slot = ULONG_MAX;
+  fd_bank_eah_start_slot_set( slot_ctx->bank, first_slot_in_epoch + calculation_offset_start );
+  if( slot_ctx->slot > fd_bank_eah_start_slot_get( slot_ctx->bank ) ) {
+    fd_bank_eah_start_slot_set( slot_ctx->bank, ULONG_MAX );
   }
 
-  slot_ctx->bank->eah_stop_slot = first_slot_in_epoch + calculation_offset_stop;
-  if( slot_ctx->slot > slot_ctx->bank->eah_stop_slot ) {
-    slot_ctx->bank->eah_stop_slot = ULONG_MAX;
+  fd_bank_eah_stop_slot_set( slot_ctx->bank, first_slot_in_epoch + calculation_offset_stop );
+  if( slot_ctx->slot > fd_bank_eah_stop_slot_get( slot_ctx->bank ) ) {
+    fd_bank_eah_stop_slot_set( slot_ctx->bank, ULONG_MAX );
   }
 
-  slot_ctx->bank->eah_interval = calculation_interval;
+  fd_bank_eah_interval_set( slot_ctx->bank, calculation_interval );
 
 }
 
@@ -202,7 +203,7 @@ fd_should_include_epoch_accounts_hash( fd_exec_slot_ctx_t * slot_ctx ) {
     return 0;
   }
 
-  ulong calculation_stop = slot_ctx->bank->eah_stop_slot;
+  ulong calculation_stop = fd_bank_eah_stop_slot_get( slot_ctx->bank );
   ulong prev_slot = slot_ctx->bank->prev_slot;
   return prev_slot < calculation_stop && (slot_ctx->slot >= calculation_stop);
 }
@@ -255,7 +256,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
     if (fd_should_include_epoch_accounts_hash(slot_ctx)) {
       fd_sha256_init( &sha );
       fd_sha256_append( &sha, (uchar const *) &hash->hash, sizeof( fd_hash_t ) );
-      fd_sha256_append( &sha, (uchar const *) &slot_ctx->bank->epoch_account_hash, sizeof( fd_hash_t ) );
+      fd_sha256_append( &sha, (uchar const *) fd_bank_epoch_account_hash_query( slot_ctx->bank ), sizeof( fd_hash_t ) );
       fd_sha256_fini( &sha, hash->hash );
     }
   }
@@ -1230,7 +1231,7 @@ fd_snapshot_service_hash( fd_hash_t *       accounts_hash,
   fd_accounts_hash( funk, 0UL, accounts_hash, runtime_spad, features, &exec_para_ctx, NULL );
 
 
-  // int should_include_eah = epoch_bank->eah_stop_slot != ULONG_MAX && epoch_bank->eah_start_slot == ULONG_MAX;
+  // int should_include_eah = eah_stop_slot != ULONG_MAX && eah_start_slot == ULONG_MAX;
   int should_include_eah = 0;
 
   if( should_include_eah ) {

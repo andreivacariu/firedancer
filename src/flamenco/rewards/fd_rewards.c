@@ -1100,7 +1100,7 @@ fd_distribute_partitioned_epoch_rewards( fd_exec_slot_ctx_t * slot_ctx,
   fd_stake_reward_t * pool = fd_stake_reward_calculation_pool_join( (uchar *)&status->partitioned_stake_rewards + status->partitioned_stake_rewards.pool_offset );
   FD_TEST( pool );
 
-  ulong height                             = slot_ctx->bank->block_height;
+  ulong height                             = fd_bank_block_height_get( slot_ctx->bank );
   ulong distribution_starting_block_height = status->distribution_starting_block_height;
   ulong distribution_end_exclusive         = distribution_starting_block_height + status->partitioned_stake_rewards.partitions_len;
 
@@ -1153,7 +1153,7 @@ fd_begin_partitioned_rewards( fd_exec_slot_ctx_t * slot_ctx,
                                                  runtime_spad );
 
   /* https://github.com/anza-xyz/agave/blob/9a7bf72940f4b3cd7fc94f54e005868ce707d53d/runtime/src/bank/partitioned_epoch_rewards/calculation.rs#L62 */
-  ulong distribution_starting_block_height = slot_ctx->bank->block_height + REWARD_CALCULATION_NUM_BLOCKS;
+  ulong distribution_starting_block_height = fd_bank_block_height_get( slot_ctx->bank ) + REWARD_CALCULATION_NUM_BLOCKS;
 
   /* Set the epoch reward status to be active */
   set_epoch_reward_status_active( slot_ctx,

@@ -479,12 +479,15 @@ fd_runtime_freeze( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
   ulong fees = 0UL;
   ulong burn = 0UL;
 
+  ulong execution_fees = fd_bank_execution_fees_get( slot_ctx->bank );
+  ulong priority_fees  = fd_bank_priority_fees_get( slot_ctx->bank );
+
   if( FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, reward_full_priority_fee ) ) {
-    ulong half_fee = slot_ctx->bank->execution_fees / 2;
-    fees = fd_ulong_sat_add( slot_ctx->bank->priority_fees, slot_ctx->bank->execution_fees - half_fee );
+    ulong half_fee = execution_fees / 2;
+    fees = fd_ulong_sat_add( priority_fees, execution_fees - half_fee );
     burn = half_fee;
   } else {
-    ulong total_fees = fd_ulong_sat_add( slot_ctx->bank->execution_fees, slot_ctx->bank->priority_fees );
+    ulong total_fees = fd_ulong_sat_add( execution_fees, priority_fees );
     ulong half_fee = total_fees / 2;
     fees = total_fees - half_fee;
     burn = half_fee;
@@ -543,9 +546,9 @@ fd_runtime_freeze( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
     fd_bank_capitalization_set( slot_ctx->bank, fd_ulong_sat_sub( old, burn ) );
     FD_LOG_DEBUG(( "fd_runtime_freeze: burn %lu, capitalization %lu->%lu ", burn, old, fd_bank_capitalization_get( slot_ctx->bank ) ));
 
-    slot_ctx->bank->execution_fees = 0UL;
+    fd_bank_execution_fees_set( slot_ctx->bank, 0UL );
 
-    slot_ctx->bank->priority_fees = 0UL;
+    fd_bank_priority_fees_set( slot_ctx->bank, 0UL );
   }
 
   fd_runtime_run_incinerator( slot_ctx );
@@ -1565,12 +1568,12 @@ fd_runtime_block_execute_prepare( fd_exec_slot_ctx_t * slot_ctx,
   if( slot_ctx->blockstore && slot_ctx->slot != 0UL ) {
     fd_blockstore_block_height_update( slot_ctx->blockstore,
                                        slot_ctx->slot,
-                                       slot_ctx->bank->block_height );
+                                       fd_bank_block_height_get( slot_ctx->bank ) );
   }
 
-  slot_ctx->bank->execution_fees = 0UL;
+  fd_bank_execution_fees_set( slot_ctx->bank, 0UL );
 
-  slot_ctx->bank->priority_fees = 0UL;
+  fd_bank_priority_fees_set( slot_ctx->bank, 0UL );
 
   slot_ctx->bank->signature_cnt = 0UL;
 
@@ -1915,8 +1918,8 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* Collect fees */
 
-  FD_ATOMIC_FETCH_AND_ADD( &bank->execution_fees, task_info->txn_ctx->execution_fee );
-  FD_ATOMIC_FETCH_AND_ADD( &bank->priority_fees, task_info->txn_ctx->priority_fee );
+  FD_ATOMIC_FETCH_AND_ADD( fd_bank_execution_fees_modify( bank ), task_info->txn_ctx->execution_fee );
+  FD_ATOMIC_FETCH_AND_ADD( fd_bank_priority_fees_modify( bank ), task_info->txn_ctx->priority_fee );
 
   fd_exec_txn_ctx_t * txn_ctx      = task_info->txn_ctx;
   int                 exec_txn_err = task_info->exec_res;
@@ -3466,7 +3469,7 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
   *rent_bm = genesis_block->rent;
   fd_bank_mgr_rent_save( slot_ctx->bank_mgr );
 
-  slot_ctx->bank->block_height = 0UL;
+  fd_bank_block_height_set( slot_ctx->bank, 0UL );
 
   fd_bank_inflation_set( slot_ctx->bank, genesis_block->inflation );
 
@@ -3724,9 +3727,9 @@ fd_runtime_process_genesis_block( fd_exec_slot_ctx_t * slot_ctx,
     fd_sha256_hash( slot_ctx->bank->poh.hash, sizeof(fd_hash_t), slot_ctx->bank->poh.hash );
   }
 
-  slot_ctx->bank->execution_fees = 0UL;
+  fd_bank_execution_fees_set( slot_ctx->bank, 0UL );
 
-  slot_ctx->bank->priority_fees = 0UL;
+  fd_bank_priority_fees_set( slot_ctx->bank, 0UL );
 
   slot_ctx->bank->signature_cnt = 0UL;
 
@@ -4135,11 +4138,11 @@ fd_runtime_publish_old_txns( fd_exec_slot_ctx_t * slot_ctx,
       ulong slot = txn->xid.ul[0];
       fd_banks_publish( slot_ctx->banks, slot );
 
-      if( txn->xid.ul[0] >= slot_ctx->bank->eah_start_slot ) {
+      if( txn->xid.ul[0] >= fd_bank_eah_start_slot_get( slot_ctx->bank ) ) {
         if( !FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, accounts_lt_hash ) ) {
           do_eah = 1;
         }
-        slot_ctx->bank->eah_start_slot = ULONG_MAX;
+        fd_bank_eah_start_slot_set( slot_ctx->bank, ULONG_MAX );
       }
 
       break;
@@ -4155,13 +4158,16 @@ fd_runtime_publish_old_txns( fd_exec_slot_ctx_t * slot_ctx,
       .para_arg_1 = tpool
     };
 
+
+    fd_hash_t * epoch_account_hash = fd_bank_epoch_account_hash_modify( slot_ctx->bank );
     fd_accounts_hash( slot_ctx->funk,
                       slot_ctx->slot,
-                      &slot_ctx->bank->epoch_account_hash,
+                      epoch_account_hash,
                       runtime_spad,
                       fd_bank_mgr_features_query( slot_ctx->bank_mgr ),
                       &exec_para_ctx,
                       NULL );
+    fd_bank_epoch_account_hash_end_modify( slot_ctx->bank );
   }
 
   return 0;
@@ -4264,7 +4270,7 @@ fd_runtime_block_pre_execute_process_new_epoch( fd_exec_slot_ctx_t * slot_ctx,
                                                 int *                is_epoch_boundary ) {
 
   /* Update block height. */
-  slot_ctx->bank->block_height += 1UL;
+  fd_bank_block_height_set( slot_ctx->bank, fd_bank_block_height_get( slot_ctx->bank ) + 1UL );
 
   if( slot_ctx->slot != 0UL ) {
     ulong             slot_idx;
@@ -4273,7 +4279,7 @@ fd_runtime_block_pre_execute_process_new_epoch( fd_exec_slot_ctx_t * slot_ctx,
     ulong             new_epoch  = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, &slot_idx );
     if( FD_UNLIKELY( slot_idx==1UL && new_epoch==0UL ) ) {
       /* The block after genesis has a height of 1. */
-      slot_ctx->bank->block_height = 1UL;
+      fd_bank_block_height_set( slot_ctx->bank, 1UL );
     }
 
     if( FD_UNLIKELY( prev_epoch<new_epoch || !slot_idx ) ) {

@@ -76,7 +76,15 @@ FD_PROTOTYPES_BEGIN
   X(ulong,                             ticks_per_slot,              sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Ticks per slot */ \
   X(ulong,                             genesis_creation_time,       sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Genesis creation time */ \
   X(double,                            slots_per_year,              sizeof(double),                 alignof(double),                 0,   0    )  /* Slots per year */ \
-  X(fd_inflation_t,                    inflation,                   sizeof(fd_inflation_t),          alignof(fd_inflation_t),        0,   0    )  /* Inflation */
+  X(fd_inflation_t,                    inflation,                   sizeof(fd_inflation_t),          alignof(fd_inflation_t),        0,   0    )  /* Inflation */ \
+  X(ulong,                             total_epoch_stake,           sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Total epoch stake */ \
+  X(ulong,                             eah_start_slot,              sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* EAH start slot */ \
+  X(ulong,                             eah_stop_slot,               sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* EAH stop slot */ \
+  X(ulong,                             eah_interval,                sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* EAH interval */ \
+  X(ulong,                             block_height,                sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Block height */ \
+  X(fd_hash_t,                         epoch_account_hash,          sizeof(fd_hash_t),              alignof(fd_hash_t),              0,   0    )  /* Epoch account hash */ \
+  X(ulong,                             execution_fees,              sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Execution fees */ \
+  X(ulong,                             priority_fees,               sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Priority fees */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need
@@ -190,14 +198,6 @@ struct fd_bank {
   #undef HAS_LOCK_0
   #undef HAS_LOCK_1
 
-  ulong                             total_epoch_stake;
-  ulong                             eah_start_slot;
-  ulong                             eah_stop_slot;
-  ulong                             eah_interval;
-  ulong                             block_height;
-  fd_hash_t                         epoch_account_hash;
-  ulong                             execution_fees;
-  ulong                             priority_fees;
   ulong                             signature_cnt;
   ulong                             use_prev_epoch_stake;
   fd_hash_t                         poh;

@@ -301,14 +301,14 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* Block Height */
 
-  slot_ctx->bank->block_height = oldbank->block_height;
+  fd_bank_block_height_set( slot_ctx->bank, oldbank->block_height );
 
   /* Epoch Account Hash */
 
   if( manifest->epoch_account_hash ) {
-    slot_ctx->bank->epoch_account_hash = *manifest->epoch_account_hash;
+    fd_bank_epoch_account_hash_set( slot_ctx->bank, *manifest->epoch_account_hash );
   } else {
-    memset( &slot_ctx->bank->epoch_account_hash, 0, sizeof(fd_hash_t) );
+    fd_bank_epoch_account_hash_set( slot_ctx->bank, (fd_hash_t){0} );
   }
 
   /* Prev Slot */
@@ -317,11 +317,11 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* Execution Fees */
 
-  slot_ctx->bank->execution_fees = oldbank->collector_fees;
+  fd_bank_execution_fees_set( slot_ctx->bank, oldbank->collector_fees );
 
   /* Priority Fees */
 
-  slot_ctx->bank->priority_fees = 0UL;
+  fd_bank_priority_fees_set( slot_ctx->bank, 0UL );
 
   /* PoH */
 
@@ -433,7 +433,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
         manifest->versioned_epoch_stakes[i].val.inner.Current.stakes.vote_accounts.vote_accounts_root = NULL;
 
         /* We want to save the total epoch stake for the current epoch */
-        slot_ctx->bank->total_epoch_stake = manifest->versioned_epoch_stakes[i].val.inner.Current.total_stake;
+        fd_bank_total_epoch_stake_set( slot_ctx->bank, manifest->versioned_epoch_stakes[i].val.inner.Current.total_stake );
 
       }
       if( manifest->versioned_epoch_stakes[i].epoch == epoch+1UL ) {

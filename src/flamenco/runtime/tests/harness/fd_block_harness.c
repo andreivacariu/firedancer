@@ -279,7 +279,7 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   inflation->foundation_term = test_ctx->epoch_ctx.inflation.foundation_term;
   fd_bank_inflation_end_modify( slot_ctx->bank );
 
-  slot_ctx->bank->block_height = test_ctx->slot_ctx.block_height;
+  fd_bank_block_height_set( slot_ctx->bank, test_ctx->slot_ctx.block_height );
 
   // /* Initialize the current running epoch stake and vote accounts */
   // pool_mem                                        = fd_spad_alloc( runner->spad,

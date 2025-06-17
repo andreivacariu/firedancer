@@ -493,7 +493,7 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
   block_context->has_slot_ctx                       = true;
   block_context->slot_ctx.slot                      = slot_ctx->slot;
   // HACK FOR NOW: block height gets incremented in process_new_epoch, so we should dump block height + 1
-  block_context->slot_ctx.block_height              = slot_ctx->bank->block_height + 1UL;
+  block_context->slot_ctx.block_height              = fd_bank_block_height_get( slot_ctx->bank ) + 1UL;
   // fd_memcpy( block_context->slot_ctx.poh, &slot_ctx->slot_bank.poh, sizeof(fd_pubkey_t) ); // TODO: dump here when process epoch happens after poh verification
   fd_hash_t * bank_hash = fd_bank_mgr_bank_hash_query( bank_mgr );
   fd_memcpy( block_context->slot_ctx.parent_bank_hash, bank_hash, sizeof(fd_pubkey_t) );
