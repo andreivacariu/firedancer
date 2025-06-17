@@ -351,6 +351,7 @@ fd_executor_check_status_cache( fd_exec_txn_ctx_t * txn_ctx ) {
   fd_blake3_fini( b3, &txn_ctx->blake_txn_msg_hash );
   curr_query.txnhash = txn_ctx->blake_txn_msg_hash.uc;
 
+  (void)curr_query;
   // TODO: figure out if it is faster to batch query properly and loop all txns again
   // int err;
   // fd_txncache_query_batch( txn_ctx->status_cache,
