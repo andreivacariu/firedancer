@@ -1126,12 +1126,12 @@ replay( fd_ledger_args_t * args ) {
   cluster_version->patch = args->cluster_version[2];
   fd_bank_cluster_version_end_modify( args->slot_ctx->bank );
 
-  fd_features_t * features = fd_bank_mgr_features_modify( args->slot_ctx->bank_mgr );
+  fd_features_t * features = fd_bank_features_modify( args->slot_ctx->bank );
 
   fd_features_enable_cleaned_up( features, fd_bank_cluster_version_query( args->slot_ctx->bank ) );
   fd_features_enable_one_offs( features, args->one_off_features, args->one_off_features_cnt, 0UL );
 
-  fd_bank_mgr_features_save( args->slot_ctx->bank_mgr );
+  fd_bank_features_end_modify( args->slot_ctx->bank );
 
   ulong * slot_bm = fd_bank_mgr_slot_modify( args->slot_ctx->bank_mgr );
   *slot_bm = 0UL;

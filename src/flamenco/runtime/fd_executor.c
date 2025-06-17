@@ -1294,9 +1294,7 @@ fd_exec_txn_ctx_from_exec_slot_ctx( fd_exec_slot_ctx_t const * slot_ctx,
   ulong * slot = fd_bank_mgr_slot_query( ctx->bank_mgr );
   ctx->slot = !!slot ? *slot : 0UL;
 
-  fd_features_t   features    = {0};
-  fd_features_t * features_bm = fd_bank_mgr_features_query( ctx->bank_mgr );
-  ctx->features = !!features_bm ? *features_bm : features;
+  ctx->features = fd_bank_features_get( ctx->bank );
 }
 
 fd_txn_account_t *

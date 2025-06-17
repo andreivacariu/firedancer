@@ -425,9 +425,6 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
   ulong num_sysvar_entries    = (sizeof(fd_relevant_sysvar_ids) / sizeof(fd_pubkey_t));
   ulong num_loaded_builtins   = (sizeof(loaded_builtins) / sizeof(fd_pubkey_t));
 
-  fd_bank_mgr_t                  bank_mgr_obj;
-  fd_bank_mgr_t *                bank_mgr = fd_bank_mgr_join( &bank_mgr_obj, slot_ctx->funk, slot_ctx->funk_txn );
-
   fd_account_keys_global_t const *   stake_account_keys      = fd_bank_stake_account_keys_query( slot_ctx->bank );
   fd_account_keys_pair_t_mapnode_t * stake_account_keys_pool = fd_account_keys_account_keys_pool_join( stake_account_keys );
   fd_account_keys_pair_t_mapnode_t * stake_account_keys_root = fd_account_keys_account_keys_root_join( stake_account_keys );
@@ -504,7 +501,7 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
   /* BlockContext -> EpochContext */
   block_context->has_epoch_ctx                        = true;
   block_context->epoch_ctx.has_features               = true;
-  dump_sorted_features( fd_bank_mgr_features_query( bank_mgr ), &block_context->epoch_ctx.features, spad );
+  dump_sorted_features( fd_bank_features_query( slot_ctx->bank ), &block_context->epoch_ctx.features, spad );
   block_context->epoch_ctx.hashes_per_tick            = fd_bank_hashes_per_tick_get( slot_ctx->bank );
   block_context->epoch_ctx.ticks_per_slot             = fd_bank_ticks_per_slot_get( slot_ctx->bank );
   block_context->epoch_ctx.slots_per_year             = fd_bank_slots_per_year_get( slot_ctx->bank );

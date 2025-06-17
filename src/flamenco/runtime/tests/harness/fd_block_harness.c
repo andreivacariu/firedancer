@@ -210,11 +210,11 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   ulong vote_acct_max = fd_ulong_max( 128UL, test_ctx->acct_states_count );
 
   /* Restore feature flags */
-  fd_features_t * features = fd_bank_mgr_features_modify( slot_ctx->bank_mgr );
+  fd_features_t * features = fd_bank_features_modify( slot_ctx->bank );
   if( !fd_runtime_fuzz_restore_features( features, &test_ctx->epoch_ctx.features ) ) {
     return NULL;
   }
-  fd_bank_mgr_features_save( slot_ctx->bank_mgr );
+  fd_bank_features_end_modify( slot_ctx->bank );
 
   /* Set up slot context */
   ulong slot = test_ctx->slot_ctx.slot;

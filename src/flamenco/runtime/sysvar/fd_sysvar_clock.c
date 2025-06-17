@@ -373,7 +373,7 @@ fd_sysvar_clock_update( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad 
     long new_timestamp = 0L;
     fd_calculate_stake_weighted_timestamp( slot_ctx,
                                            &new_timestamp,
-                                           FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, warp_timestamp_again ),
+                                           FD_FEATURE_ACTIVE_BM( slot_ctx->bank, warp_timestamp_again ),
                                            runtime_spad );
 
     /* If the timestamp was successfully calculated, use it. It not keep the old one.
@@ -421,7 +421,7 @@ fd_sysvar_clock_update( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad 
     long timestamp_estimate = 0L;
     fd_calculate_stake_weighted_timestamp( slot_ctx,
                                            &timestamp_estimate,
-                                           FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, warp_timestamp_again ),
+                                           FD_FEATURE_ACTIVE_BM( slot_ctx->bank, warp_timestamp_again ),
                                            runtime_spad );
     clock->unix_timestamp        = fd_long_max( timestamp_estimate, ancestor_timestamp );
     clock->epoch_start_timestamp = clock->unix_timestamp;

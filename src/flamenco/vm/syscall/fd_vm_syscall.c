@@ -18,7 +18,7 @@ fd_vm_syscall_register( fd_sbpf_syscalls_t *   syscalls,
 int
 fd_vm_syscall_register_slot( fd_sbpf_syscalls_t *      syscalls,
                              ulong                     slot,
-                             fd_features_t *           features,
+                             fd_features_t const *     features,
                              uchar                     is_deploy ) {
   if( FD_UNLIKELY( !syscalls ) ) return FD_VM_ERR_INVAL;
 

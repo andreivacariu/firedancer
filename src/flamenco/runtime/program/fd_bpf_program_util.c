@@ -200,7 +200,7 @@ fd_bpf_create_bpf_program_cache_entry( fd_exec_slot_ctx_t *    slot_ctx,
     fd_bpf_get_sbpf_versions( &min_sbpf_version,
                               &max_sbpf_version,
                               slot_ctx->slot,
-                              fd_bank_mgr_features_query( slot_ctx->bank_mgr ) );
+                              fd_bank_features_query( slot_ctx->bank ) );
     if( fd_sbpf_elf_peek( &elf_info, program_data, program_data_len, /* deploy checks */ 0, min_sbpf_version, max_sbpf_version ) == NULL ) {
       FD_LOG_DEBUG(( "fd_sbpf_elf_peek() failed: %s", fd_sbpf_strerror() ));
       return FD_EXECUTOR_INSTR_ERR_INVALID_ACC_DATA;
@@ -244,7 +244,7 @@ fd_bpf_create_bpf_program_cache_entry( fd_exec_slot_ctx_t *    slot_ctx,
 
     fd_vm_syscall_register_slot( syscalls,
                                  slot_ctx->slot,
-                                 fd_bank_mgr_features_query( slot_ctx->bank_mgr ),
+                                 fd_bank_features_query( slot_ctx->bank ),
                                  0 );
 
     /* Load program. */
@@ -271,11 +271,7 @@ fd_bpf_create_bpf_program_cache_entry( fd_exec_slot_ctx_t *    slot_ctx,
       /* We only handle this case for some unit tests. */
       dummy_txn_ctx.features = (fd_features_t){0};
     } else {
-      fd_features_t * features = fd_bank_mgr_features_query( slot_ctx->bank_mgr );
-      if( FD_UNLIKELY( !features ) ) {
-        FD_LOG_CRIT(( "fd_bank_mgr_features_query() failed" ));
-      }
-      dummy_txn_ctx.features = *features;
+      dummy_txn_ctx.features = fd_bank_features_get( slot_ctx->bank );
     }
     dummy_instr_ctx.txn_ctx  = &dummy_txn_ctx;
     vm = fd_vm_init( vm,

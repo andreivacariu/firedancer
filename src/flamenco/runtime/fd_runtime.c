@@ -433,7 +433,7 @@ fd_runtime_update_rent_epoch_account( fd_exec_slot_ctx_t * slot_ctx,
    https://github.com/anza-xyz/agave/blob/v2.1.14/runtime/src/bank.rs#L2921 */
 static void
 fd_runtime_update_rent_epoch( fd_exec_slot_ctx_t * slot_ctx ) {
-  if( FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, disable_partitioned_rent_collection ) ) {
+  if( FD_FEATURE_ACTIVE_BM( slot_ctx->bank, disable_partitioned_rent_collection ) ) {
     return;
   }
 
@@ -484,7 +484,7 @@ fd_runtime_freeze( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
   ulong execution_fees = fd_bank_execution_fees_get( slot_ctx->bank );
   ulong priority_fees  = fd_bank_priority_fees_get( slot_ctx->bank );
 
-  if( FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, reward_full_priority_fee ) ) {
+  if( FD_FEATURE_ACTIVE_BM( slot_ctx->bank, reward_full_priority_fee ) ) {
     ulong half_fee = execution_fees / 2;
     fees = fd_ulong_sat_add( priority_fees, execution_fees - half_fee );
     burn = half_fee;
@@ -523,7 +523,7 @@ fd_runtime_freeze( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
 
       fd_bank_epoch_leaders_end_query( slot_ctx->bank );
 
-      if ( FD_LIKELY( FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, validate_fee_collector_account ) ) ) {
+      if ( FD_LIKELY( FD_FEATURE_ACTIVE_BM( slot_ctx->bank, validate_fee_collector_account ) ) ) {
         ulong _burn;
         if( FD_UNLIKELY( _burn=fd_runtime_validate_fee_collector( slot_ctx, rec, fees ) ) ) {
           if( FD_UNLIKELY( _burn!=fees ) ) {
@@ -2249,7 +2249,7 @@ fd_runtime_process_txns_in_microblock_stream( fd_exec_slot_ctx_t * slot_ctx,
 
     /* Verify cost tracker limits (only for offline replay)
        https://github.com/anza-xyz/agave/blob/v2.2.0/ledger/src/blockstore_processor.rs#L284-L299 */
-    if( cost_tracker_opt!=NULL && FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, apply_cost_tracker_during_replay ) ) {
+    if( cost_tracker_opt!=NULL && FD_FEATURE_ACTIVE_BM( slot_ctx->bank, apply_cost_tracker_during_replay ) ) {
       for( ulong i=exec_idx_start; i<curr_exec_idx; i++ ) {
 
         /* Skip any transactions that were not processed */
@@ -2743,7 +2743,7 @@ fd_apply_builtin_program_feature_transitions( fd_exec_slot_ctx_t * slot_ctx,
   fd_builtin_program_t const * builtins = fd_builtins();
   for( ulong i=0UL; i<fd_num_builtins(); i++ ) {
     /* https://github.com/anza-xyz/agave/blob/v2.1.0/runtime/src/bank.rs#L6732-L6751 */
-    if( builtins[i].core_bpf_migration_config && FD_FEATURE_ACTIVE_OFFSET( slot_ctx->slot, *fd_bank_mgr_features_query( slot_ctx->bank_mgr ), builtins[i].core_bpf_migration_config->enable_feature_offset ) ) {
+    if( builtins[i].core_bpf_migration_config && FD_FEATURE_ACTIVE_OFFSET( slot_ctx->slot, fd_bank_features_get( slot_ctx->bank ), builtins[i].core_bpf_migration_config->enable_feature_offset ) ) {
       FD_LOG_NOTICE(( "Migrating builtin program %s to core BPF", FD_BASE58_ENC_32_ALLOCA( builtins[i].pubkey->key ) ));
       fd_migrate_builtin_to_core_bpf( slot_ctx,
                                       builtins[i].core_bpf_migration_config->upgrade_authority_address,
@@ -2762,7 +2762,7 @@ fd_apply_builtin_program_feature_transitions( fd_exec_slot_ctx_t * slot_ctx,
   /* https://github.com/anza-xyz/agave/blob/v2.1.0/runtime/src/bank.rs#L6776-L6793 */
   fd_stateless_builtin_program_t const * stateless_builtins = fd_stateless_builtins();
   for( ulong i=0UL; i<fd_num_stateless_builtins(); i++ ) {
-    if( stateless_builtins[i].core_bpf_migration_config && FD_FEATURE_ACTIVE_OFFSET( slot_ctx->slot, *fd_bank_mgr_features_query( slot_ctx->bank_mgr ), stateless_builtins[i].core_bpf_migration_config->enable_feature_offset ) ) {
+    if( stateless_builtins[i].core_bpf_migration_config && FD_FEATURE_ACTIVE_OFFSET( slot_ctx->slot, fd_bank_features_get( slot_ctx->bank ), stateless_builtins[i].core_bpf_migration_config->enable_feature_offset ) ) {
       FD_LOG_NOTICE(( "Migrating stateless builtin program %s to core BPF", FD_BASE58_ENC_32_ALLOCA( stateless_builtins[i].pubkey->key ) ));
       fd_migrate_builtin_to_core_bpf( slot_ctx,
                                       stateless_builtins[i].core_bpf_migration_config->upgrade_authority_address,
@@ -2846,13 +2846,13 @@ fd_feature_activate( fd_features_t *         features,
 
 static void
 fd_features_activate( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
-  fd_features_t * features = fd_bank_mgr_features_modify( slot_ctx->bank_mgr );
+  fd_features_t * features = fd_bank_features_modify( slot_ctx->bank );
   for( fd_feature_id_t const * id = fd_feature_iter_init();
                                    !fd_feature_iter_done( id );
                                id = fd_feature_iter_next( id ) ) {
     fd_feature_activate( features, slot_ctx, id, id->id.key, runtime_spad );
   }
-  fd_bank_mgr_features_save( slot_ctx->bank_mgr );
+  fd_bank_features_end_modify( slot_ctx->bank );
 }
 
 uint
@@ -2927,7 +2927,7 @@ fd_runtime_process_new_epoch( fd_exec_slot_ctx_t * slot_ctx,
                                                                              slot_ctx->funk,
                                                                              slot_ctx->funk_txn,
                                                                              runtime_spad,
-                                                                             fd_bank_mgr_features_query( slot_ctx->bank_mgr ),
+                                                                             fd_bank_features_query( slot_ctx->bank ),
                                                                              new_rate_activation_epoch,
                                                                              _err );
   if( FD_UNLIKELY( !is_some ) ) {
@@ -3529,11 +3529,11 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
 
   fd_acc_lamports_t capitalization = 0UL;
 
-  fd_features_t * features = fd_bank_mgr_features_modify( slot_ctx->bank_mgr );
+  fd_features_t * features = fd_bank_features_modify( slot_ctx->bank );
   FD_FEATURE_SET_ACTIVE(features, disable_partitioned_rent_collection, 0);
   FD_FEATURE_SET_ACTIVE(features, accounts_lt_hash, 0);
   FD_FEATURE_SET_ACTIVE(features, remove_accounts_delta_hash, 0);
-  fd_bank_mgr_features_save( slot_ctx->bank_mgr );
+  fd_bank_features_end_modify( slot_ctx->bank );
 
   for( ulong i=0UL; i<genesis_block->accounts_len; i++ ) {
     fd_pubkey_account_pair_t const * acc = &genesis_block->accounts[i];
@@ -3646,7 +3646,7 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
               &err );
           FD_TEST( err==FD_BINCODE_SUCCESS );
 
-          fd_features_t * features = fd_bank_mgr_features_modify( slot_ctx->bank_mgr );
+          fd_features_t * features = fd_bank_features_modify( slot_ctx->bank );
           if( feature->has_activated_at ) {
             FD_LOG_DEBUG(( "Feature %s activated at %lu (genesis)", FD_BASE58_ENC_32_ALLOCA( acc->key.key ), feature->activated_at ));
             fd_features_set( features, found, feature->activated_at );
@@ -3654,7 +3654,7 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
             FD_LOG_DEBUG(( "Feature %s not activated (genesis)", FD_BASE58_ENC_32_ALLOCA( acc->key.key ) ));
             fd_features_set( features, found, ULONG_MAX );
           }
-          fd_bank_mgr_features_save( slot_ctx->bank_mgr );
+          fd_bank_features_end_modify( slot_ctx->bank );
         } FD_SPAD_FRAME_END;
       }
     }
@@ -3760,7 +3760,7 @@ fd_runtime_process_genesis_block( fd_exec_slot_ctx_t * slot_ctx,
 
   fd_runtime_update_leaders( slot_ctx, 0, runtime_spad );
 
-  if( !FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, disable_partitioned_rent_collection ) ) {
+  if( !FD_FEATURE_ACTIVE_BM( slot_ctx->bank, disable_partitioned_rent_collection ) ) {
     fd_funk_t *     funk = slot_ctx->funk;
     fd_funk_txn_t * txn  = slot_ctx->funk_txn;
 
@@ -4148,7 +4148,7 @@ fd_runtime_publish_old_txns( fd_exec_slot_ctx_t * slot_ctx,
       fd_banks_publish( slot_ctx->banks, slot );
 
       if( txn->xid.ul[0] >= fd_bank_eah_start_slot_get( slot_ctx->bank ) ) {
-        if( !FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, accounts_lt_hash ) ) {
+        if( !FD_FEATURE_ACTIVE_BM( slot_ctx->bank, accounts_lt_hash ) ) {
           do_eah = 1;
         }
         fd_bank_eah_start_slot_set( slot_ctx->bank, ULONG_MAX );
@@ -4173,7 +4173,7 @@ fd_runtime_publish_old_txns( fd_exec_slot_ctx_t * slot_ctx,
                       slot_ctx->slot,
                       epoch_account_hash,
                       runtime_spad,
-                      fd_bank_mgr_features_query( slot_ctx->bank_mgr ),
+                      fd_bank_features_query( slot_ctx->bank ),
                       &exec_para_ctx,
                       NULL );
     fd_bank_epoch_account_hash_end_modify( slot_ctx->bank );
@@ -4209,7 +4209,7 @@ fd_runtime_block_execute_tpool( fd_exec_slot_ctx_t *    slot_ctx,
 
   /* Initialize the cost tracker when the feature is active */
   fd_cost_tracker_t * cost_tracker = fd_spad_alloc( runtime_spad, FD_COST_TRACKER_ALIGN, sizeof(fd_cost_tracker_t) );
-  if( FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, apply_cost_tracker_during_replay ) ) {
+  if( FD_FEATURE_ACTIVE_BM( slot_ctx->bank, apply_cost_tracker_during_replay ) ) {
     fd_cost_tracker_init( cost_tracker, slot_ctx, runtime_spad );
   }
 

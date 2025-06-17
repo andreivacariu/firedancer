@@ -815,8 +815,8 @@ funk_publish( fd_replay_tile_ctx_t * ctx,
   }
   fd_funk_txn_end_write( ctx->funk );
 
-  if( FD_LIKELY( FD_FEATURE_ACTIVE_BM( bank_mgr, epoch_accounts_hash ) &&
-                 !FD_FEATURE_ACTIVE_BM( bank_mgr, accounts_lt_hash ) ) ) {
+  if( FD_LIKELY( FD_FEATURE_ACTIVE_BM( ctx->slot_ctx->bank, epoch_accounts_hash ) &&
+                 !FD_FEATURE_ACTIVE_BM( ctx->slot_ctx->bank, accounts_lt_hash ) ) ) {
 
     if( wmk>=fd_bank_eah_start_slot_get( ctx->slot_ctx->bank ) ) {
       fd_exec_para_cb_ctx_t exec_para_ctx = {
@@ -830,7 +830,7 @@ funk_publish( fd_replay_tile_ctx_t * ctx,
                         ctx->slot_ctx->slot,
                         &out_hash,
                         ctx->runtime_spad,
-                        fd_bank_mgr_features_query( ctx->slot_ctx->bank_mgr ),
+                        fd_bank_features_query( ctx->slot_ctx->bank ),
                         &exec_para_ctx,
                         NULL );
       FD_LOG_NOTICE(( "Done computing epoch account hash (%s)", FD_BASE58_ENC_32_ALLOCA( &out_hash ) ));
@@ -1965,7 +1965,7 @@ init_snapshot( fd_replay_tile_ctx_t * ctx,
   ctx->slot_ctx = fork->slot_ctx;
 
   // Tell the world about the current activate features
-  fd_features_t * features = fd_bank_mgr_features_query( ctx->slot_ctx->bank_mgr );
+  fd_features_t const * features = fd_bank_features_query( ctx->slot_ctx->bank );
   fd_memcpy( &ctx->runtime_public->features, features, sizeof(ctx->runtime_public->features) );
 
   send_exec_epoch_msg( ctx, stem, ctx->slot_ctx );
@@ -2677,7 +2677,7 @@ unprivileged_init( fd_topo_t *      topo,
     FD_LOG_ERR(( "failed to decode cluster version, configured as \"%s\"", tile->replay.cluster_version ));
   }
 
-  fd_features_t * features = fd_bank_mgr_features_modify( bank_mgr );
+  fd_features_t * features = fd_bank_features_modify( bank );
   fd_features_enable_cleaned_up( features, cluster_version );
 
   fd_bank_cluster_version_end_modify( bank );
@@ -2686,8 +2686,8 @@ unprivileged_init( fd_topo_t *      topo,
   for (ulong i = 0; i < tile->replay.enable_features_cnt; i++) {
     one_off_features[i] = tile->replay.enable_features[i];
   }
-  fd_features_enable_one_offs(features, one_off_features, (uint)tile->replay.enable_features_cnt, 0UL);
-  fd_bank_mgr_features_save( bank_mgr );
+  fd_features_enable_one_offs( features, one_off_features, (uint)tile->replay.enable_features_cnt, 0UL );
+  fd_bank_features_end_modify( bank );
 
   ctx->forks = fd_forks_join( fd_forks_new( forks_mem, FD_BLOCK_MAX, 42UL ) );
 

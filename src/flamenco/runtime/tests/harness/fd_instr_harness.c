@@ -60,12 +60,12 @@ fd_runtime_fuzz_instr_ctx_create( fd_runtime_fuzz_runner_t *           runner,
 
   slot_ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( slot_ctx->banks ), slot_ctx->funk, funk_txn );
 
-  fd_features_t * features = fd_bank_mgr_features_modify( slot_ctx->bank_mgr );
+  fd_features_t * features = fd_bank_features_modify( slot_ctx->bank );
   fd_exec_test_feature_set_t const * feature_set = &test_ctx->epoch_context.features;
   if( !fd_runtime_fuzz_restore_features( features, feature_set ) ) {
     return 0;
   }
-  fd_bank_mgr_features_save( slot_ctx->bank_mgr );
+  fd_bank_features_end_modify( slot_ctx->bank );
 
   /* Set up epoch context. Defaults obtained from GenesisConfig::Default() */
 

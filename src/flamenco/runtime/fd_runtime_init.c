@@ -69,7 +69,7 @@ fd_feature_restore( fd_features_t *         features,
 
 void
 fd_features_restore( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
-  fd_features_t * features = fd_bank_mgr_features_modify( slot_ctx->bank_mgr );
+  fd_features_t * features = fd_bank_features_modify( slot_ctx->bank );
 
   for( fd_feature_id_t const * id = fd_feature_iter_init();
                                    !fd_feature_iter_done( id );
@@ -77,5 +77,5 @@ fd_features_restore( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
     fd_feature_restore( features, slot_ctx, id, id->id.key, runtime_spad );
   }
 
-  fd_bank_mgr_features_save( slot_ctx->bank_mgr );
+  fd_bank_features_end_modify( slot_ctx->bank );
 }
