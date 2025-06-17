@@ -448,7 +448,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
       // }
     }
 
-    slot_ctx->bank->use_prev_epoch_stake = epoch + 2UL;
+    fd_bank_use_prev_epoch_stake_set( slot_ctx->bank, epoch + 2UL );
 
     // slot_ctx->slot_bank.use_preceeding_epoch_stakes     = epoch + 2UL;
 

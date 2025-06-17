@@ -1575,7 +1575,7 @@ fd_runtime_block_execute_prepare( fd_exec_slot_ctx_t * slot_ctx,
 
   fd_bank_priority_fees_set( slot_ctx->bank, 0UL );
 
-  slot_ctx->bank->signature_cnt = 0UL;
+  fd_bank_signature_count_set( slot_ctx->bank, 0UL );
 
   ulong * txn_count = fd_bank_mgr_txn_count_modify( slot_ctx->bank_mgr );
   *txn_count = 0UL;
@@ -1929,7 +1929,7 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
     fd_runtime_write_transaction_status( capture_ctx, slot_ctx, txn_ctx, exec_txn_err );
   }
 
-  FD_ATOMIC_FETCH_AND_ADD( &bank->signature_cnt, txn_ctx->txn_descriptor->signature_cnt );
+  FD_ATOMIC_FETCH_AND_ADD( fd_bank_signature_count_modify( bank ), txn_ctx->txn_descriptor->signature_cnt );
 
   // if( slot_ctx->status_cache ) {
   //   fd_txncache_insert_t status_insert = {0};
@@ -2932,7 +2932,7 @@ fd_runtime_process_new_epoch( fd_exec_slot_ctx_t * slot_ctx,
       This is due to a subtlety in how Agave's stake caches interact when loading from snapshots.
       See the comment in fd_exec_slot_ctx_recover_. */
 
-  if( slot_ctx->bank->use_prev_epoch_stake == epoch ) {
+  if( fd_bank_use_prev_epoch_stake_get( slot_ctx->bank ) == epoch ) {
     fd_update_epoch_stakes( slot_ctx );
   }
 
@@ -3511,7 +3511,7 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
 
   fd_bank_slots_per_year_set( slot_ctx->bank, SECONDS_PER_YEAR * (1000000000.0 / (double)target_tick_duration) / (double)genesis_block->ticks_per_slot );
 
-  slot_ctx->bank->signature_cnt = 0UL;
+  fd_bank_signature_count_set( slot_ctx->bank, 0UL );
 
   /* Derive epoch stakes */
 
@@ -3731,7 +3731,7 @@ fd_runtime_process_genesis_block( fd_exec_slot_ctx_t * slot_ctx,
 
   fd_bank_priority_fees_set( slot_ctx->bank, 0UL );
 
-  slot_ctx->bank->signature_cnt = 0UL;
+  fd_bank_signature_count_set( slot_ctx->bank, 0UL );
 
   ulong * txn_count = fd_bank_mgr_txn_count_modify( slot_ctx->bank_mgr );
   *txn_count = 0UL;

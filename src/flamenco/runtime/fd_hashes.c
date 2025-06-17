@@ -222,7 +222,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
   *prev_bank_hash = *bank_hash;
   fd_bank_mgr_prev_bank_hash_save( slot_ctx->bank_mgr );
 
-  fd_bank_parent_signature_cnt_set( slot_ctx->bank, slot_ctx->bank->signature_cnt );
+  fd_bank_parent_signature_cnt_set( slot_ctx->bank, fd_bank_signature_count_get( slot_ctx->bank ) );
 
   fd_bank_lamports_per_signature_set( slot_ctx->bank, fd_bank_lamports_per_signature_get( slot_ctx->bank ) );
 
@@ -239,7 +239,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
   fd_sha256_append( &sha, (uchar const *)bank_hash, sizeof( fd_hash_t ) );
   if( !FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, remove_accounts_delta_hash) )
     fd_sha256_append( &sha, (uchar const *) &account_delta_hash, sizeof( fd_hash_t  ) );
-  fd_sha256_append( &sha, (uchar const *) &slot_ctx->bank->signature_cnt, sizeof( ulong ) );
+  fd_sha256_append( &sha, (uchar const *) fd_bank_signature_count_query( slot_ctx->bank ), sizeof( ulong ) );
 
   fd_sha256_append( &sha, (uchar const *) slot_ctx->bank->poh.hash, sizeof( fd_hash_t ) );
 
@@ -277,7 +277,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
         FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, remove_accounts_delta_hash) ? NULL : account_delta_hash.hash,
         lthash,
         slot_ctx->bank->poh.hash,
-        slot_ctx->bank->signature_cnt );
+        fd_bank_signature_count_get( slot_ctx->bank ) );
   }
 
   if( FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, remove_accounts_delta_hash) ) {
@@ -292,7 +292,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
                     FD_BASE58_ENC_32_ALLOCA( hash->hash ),
                     FD_BASE58_ENC_32_ALLOCA( prev_bank_hash ),
                     FD_LTHASH_ENC_32_ALLOCA( (fd_lthash_value_t *) fd_bank_mgr_lthash_query( slot_ctx->bank_mgr )->lthash ),
-                    slot_ctx->bank->signature_cnt,
+                    fd_bank_signature_count_get( slot_ctx->bank ),
                     FD_BASE58_ENC_32_ALLOCA( slot_ctx->bank->poh.hash ) ));
   } else {
     FD_LOG_NOTICE(( "\n\n[Replay]\n"
@@ -308,7 +308,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
                     FD_BASE58_ENC_32_ALLOCA( prev_bank_hash ),
                     FD_BASE58_ENC_32_ALLOCA( account_delta_hash.hash ),
                     FD_LTHASH_ENC_32_ALLOCA( (fd_lthash_value_t *) fd_bank_mgr_lthash_query( slot_ctx->bank_mgr )->lthash ),
-                    slot_ctx->bank->signature_cnt,
+                    fd_bank_signature_count_get( slot_ctx->bank ),
                     FD_BASE58_ENC_32_ALLOCA( slot_ctx->bank->poh.hash ) ));
   }
 }
@@ -580,7 +580,7 @@ fd_update_hash_bank_exec_hash( fd_exec_slot_ctx_t *           slot_ctx,
 
     /* Sort and hash "dirty keys" to the accounts delta hash. */
 
-    slot_ctx->bank->signature_cnt = signature_cnt;
+    fd_bank_signature_count_set( slot_ctx->bank, signature_cnt );
 
     fd_hash_bank( slot_ctx, capture_ctx, hash, dirty_keys, dirty_key_cnt);
 

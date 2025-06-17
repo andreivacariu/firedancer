@@ -84,7 +84,9 @@ FD_PROTOTYPES_BEGIN
   X(ulong,                             block_height,                sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Block height */ \
   X(fd_hash_t,                         epoch_account_hash,          sizeof(fd_hash_t),              alignof(fd_hash_t),              0,   0    )  /* Epoch account hash */ \
   X(ulong,                             execution_fees,              sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Execution fees */ \
-  X(ulong,                             priority_fees,               sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Priority fees */
+  X(ulong,                             priority_fees,               sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Priority fees */ \
+  X(ulong,                             signature_count,             sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Signature count */ \
+  X(ulong,                             use_prev_epoch_stake,        sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Use prev epoch stake */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need
@@ -198,8 +200,6 @@ struct fd_bank {
   #undef HAS_LOCK_0
   #undef HAS_LOCK_1
 
-  ulong                             signature_cnt;
-  ulong                             use_prev_epoch_stake;
   fd_hash_t                         poh;
   fd_sol_sysvar_last_restart_slot_t last_restart_slot;
   fd_cluster_version_t              cluster_version;

@@ -2262,7 +2262,7 @@ after_credit( fd_replay_tile_ctx_t * ctx,
     /**************************************************************************************************/
 
     fd_runtime_block_info_t runtime_block_info[1];
-    runtime_block_info->signature_cnt = ctx->slot_ctx->bank->signature_cnt;
+    runtime_block_info->signature_cnt = fd_bank_signature_count_get( ctx->slot_ctx->bank );
 
     ctx->block_finalizing = 0;
 
