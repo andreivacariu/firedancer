@@ -373,7 +373,7 @@ fd_populate_vote_accounts( fd_exec_slot_ctx_t *       slot_ctx,
      https://github.com/anza-xyz/agave/blob/v2.2.14/runtime/src/bank/partitioned_epoch_rewards/calculation.rs#L309 */
   ulong total_epoch_stake = 0UL;
 
-  fd_vote_accounts_global_t * next_epoch_stakes = fd_bank_mgr_next_epoch_stakes_query( slot_ctx->bank_mgr );
+  fd_vote_accounts_global_t const * next_epoch_stakes = fd_bank_next_epoch_stakes_query( slot_ctx->bank );
   fd_vote_accounts_pair_global_t_mapnode_t * next_epoch_stakes_pool = fd_vote_accounts_vote_accounts_pool_join( next_epoch_stakes );
   fd_vote_accounts_pair_global_t_mapnode_t * next_epoch_stakes_root = fd_vote_accounts_vote_accounts_root_join( next_epoch_stakes );
 
@@ -411,8 +411,7 @@ fd_populate_vote_accounts( fd_exec_slot_ctx_t *       slot_ctx,
       FD_LOG_WARNING(( "Failed to deserialize vote account" ));
     }
   }
-
-  FD_LOG_WARNING(("TOTAL EPOCH STAKE %lu", total_epoch_stake));
+  fd_bank_next_epoch_stakes_end_query( slot_ctx->bank );
 
   fd_bank_total_epoch_stake_set( slot_ctx->bank, total_epoch_stake );
 }

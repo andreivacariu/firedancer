@@ -95,7 +95,10 @@ FD_PROTOTYPES_BEGIN
   X(fd_hash_t,                         prev_bank_hash,              sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* Previous bank hash */ \
   X(fd_hash_t,                         genesis_hash,                sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* Genesis hash */ \
   X(fd_epoch_schedule_t,               epoch_schedule,              sizeof(fd_epoch_schedule_t),               alignof(fd_epoch_schedule_t),               0,   0    )  /* Epoch schedule */ \
-  X(fd_rent_t,                         rent,                        sizeof(fd_rent_t),                         alignof(fd_rent_t),                         0,   0    )  /* Rent */
+  X(fd_rent_t,                         rent,                        sizeof(fd_rent_t),                         alignof(fd_rent_t),                         0,   0    )  /* Rent */ \
+  X(fd_slot_lthash_t,                  lthash,                      sizeof(fd_slot_lthash_t),                  alignof(fd_slot_lthash_t),                  0,   0    )  /* LTHash */ \
+  X(fd_vote_accounts_global_t,         next_epoch_stakes,           200000000UL,                               128UL,                                      1,   1    )  /* Next epoch stakes, ~4K per account * 50k vote accounts */ \
+  X(fd_vote_accounts_global_t,         epoch_stakes,                200000000UL,                               128UL,                                      1,   1    )  /* Epoch stakes ~4K per account * 50k vote accounts */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need
@@ -148,9 +151,17 @@ FD_PROTOTYPES_BEGIN
 #undef POOL_NAME
 #undef POOL_T
 
-#define FD_BANK_BLOCK_HASH_QUEUE_SIZE (50000UL)
+#define POOL_NAME fd_bank_next_epoch_stakes_pool
+#define POOL_T    fd_bank_next_epoch_stakes_t
+#include "../../util/tmpl/fd_pool.c"
+#undef POOL_NAME
+#undef POOL_T
 
-#define FD_BANK_HEADER_SIZE (40UL)
+#define POOL_NAME fd_bank_epoch_stakes_pool
+#define POOL_T    fd_bank_epoch_stakes_t
+#include "../../util/tmpl/fd_pool.c"
+#undef POOL_NAME
+#undef POOL_T
 
 struct fd_bank {
   /* Fields used for internal pool and bank management */
@@ -209,10 +220,11 @@ struct fd_bank {
   #undef HAS_LOCK_0
   #undef HAS_LOCK_1
 
-  fd_slot_lthash_t lthash;
-
 };
 typedef struct fd_bank fd_bank_t;
+
+/* TODO: Document this. */
+#define FD_BANK_HEADER_SIZE (40UL)
 
 /* fd_bank_t is the alignment for the bank state. */
 

@@ -122,9 +122,7 @@ if( FD_UNLIKELY( !bank_mgr ) ) {                                                
 /*  Type,                              name,                        id,   footprint,   align */
 #define FD_BANK_MGR_ITER(X)                                                                    \
   X(ulong,                             slot,                        1UL,  8UL,         8UL   ) \
-  X(fd_vote_accounts_global_t,         next_epoch_stakes,           39UL, 300000000UL, 1024UL) \
   X(fd_vote_accounts_global_t,         epoch_stakes,                40UL, 300000000UL, 1024UL) \
-  X(fd_slot_lthash_t,                  lthash,                      41UL, 4096UL,      128UL ) \
   X(fd_epoch_reward_status_global_t,   epoch_reward_status,         42UL, 160000000UL, 128UL ) \
   X(fd_stakes_global_t,                stakes,                      43UL, 800000000UL, 256UL ) \
   X(fd_epoch_leaders_t,                epoch_leaders,               44UL, 1000000UL,   128UL ) \

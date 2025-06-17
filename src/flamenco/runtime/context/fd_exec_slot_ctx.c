@@ -501,7 +501,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
     /* Move next EpochStakes */
 
-    fd_vote_accounts_global_t * next_epoch_stakes = fd_bank_mgr_next_epoch_stakes_modify( slot_ctx->bank_mgr );
+    fd_vote_accounts_global_t * next_epoch_stakes = fd_bank_next_epoch_stakes_modify( slot_ctx->bank );
     uchar * next_epoch_stakes_pool_mem = (uchar *)fd_ulong_align_up( (ulong)next_epoch_stakes + sizeof(fd_vote_accounts_global_t), fd_vote_accounts_pair_global_t_map_align() );
     fd_vote_accounts_pair_global_t_mapnode_t * next_epoch_stakes_pool = fd_vote_accounts_pair_global_t_map_join( fd_vote_accounts_pair_global_t_map_new( next_epoch_stakes_pool_mem, 50000UL ) );
     fd_vote_accounts_pair_global_t_mapnode_t * next_epoch_stakes_root = NULL;
@@ -541,13 +541,13 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
     }
     fd_vote_accounts_vote_accounts_pool_update( next_epoch_stakes, next_epoch_stakes_pool );
     fd_vote_accounts_vote_accounts_root_update( next_epoch_stakes, next_epoch_stakes_root );
-    fd_bank_mgr_next_epoch_stakes_save( slot_ctx->bank_mgr );
+    fd_bank_next_epoch_stakes_end_modify( slot_ctx->bank );
 
   } while(0);
 
   //FD_LOG_WARNING(("Recovered EpochStakes of size %lu", fd_vote_accounts_size( &epoch_bank->next_epoch_stakes )));
 
-  fd_slot_lthash_t * lthash = fd_bank_mgr_lthash_modify( slot_ctx->bank_mgr );
+  fd_slot_lthash_t * lthash = fd_bank_lthash_modify( slot_ctx->bank );
 
   if( NULL != manifest->lthash ) {
     *lthash = *manifest->lthash;
@@ -555,7 +555,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
     fd_lthash_zero( (fd_lthash_value_t *) lthash->lthash );
   }
 
-  fd_bank_mgr_lthash_save( slot_ctx->bank_mgr );
+  fd_bank_lthash_end_modify( slot_ctx->bank );
 
 
   fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( slot_ctx->bank );
