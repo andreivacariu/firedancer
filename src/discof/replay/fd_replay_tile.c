@@ -1851,7 +1851,7 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx,
   FD_TEST( snapshot_fork );
 
 
-  fd_stakes_global_t * stakes = fd_bank_mgr_stakes_query( snapshot_fork->slot_ctx->bank_mgr );
+  fd_stakes_global_t const * stakes = fd_bank_stakes_query( snapshot_fork->slot_ctx->bank );
   fd_vote_accounts_global_t const * vote_accounts = &stakes->vote_accounts;
 
   fd_vote_accounts_pair_global_t_mapnode_t * vote_accounts_pool = fd_vote_accounts_vote_accounts_pool_join( vote_accounts );
@@ -1883,7 +1883,9 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx,
        curr = fd_vote_accounts_pair_global_t_map_successor( vote_accounts_pool, curr ) ) {
     bank_hash_cmp->total_stake += curr->elem.stake;
   }
-  bank_hash_cmp->watermark           = snapshot_slot;
+  bank_hash_cmp->watermark = snapshot_slot;
+
+  fd_bank_stakes_end_query( ctx->slot_ctx->bank );
 
   ulong root = snapshot_slot;
   if( FD_LIKELY( root > fd_fseq_query( ctx->published_wmark ) ) ) {

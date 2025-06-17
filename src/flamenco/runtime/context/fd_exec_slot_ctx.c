@@ -94,9 +94,10 @@ fd_exec_slot_ctx_delete( void * mem ) {
 static int
 recover_clock( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
 
-  fd_stakes_global_t * stakes = fd_bank_mgr_stakes_query( slot_ctx->bank_mgr );
+  fd_stakes_global_t const * stakes = fd_bank_stakes_query( slot_ctx->bank );
   if( FD_UNLIKELY( stakes==NULL ) ) {
     FD_LOG_WARNING(( "stakes is NULL" ));
+    fd_bank_stakes_end_query( slot_ctx->bank );
     return 0;
   }
 
@@ -125,6 +126,7 @@ recover_clock( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
         &err );
     if( FD_UNLIKELY( err ) ) {
       FD_LOG_WARNING(( "vote state decode failed" ));
+      fd_bank_stakes_end_query( slot_ctx->bank );
       return 0;
     }
 
@@ -154,6 +156,7 @@ recover_clock( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
     } FD_SPAD_FRAME_END;
   }
 
+  fd_bank_stakes_end_query( slot_ctx->bank );
   return 1;
 }
 
@@ -179,21 +182,12 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
   fd_versioned_bank_t const * oldbank = &manifest->bank;
 
   ulong sz = fd_stakes_size( &oldbank->stakes );
-  fd_stakes_global_t * stakes = fd_bank_mgr_stakes_modify( slot_ctx->bank_mgr );
+
+  fd_stakes_global_t * stakes = fd_bank_stakes_modify( slot_ctx->bank );
   fd_memcpy( stakes, &manifest_global->bank.stakes, sz * 2 );
   /* Verify stakes */
 
-  fd_delegation_pair_t_mapnode_t * stake_delegations_pool_og = fd_stakes_stake_delegations_pool_join( &manifest_global->bank.stakes );
-  FD_TEST( stake_delegations_pool_og );
-  /* Verify stakes */
-  fd_delegation_pair_t_mapnode_t * stake_delegations_pool = fd_stakes_stake_delegations_pool_join( stakes );
-  FD_TEST( stake_delegations_pool );
-
-
-
-  fd_bank_mgr_stakes_save( slot_ctx->bank_mgr );
-
-  stakes = fd_bank_mgr_stakes_query( slot_ctx->bank_mgr );
+  fd_bank_stakes_end_modify( slot_ctx->bank );
 
   /* Index vote accounts */
 

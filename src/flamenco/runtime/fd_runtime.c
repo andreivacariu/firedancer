@@ -2300,7 +2300,7 @@ static void
 fd_update_stake_delegations( fd_exec_slot_ctx_t * slot_ctx,
                              fd_epoch_info_t *    temp_info ) {
 
-  fd_stakes_global_t * stakes = fd_bank_mgr_stakes_modify( slot_ctx->bank_mgr );
+  fd_stakes_global_t * stakes = fd_bank_stakes_modify( slot_ctx->bank );
   fd_delegation_pair_t_mapnode_t * stake_delegations_pool = fd_stakes_stake_delegations_pool_join( stakes );
   fd_delegation_pair_t_mapnode_t * stake_delegations_root = fd_stakes_stake_delegations_root_join( stakes );
 
@@ -2325,7 +2325,7 @@ fd_update_stake_delegations( fd_exec_slot_ctx_t * slot_ctx,
 
   fd_stakes_stake_delegations_pool_update( stakes, stake_delegations_pool );
   fd_stakes_stake_delegations_root_update( stakes, stake_delegations_root );
-  fd_bank_mgr_stakes_save( slot_ctx->bank_mgr );
+  fd_bank_stakes_end_modify( slot_ctx->bank );
 
   /* At the epoch boundary, release all of the stake account keys
      because at this point all of the changes have been applied to the
@@ -2378,14 +2378,15 @@ fd_update_next_epoch_stakes( fd_exec_slot_ctx_t * slot_ctx ) {
                    4000 * 50000UL;
 
 
-  fd_stakes_global_t * stakes = fd_bank_mgr_stakes_query( slot_ctx->bank_mgr );
-  fd_vote_accounts_global_t * vote_stakes = &stakes->vote_accounts;
+  fd_stakes_global_t const *        stakes = fd_bank_stakes_query( slot_ctx->bank );
+  fd_vote_accounts_global_t const * vote_stakes = &stakes->vote_accounts;
 
 
   fd_vote_accounts_global_t * next_epoch_stakes = fd_bank_next_epoch_stakes_modify( slot_ctx->bank );
   fd_memcpy( next_epoch_stakes, vote_stakes, total_sz );
   fd_bank_next_epoch_stakes_end_modify( slot_ctx->bank );
 
+  fd_bank_stakes_end_query( slot_ctx->bank );
 }
 
 /* Mimics `bank.new_target_program_account()`. Assumes `out_rec` is a modifiable record.
@@ -2954,9 +2955,9 @@ fd_runtime_process_new_epoch( fd_exec_slot_ctx_t * slot_ctx,
                             runtime_spad );
 
   /* Update the stakes epoch value to the new epoch */
-  fd_stakes_global_t * stakes = fd_bank_mgr_stakes_modify( slot_ctx->bank_mgr );
+  fd_stakes_global_t * stakes = fd_bank_stakes_modify( slot_ctx->bank );
   stakes->epoch = epoch;
-  fd_bank_mgr_stakes_save( slot_ctx->bank_mgr );
+  fd_bank_stakes_end_modify( slot_ctx->bank );
 
   fd_update_stake_delegations( slot_ctx, &temp_info );
 

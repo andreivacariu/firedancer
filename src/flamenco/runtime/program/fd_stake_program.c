@@ -3311,8 +3311,9 @@ fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
                                    fd_bank_mgr_t *      bank_mgr,
                                    fd_bank_t *          bank ) {
   FD_TEST( stake_account->vt->get_lamports( stake_account )!=0 );
+  (void)bank_mgr;
 
-  fd_stakes_global_t * stakes = fd_bank_mgr_stakes_query( bank_mgr );
+  fd_stakes_global_t const * stakes = fd_bank_stakes_query( bank );
   fd_delegation_pair_t_mapnode_t * stake_delegations_pool = fd_stakes_stake_delegations_pool_join( stakes );
   fd_delegation_pair_t_mapnode_t * stake_delegations_root = fd_stakes_stake_delegations_root_join( stakes );
 
@@ -3322,6 +3323,7 @@ fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
 
   if( FD_UNLIKELY( stake_delegations_pool==NULL ) ) {
     FD_LOG_DEBUG(("Stake delegations pool does not exist"));
+    fd_bank_stakes_end_query( bank );
     return;
   }
 
@@ -3345,6 +3347,7 @@ fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
     if( account_keys_pool==NULL) {
       FD_LOG_DEBUG(("Stake accounts pool does not exist"));
       fd_bank_stake_account_keys_end_modify( bank );
+      fd_bank_stakes_end_query( bank );
       return;
     }
     fd_account_keys_pair_t_mapnode_t * stake_entry = fd_account_keys_pair_t_map_find( account_keys_pool, account_keys_root, &key );
@@ -3367,6 +3370,8 @@ fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
   fd_account_keys_account_keys_root_update( stake_account_keys, account_keys_root );
 
   fd_bank_stake_account_keys_end_modify( bank );
+
+  fd_bank_stakes_end_query( bank );
 }
 
 void

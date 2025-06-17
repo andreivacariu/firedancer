@@ -117,12 +117,11 @@ if( FD_UNLIKELY( !bank_mgr ) ) {                                                
 
 
 /* FIXME: Size out all data structures to their max bounded size. */
-/* FIXME: Flip order for footprind and align. */
+/* FIXME: Flip order for footprint and align. */
 /* Add new members to the bank manager here. */
 /*  Type,                              name,                        id,   footprint,   align */
 #define FD_BANK_MGR_ITER(X)                                                                    \
   X(ulong,                             slot,                        1UL,  8UL,         8UL   ) \
-  X(fd_stakes_global_t,                stakes,                      43UL, 800000000UL, 256UL ) \
   X(fd_features_t,                     features,                    45UL, 2000UL,      8UL   ) \
   X(ulong,                             txn_count,                   46UL, 8UL,         8UL   ) \
   X(ulong,                             nonvote_txn_count,           47UL, 8UL,         8UL   ) \

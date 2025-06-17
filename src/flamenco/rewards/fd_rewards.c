@@ -1232,7 +1232,7 @@ fd_rewards_recalculate_partitioned_rewards( fd_exec_slot_ctx_t * slot_ctx,
                                      .rewards = epoch_rewards->total_rewards };
 
     /* Populate vote and stake state info from vote and stakes cache for the stake vote rewards calculation */
-    fd_stakes_global_t * stakes = fd_bank_mgr_stakes_query( slot_ctx->bank_mgr );
+    fd_stakes_global_t const *       stakes                 = fd_bank_stakes_query( slot_ctx->bank );
     fd_delegation_pair_t_mapnode_t * stake_delegations_pool = fd_stakes_stake_delegations_pool_join( stakes );
     fd_delegation_pair_t_mapnode_t * stake_delegations_root = fd_stakes_stake_delegations_root_join( stakes );
 
@@ -1259,6 +1259,8 @@ fd_rewards_recalculate_partitioned_rewards( fd_exec_slot_ctx_t * slot_ctx,
                                exec_spads,
                                exec_spad_cnt,
                                runtime_spad );
+
+    fd_bank_stakes_end_query( slot_ctx->bank );
 
     /* NOTE: this is just a workaround for now to correctly populate epoch_info. */
     fd_populate_vote_accounts( slot_ctx,
