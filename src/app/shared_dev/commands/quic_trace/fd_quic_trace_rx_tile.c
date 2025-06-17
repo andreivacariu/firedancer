@@ -31,10 +31,10 @@ before_frag( void * _ctx   FD_FN_UNUSED,
 }
 
 static void
-during_frag( void * _ctx   FD_PARAM_UNUSED,
+during_frag( void * _ctx,
              ulong  in_idx FD_PARAM_UNUSED,
              ulong  seq    FD_PARAM_UNUSED,
-             ulong  sig    FD_PARAM_UNUSED,
+             ulong  sig,
              ulong  chunk,
              ulong  sz,
              ulong  ctl ) {
@@ -53,8 +53,6 @@ during_frag( void * _ctx   FD_PARAM_UNUSED,
 static int
 bounds_check_conn( fd_quic_t *      quic,
                    fd_quic_conn_t * conn ) {
-  (void)quic;
-
   long conn_off = (long)((ulong)conn-(ulong)quic);
   return conn_off >= (long)quic->layout.conns_off && conn_off < (long)quic->layout.conn_map_off;
 }
@@ -65,6 +63,8 @@ fd_quic_trace_initial( fd_quic_trace_ctx_t * trace_ctx,
                        ulong                 data_sz,
                        uint                  ip4_saddr,
                        ushort                udp_sport,
+                       uint                  ip4_daddr,
+                       ushort                udp_dport,
                        uint                  key_idx ) {
   fd_quic_ctx_t *      ctx      = &fd_quic_trace_ctx;
   fd_quic_t *          quic     = ctx->quic;
@@ -88,6 +88,7 @@ fd_quic_trace_initial( fd_quic_trace_ctx_t * trace_ctx,
     FD_LOG_DEBUG(( "Bogus destination connection id length: %u", (uint)initial->dst_conn_id_len ));
   }
 
+  uint conn_idx = ~0u;
   fd_quic_crypto_keys_t _keys[1];
   fd_quic_crypto_keys_t const * keys = NULL;
   if( initial->dst_conn_id_len == FD_QUIC_CONN_ID_SZ ) {
@@ -99,7 +100,8 @@ fd_quic_trace_initial( fd_quic_trace_ctx_t * trace_ctx,
     if( conn_entry && conn_entry->conn ) {
       fd_quic_conn_t * conn = translate_ptr( conn_entry->conn );
       if( FD_LIKELY( bounds_check_conn( quic, conn ) ) ) {
-        keys = &conn->keys[fd_quic_enc_level_initial_id][key_idx];
+        conn_idx = conn->conn_idx;
+        keys     = &conn->keys[fd_quic_enc_level_initial_id][key_idx];
 
 #       define EMPTY ((uchar[16]){0})
         /* assume this is a new connection, since this is an Initial packet */
@@ -172,13 +174,17 @@ fd_quic_trace_initial( fd_quic_trace_ctx_t * trace_ctx,
   if( FD_UNLIKELY( data_sz<wrap_sz ) ) return FD_QUIC_PARSE_FAIL;
 
   if( trace_ctx->dump ) {
-    fd_quic_pretty_print_quic_pkt( &state->quic_pretty_print,
+    fd_quic_pretty_print_t quic_pkt_ctx = {
+      .ip4_saddr = ip4_saddr,
+      .udp_sport = udp_sport,
+      .ip4_daddr = ip4_daddr,
+      .udp_dport = udp_dport,
+      .flow      = key_idx,
+      .conn_idx  = conn_idx };
+    fd_quic_pretty_print_quic_pkt( &quic_pkt_ctx,
                                    state->now,
                                    data,
-                                   data_sz,
-                                   key_idx == 0 ? "ingress" : "egress",
-                                   ip4_saddr,
-                                   udp_sport );
+                                   data_sz );
     fflush( stdout );
   } else {
     uchar conn_id_truncated[24] = {0};
@@ -203,6 +209,8 @@ fd_quic_trace_handshake( fd_quic_trace_ctx_t * trace_ctx,
                          ulong                 data_sz,
                          uint                  ip4_saddr,
                          ushort                udp_sport,
+                         uint                  ip4_daddr,
+                         ushort                udp_dport,
                          uint                  key_idx ) {
   fd_quic_ctx_t *      ctx      = &fd_quic_trace_ctx;
   fd_quic_t *          quic     = ctx->quic;
@@ -223,6 +231,9 @@ fd_quic_trace_handshake( fd_quic_trace_ctx_t * trace_ctx,
     return FD_QUIC_PARSE_FAIL;
   }
 
+  /* need conn_idx */
+  uint conn_idx = ~0u;
+
   /* keeping this logic similar to the equivalent in fd_quic_trace_initial */
   /* for future merging */
   fd_quic_crypto_keys_t const * keys = NULL;
@@ -234,7 +245,8 @@ fd_quic_trace_handshake( fd_quic_trace_ctx_t * trace_ctx,
     if( conn_entry && conn_entry->conn ) {
       fd_quic_conn_t * conn = translate_ptr( conn_entry->conn );
       if( FD_LIKELY( bounds_check_conn( quic, conn ) ) ) {
-        keys = &conn->keys[fd_quic_enc_level_handshake_id][key_idx];
+        keys     = &conn->keys[fd_quic_enc_level_handshake_id][key_idx];
+        conn_idx = conn->conn_idx;
       }
     }
   }
@@ -263,13 +275,17 @@ fd_quic_trace_handshake( fd_quic_trace_ctx_t * trace_ctx,
   if( FD_UNLIKELY( data_sz<wrap_sz ) ) return FD_QUIC_PARSE_FAIL;
 
   if( trace_ctx->dump ) {
-    fd_quic_pretty_print_quic_pkt( &state->quic_pretty_print,
+    fd_quic_pretty_print_t quic_pkt_ctx = {
+      .ip4_saddr = ip4_saddr,
+      .udp_sport = udp_sport,
+      .ip4_daddr = ip4_daddr,
+      .udp_dport = udp_dport,
+      .flow      = key_idx,
+      .conn_idx  = conn_idx };
+    fd_quic_pretty_print_quic_pkt( &quic_pkt_ctx,
                                    state->now,
                                    data,
-                                   data_sz,
-                                   key_idx == 0 ? "ingress" : "egress",
-                                   ip4_saddr,
-                                   udp_sport );
+                                   data_sz );
     fflush( stdout );
   } else {
     uchar conn_id_truncated[8] = {0};
@@ -294,6 +310,8 @@ fd_quic_trace_1rtt( fd_quic_trace_ctx_t * trace_ctx,
                     ulong                 data_sz,
                     uint                  ip4_saddr,
                     ushort                udp_sport,
+                    uint                  ip4_daddr,
+                    ushort                udp_dport,
                     uint                  key_idx ) {
   fd_quic_ctx_t *      ctx      = &fd_quic_trace_ctx;
   fd_quic_t *          quic     = ctx->quic;
@@ -332,9 +350,24 @@ fd_quic_trace_1rtt( fd_quic_trace_ctx_t * trace_ctx,
     } else {
       /* report packet with unavailable connection */
       char time_str[FD_LOG_WALLCLOCK_CSTR_BUF_SZ];
-      printf( "{ \"type\": \"packet\", \"flow\": \"%s\", \"trace_time\": \"%s\", \"src_ip_addr\": \"147.75.106.207\", \"src_udp_port\": \"12067\", \"hdr_type\": \"1-rtt\", \"err\": \"no-connection\", \"dst_conn_id\": \"%lx\" }, ] }\n",
+      printf( "{ "
+              "\"type\": \"packet\", "
+              "\"flow\": \"%s\", "
+              "\"trace_time\": \"%s\", "
+              "\"src_ip_addr\": \"" FD_IP4_ADDR_FMT "\", "
+              "\"src_udp_port\": %u, "
+              "\"dst_ip_addr\": \"" FD_IP4_ADDR_FMT "\", "
+              "\"dst_udp_port\": %u, "
+              "\"hdr_type\": \"1-rtt\", "
+              "\"err\": \"no-connection\", "
+              "\"dst_conn_id\": \"%lx\" "
+              "}, ] }\n",
          key_idx == 0 ? "ingress" : "egress",
          fd_log_wallclock_cstr( fd_log_wallclock(), time_str ),
+         FD_IP4_ADDR_FMT_ARGS( ip4_saddr ),
+         (uint)udp_sport,
+         FD_IP4_ADDR_FMT_ARGS( ip4_daddr ),
+         (uint)udp_dport,
          peer_conn_id
         );
       return;
@@ -365,13 +398,17 @@ fd_quic_trace_1rtt( fd_quic_trace_ctx_t * trace_ctx,
   if( FD_UNLIKELY( data_sz<wrap_sz ) ) return;
 
   if( trace_ctx->dump ) {
-    fd_quic_pretty_print_quic_pkt( &state->quic_pretty_print,
+    fd_quic_pretty_print_t quic_pkt_ctx = {
+      .ip4_saddr = ip4_saddr,
+      .udp_sport = udp_sport,
+      .ip4_daddr = ip4_daddr,
+      .udp_dport = udp_dport,
+      .flow      = key_idx,
+      .conn_idx  = conn->conn_idx };
+    fd_quic_pretty_print_quic_pkt( &quic_pkt_ctx,
                                    state->now,
                                    data,
-                                   data_sz,
-                                   key_idx == 0 ? "ingress" : "egress",
-                                   ip4_saddr,
-                                   udp_sport );
+                                   data_sz );
     fflush( stdout );
   } else if( key_idx == 0 ) {
     fd_quic_trace_frame_ctx_t frame_ctx = {
@@ -394,6 +431,8 @@ fd_quic_trace_pkt( void *          ctx,
                    ulong           data_sz,
                    uint            ip4_saddr,
                    ushort          udp_sport,
+                   uint            ip4_daddr,
+                   ushort          udp_dport,
                    uint            key_idx ) {
 
   uchar * cur_ptr = data;
@@ -404,10 +443,10 @@ fd_quic_trace_pkt( void *          ctx,
     if( is_long ) {
       switch( fd_quic_h0_long_packet_type( cur_ptr[0] ) ) {
       case FD_QUIC_PKT_TYPE_INITIAL:
-        sz = fd_quic_trace_initial( ctx, cur_ptr, (ulong)( end_ptr - cur_ptr ), ip4_saddr, udp_sport, key_idx );
+        sz = fd_quic_trace_initial( ctx, cur_ptr, (ulong)( end_ptr - cur_ptr ), ip4_saddr, udp_sport, ip4_daddr, udp_dport, key_idx );
         break;
       case FD_QUIC_PKT_TYPE_HANDSHAKE:
-        sz = fd_quic_trace_handshake( ctx, cur_ptr, (ulong)( end_ptr - cur_ptr ), ip4_saddr, udp_sport, key_idx );
+        sz = fd_quic_trace_handshake( ctx, cur_ptr, (ulong)( end_ptr - cur_ptr ), ip4_saddr, udp_sport, ip4_daddr, udp_dport, key_idx );
         break;
       }
 
@@ -415,7 +454,7 @@ fd_quic_trace_pkt( void *          ctx,
       /* FD_QUIC_PKT_TYPE_RETRY    as the server, we shouldn't be receiving RETRY packets */
       /* FD_QUIC_PKT_TYPE_ZERO_RTT we don't support 0-RTT packets */
     } else {
-      fd_quic_trace_1rtt( ctx, cur_ptr, (ulong)( end_ptr - cur_ptr ), ip4_saddr, udp_sport, key_idx );
+      fd_quic_trace_1rtt( ctx, cur_ptr, (ulong)( end_ptr - cur_ptr ), ip4_saddr, udp_sport, ip4_daddr, udp_dport, key_idx );
       /* one-rtt packets are last in the datagram */
       break;
     }
@@ -428,14 +467,13 @@ fd_quic_trace_pkt( void *          ctx,
 
 static void
 after_frag( void * _ctx,
-            ulong  in_idx,
-            ulong  seq,
+            ulong  in_idx FD_PARAM_UNUSED,
+            ulong  seq FD_PARAM_UNUSED,
             ulong  sig,
             ulong  sz,
-            ulong  tsorig,
-            ulong  tspub,
-            fd_stem_context_t * stem ) {
-  (void)in_idx; (void)seq; (void)sig; (void)tsorig; (void)tspub; (void)stem;
+            ulong  tsorig FD_PARAM_UNUSED,
+            ulong  tspub FD_PARAM_UNUSED,
+            fd_stem_context_t * stem FD_PARAM_UNUSED ) {
   ulong proto   = fd_disco_netmux_sig_proto( sig );
   uint  key_idx = proto == DST_PROTO_TPU_QUIC ? 0 : 1;
 
@@ -466,7 +504,9 @@ after_frag( void * _ctx,
 
   uint   ip4_saddr = fd_uint_load_4( ip4_hdr->saddr_c );
   ushort udp_sport = fd_ushort_bswap( udp_hdr->net_sport );
-  fd_quic_trace_pkt( _ctx, cur, (ulong)( end-cur ), ip4_saddr, udp_sport, key_idx );
+  uint   ip4_daddr = fd_uint_load_4( ip4_hdr->daddr_c );
+  ushort udp_dport = fd_ushort_bswap( udp_hdr->net_dport );
+  fd_quic_trace_pkt( _ctx, cur, (ulong)( end-cur ), ip4_saddr, udp_sport, ip4_daddr, udp_dport, key_idx );
 }
 
 

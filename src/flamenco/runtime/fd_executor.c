@@ -303,7 +303,7 @@ fd_validate_fee_payer( fd_txn_account_t * account,
   return fd_executor_check_rent_state_with_account( account, &payer_pre_rent_state, &payer_post_rent_state );
 }
 
-static int
+static int FD_FN_UNUSED
 status_check_tower( ulong slot, void * _ctx ) {
   fd_exec_txn_ctx_t * ctx = (fd_exec_txn_ctx_t *)_ctx;
   if( slot==ctx->slot ) {
@@ -352,13 +352,13 @@ fd_executor_check_status_cache( fd_exec_txn_ctx_t * txn_ctx ) {
   curr_query.txnhash = txn_ctx->blake_txn_msg_hash.uc;
 
   // TODO: figure out if it is faster to batch query properly and loop all txns again
-  int err;
-  fd_txncache_query_batch( txn_ctx->status_cache,
-                           &curr_query,
-                           1UL,
-                           (void *)txn_ctx,
-                           status_check_tower, &err );
-  return err;
+  // int err;
+  // fd_txncache_query_batch( txn_ctx->status_cache,
+  //                          &curr_query,
+  //                          1UL,
+  //                          (void *)txn_ctx,
+  //                          status_check_tower, &err );
+  return 0;
 }
 
 /* https://github.com/anza-xyz/agave/blob/ced98f1ebe73f7e9691308afa757323003ff744f/runtime/src/bank.rs#L3596-L3605 */
