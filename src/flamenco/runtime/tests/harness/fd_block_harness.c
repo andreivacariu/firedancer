@@ -374,7 +374,7 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
 
   fd_bank_capitalization_set( slot_ctx->bank, test_ctx->slot_ctx.prev_epoch_capitalization );
 
-  slot_ctx->bank->lamports_per_signature = 5000UL;
+  fd_bank_lamports_per_signature_set( slot_ctx->bank, 5000UL );
 
   slot_ctx->bank->prev_lamports_per_signature = test_ctx->slot_ctx.prev_lps;
 
@@ -428,7 +428,7 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   if( rbh_global && !deq_fd_block_block_hash_entry_t_empty( rbh->hashes ) ) {
     fd_block_block_hash_entry_t const * last = deq_fd_block_block_hash_entry_t_peek_head_const( rbh->hashes );
     if( last && last->fee_calculator.lamports_per_signature!=0UL ) {
-      slot_ctx->bank->lamports_per_signature = last->fee_calculator.lamports_per_signature;
+      fd_bank_lamports_per_signature_set( slot_ctx->bank, last->fee_calculator.lamports_per_signature );
       slot_ctx->bank->prev_lamports_per_signature = last->fee_calculator.lamports_per_signature;
     }
   }

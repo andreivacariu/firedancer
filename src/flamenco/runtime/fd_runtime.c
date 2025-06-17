@@ -999,6 +999,8 @@ fd_runtime_new_fee_rate_governor_derived( fd_exec_slot_ctx_t *   slot_ctx,
 
   fd_fee_rate_governor_t const * base_fee_rate_governor = fd_bank_fee_rate_governor_query( slot_ctx->bank );
 
+  ulong old_lamports_per_signature = fd_bank_lamports_per_signature_get( slot_ctx->bank );
+
   fd_fee_rate_governor_t me = {
     .target_signatures_per_slot    = base_fee_rate_governor->target_signatures_per_slot,
     .target_lamports_per_signature = base_fee_rate_governor->target_lamports_per_signature,
@@ -1020,7 +1022,7 @@ fd_runtime_new_fee_rate_governor_derived( fd_exec_slot_ctx_t *   slot_ctx,
         / me.target_signatures_per_slot
       )
     );
-    long gap = (long)desired_lamports_per_signature - (long)slot_ctx->bank->lamports_per_signature;
+    long gap = (long)desired_lamports_per_signature - (long)old_lamports_per_signature;
     if ( gap == 0 ) {
       new_lamports_per_signature = desired_lamports_per_signature;
     } else {
@@ -1031,7 +1033,7 @@ fd_runtime_new_fee_rate_governor_derived( fd_exec_slot_ctx_t *   slot_ctx,
         me.max_lamports_per_signature,
         fd_ulong_max(
           me.min_lamports_per_signature,
-          (ulong)((long)slot_ctx->bank->lamports_per_signature + gap_adjust)
+          (ulong)((long)old_lamports_per_signature + gap_adjust)
         )
       );
     }
@@ -1041,15 +1043,15 @@ fd_runtime_new_fee_rate_governor_derived( fd_exec_slot_ctx_t *   slot_ctx,
     me.max_lamports_per_signature = me.target_lamports_per_signature;
   }
 
-  if( FD_UNLIKELY( slot_ctx->bank->lamports_per_signature==0UL ) ) {
+  if( FD_UNLIKELY( old_lamports_per_signature==0UL ) ) {
     slot_ctx->bank->prev_lamports_per_signature = new_lamports_per_signature;
   } else {
-    slot_ctx->bank->prev_lamports_per_signature = slot_ctx->bank->lamports_per_signature;
+    slot_ctx->bank->prev_lamports_per_signature = old_lamports_per_signature;
   }
 
   fd_bank_fee_rate_governor_set( slot_ctx->bank, me );
 
-  slot_ctx->bank->lamports_per_signature = new_lamports_per_signature;
+  fd_bank_lamports_per_signature_set( slot_ctx->bank, new_lamports_per_signature );
 }
 
 static int
@@ -3490,7 +3492,7 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
 
   fd_bank_fee_rate_governor_set( slot_ctx->bank, genesis_block->fee_rate_governor );
 
-  slot_ctx->bank->lamports_per_signature = 0UL;
+  fd_bank_lamports_per_signature_set( slot_ctx->bank, 0UL );
 
   slot_ctx->bank->prev_lamports_per_signature = 0UL;
 

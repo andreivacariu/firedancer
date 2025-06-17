@@ -318,7 +318,7 @@ fd_runtime_fuzz_instr_ctx_create( fd_runtime_fuzz_runner_t *           runner,
       fd_hash_t * last_hash = fd_block_hash_queue_last_hash_join( block_hash_queue );
       fd_memcpy( last_hash, &last->blockhash, sizeof(fd_hash_t) );
 
-      slot_ctx->bank->lamports_per_signature = last->fee_calculator.lamports_per_signature;
+      fd_bank_lamports_per_signature_set( slot_ctx->bank, last->fee_calculator.lamports_per_signature );
 
       slot_ctx->bank->prev_lamports_per_signature = last->fee_calculator.lamports_per_signature;
     }

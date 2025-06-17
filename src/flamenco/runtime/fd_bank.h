@@ -56,15 +56,16 @@ FD_PROTOTYPES_BEGIN
 
 /* Define additional fields to the bank struct here. */
 
-#define FD_BANKS_ITER(X)                                                                                                                                                              \
-  /* type,                             name,                  footprint,                      align,                           CoW, has lock */                                       \
-  X(fd_clock_timestamp_votes_global_t, clock_timestamp_votes, 5000000UL,                      128UL,                           1,   1    )  /* TODO: This needs to get sized out */   \
-  X(fd_account_keys_global_t,          stake_account_keys,    100000000UL,                    128UL,                           1,   1    )  /* Supports roughly 3M stake accounts */  \
-  X(fd_account_keys_global_t,          vote_account_keys,     3200000UL,                      128UL,                           1,   1    )  /* Supports roughly 100k vote accounts */ \
-  X(fd_rent_fresh_accounts_global_t,   rent_fresh_accounts,   50000UL,                        128UL,                           1,   1    )  /* Rent fresh accounts */                 \
-  X(fd_block_hash_queue_global_t,      block_hash_queue,      50000UL,                        128UL,                           0,   0    )  /* Block hash queue */                    \
-  X(fd_fee_rate_governor_t,            fee_rate_governor,     sizeof(fd_fee_rate_governor_t), alignof(fd_fee_rate_governor_t), 0,   0    )  /* Fee rate governor */                   \
-  X(ulong,                             capitalization,        sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Capitalization */
+#define FD_BANKS_ITER(X)                                                                                                                                                               \
+  /* type,                             name,                   footprint,                      align,                           CoW, has lock */                                       \
+  X(fd_clock_timestamp_votes_global_t, clock_timestamp_votes,  5000000UL,                      128UL,                           1,   1    )  /* TODO: This needs to get sized out */   \
+  X(fd_account_keys_global_t,          stake_account_keys,     100000000UL,                    128UL,                           1,   1    )  /* Supports roughly 3M stake accounts */  \
+  X(fd_account_keys_global_t,          vote_account_keys,      3200000UL,                      128UL,                           1,   1    )  /* Supports roughly 100k vote accounts */ \
+  X(fd_rent_fresh_accounts_global_t,   rent_fresh_accounts,    50000UL,                        128UL,                           1,   1    )  /* Rent fresh accounts */                 \
+  X(fd_block_hash_queue_global_t,      block_hash_queue,       50000UL,                        128UL,                           0,   0    )  /* Block hash queue */                    \
+  X(fd_fee_rate_governor_t,            fee_rate_governor,      sizeof(fd_fee_rate_governor_t), alignof(fd_fee_rate_governor_t), 0,   0    )  /* Fee rate governor */                   \
+  X(ulong,                             capitalization,         sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Capitalization */                      \
+  X(ulong,                             lamports_per_signature, sizeof(ulong),                  alignof(ulong),                  0,   0    )  /* Lamports per signature */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need
@@ -178,7 +179,6 @@ struct fd_bank {
   #undef HAS_LOCK_0
   #undef HAS_LOCK_1
 
-  ulong                             lamports_per_signature;
   ulong                             prev_lamports_per_signature;
   ulong                             transaction_count;
   ulong                             parent_signature_cnt;

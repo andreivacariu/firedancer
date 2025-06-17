@@ -223,7 +223,7 @@ fd_hash_bank( fd_exec_slot_ctx_t *    slot_ctx,
 
   slot_ctx->bank->parent_signature_cnt = slot_ctx->bank->signature_cnt;
 
-  slot_ctx->bank->prev_lamports_per_signature = slot_ctx->bank->lamports_per_signature;
+  slot_ctx->bank->prev_lamports_per_signature = fd_bank_lamports_per_signature_get( slot_ctx->bank );
 
   fd_hash_t account_delta_hash;
 

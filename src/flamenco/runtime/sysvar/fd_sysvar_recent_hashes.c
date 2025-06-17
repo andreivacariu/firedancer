@@ -100,7 +100,7 @@ register_blockhash( fd_exec_slot_ctx_t * slot_ctx, fd_hash_t const * hash ) {
   fd_hash_hash_age_pair_t_mapnode_t * node = fd_hash_hash_age_pair_t_map_acquire( ages_pool );
   node->elem = (fd_hash_hash_age_pair_t){
     .key = *hash,
-    .val = (fd_hash_age_t){ .hash_index = bhq->last_hash_index, .fee_calculator = (fd_fee_calculator_t){ .lamports_per_signature = slot_ctx->bank->lamports_per_signature }, .timestamp = (ulong)fd_log_wallclock() }
+    .val = (fd_hash_age_t){ .hash_index = bhq->last_hash_index, .fee_calculator = (fd_fee_calculator_t){ .lamports_per_signature = fd_bank_lamports_per_signature_get( slot_ctx->bank ) }, .timestamp = (ulong)fd_log_wallclock() }
   };
   // https://github.com/anza-xyz/agave/blob/e8750ba574d9ac7b72e944bc1227dc7372e3a490/accounts-db/src/blockhash_queue.rs#L121-L128
   fd_hash_hash_age_pair_t_map_insert( ages_pool, &ages_root, node );
