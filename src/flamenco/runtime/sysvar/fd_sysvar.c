@@ -31,7 +31,7 @@ fd_sysvar_set( fd_exec_slot_ctx_t * slot_ctx,
   /* https://github.com/anza-xyz/agave/blob/ae18213c19ea5335dfc75e6b6116def0f0910aff/runtime/src/bank.rs#L6184
      The account passed in via the updater is always the current sysvar account, so we take the max of the
      current account lamports and the minimum rent exempt balance needed. */
-  fd_rent_t * rent = fd_bank_mgr_rent_query( slot_ctx->bank_mgr );
+  fd_rent_t const * rent = fd_bank_rent_query( slot_ctx->bank );
   fd_acc_lamports_t lamports_after = fd_ulong_max( lamports_before, fd_rent_exempt_minimum_balance( rent, sz ) );
   rec->vt->set_lamports( rec, lamports_after );
 

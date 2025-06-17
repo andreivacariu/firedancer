@@ -178,7 +178,7 @@ fd_runtime_update_leaders( fd_exec_slot_ctx_t * slot_ctx,
 
   FD_SPAD_FRAME_BEGIN( runtime_spad ) {
 
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
 
   FD_LOG_INFO(( "schedule->slots_per_epoch = %lu", epoch_schedule->slots_per_epoch ));
   FD_LOG_INFO(( "schedule->leader_schedule_slot_offset = %lu", epoch_schedule->leader_schedule_slot_offset ));
@@ -280,7 +280,7 @@ fd_runtime_validate_fee_collector( fd_exec_slot_ctx_t const * slot_ctx,
      We already know that the post deposit balance is >0 because we are paying a >0 amount.
      So TLDR we just check if the account is rent exempt.
    */
-  fd_rent_t const * rent = fd_bank_mgr_rent_query( slot_ctx->bank_mgr );
+  fd_rent_t const * rent = fd_bank_rent_query( slot_ctx->bank );
   ulong minbal = fd_rent_exempt_minimum_balance( rent, collector->vt->get_data_len( collector ) );
   if( FD_UNLIKELY( collector->vt->get_lamports( collector ) + fee < minbal ) ) {
     FD_BASE58_ENCODE_32_BYTES( collector->pubkey->key, _out_key );
@@ -326,7 +326,7 @@ fd_runtime_slot_count_in_two_day( ulong ticks_per_slot ) {
 static int
 fd_runtime_use_multi_epoch_collection( fd_exec_slot_ctx_t const * slot_ctx, ulong slot ) {
 
-  fd_epoch_schedule_t const * schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
 
   ulong off;
   ulong epoch = fd_slot_to_epoch( schedule, slot, &off );
@@ -343,7 +343,7 @@ fd_runtime_use_multi_epoch_collection( fd_exec_slot_ctx_t const * slot_ctx, ulon
 FD_FN_UNUSED static ulong
 fd_runtime_num_rent_partitions( fd_exec_slot_ctx_t const * slot_ctx, ulong slot ) {
 
-  fd_epoch_schedule_t const * schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
 
   ulong off;
   ulong epoch = fd_slot_to_epoch( schedule, slot, &off );
@@ -367,7 +367,7 @@ fd_runtime_get_rent_partition( fd_exec_slot_ctx_t const * slot_ctx, ulong slot )
 
   int use_multi_epoch_collection = fd_runtime_use_multi_epoch_collection( slot_ctx, slot );
 
-  fd_epoch_schedule_t const * schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
 
   ulong off;
   ulong epoch = fd_slot_to_epoch( schedule, slot, &off );
@@ -2409,7 +2409,7 @@ fd_new_target_program_account( fd_exec_slot_ctx_t * slot_ctx,
   };
 
   /* https://github.com/anza-xyz/agave/blob/v2.1.0/runtime/src/bank/builtins/core_bpf_migration/mod.rs#L89-L90 */
-  fd_rent_t const * rent = fd_bank_mgr_rent_query( slot_ctx->bank_mgr );
+  fd_rent_t const * rent = fd_bank_rent_query( slot_ctx->bank );
   if( FD_UNLIKELY( rent==NULL ) ) {
     return -1;
   }
@@ -2471,7 +2471,7 @@ fd_new_target_program_data_account( fd_exec_slot_ctx_t * slot_ctx,
   }
 
   /* https://github.com/anza-xyz/agave/blob/v2.1.0/runtime/src/bank/builtins/core_bpf_migration/mod.rs#L127-L132 */
-  fd_rent_t const * rent = fd_bank_mgr_rent_query( slot_ctx->bank_mgr );
+  fd_rent_t const * rent = fd_bank_rent_query( slot_ctx->bank );
   if( FD_UNLIKELY( rent==NULL ) ) {
     return -1;
   }
@@ -2852,9 +2852,9 @@ fd_features_activate( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) 
 uint
 fd_runtime_is_epoch_boundary( fd_exec_slot_ctx_t * slot_ctx, ulong curr_slot, ulong prev_slot ) {
   ulong slot_idx;
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
-  ulong prev_epoch = fd_slot_to_epoch( epoch_schedule, prev_slot, &slot_idx );
-  ulong new_epoch  = fd_slot_to_epoch( epoch_schedule, curr_slot, &slot_idx );
+  fd_epoch_schedule_t const * schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
+  ulong prev_epoch = fd_slot_to_epoch( schedule, prev_slot, &slot_idx );
+  ulong new_epoch  = fd_slot_to_epoch( schedule, curr_slot, &slot_idx );
 
   return ( prev_epoch < new_epoch || slot_idx == 0 );
 }
@@ -2885,9 +2885,9 @@ fd_runtime_process_new_epoch( fd_exec_slot_ctx_t * slot_ctx,
 
   long start = fd_log_wallclock();
 
-  ulong                 slot;
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
-  ulong                 epoch          = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, &slot );
+  ulong                       slot;
+  fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
+  ulong                       epoch          = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, &slot );
 
   /* Activate new features
      https://github.com/anza-xyz/agave/blob/v2.1.0/runtime/src/bank.rs#L6587-L6598 */
@@ -3464,13 +3464,9 @@ fd_runtime_init_bank_from_genesis( fd_exec_slot_ctx_t *        slot_ctx,
   fd_poh_config_t const * poh  = &genesis_block->poh_config;
   uint128 target_tick_duration = ((uint128)poh->target_tick_duration.seconds * 1000000000UL + (uint128)poh->target_tick_duration.nanoseconds);
 
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_modify( slot_ctx->bank_mgr );
-  *epoch_schedule = genesis_block->epoch_schedule;
-  fd_bank_mgr_epoch_schedule_save( slot_ctx->bank_mgr );
+  fd_bank_epoch_schedule_set( slot_ctx->bank, genesis_block->epoch_schedule );
 
-  fd_rent_t * rent_bm = fd_bank_mgr_rent_modify( slot_ctx->bank_mgr );
-  *rent_bm = genesis_block->rent;
-  fd_bank_mgr_rent_save( slot_ctx->bank_mgr );
+  fd_bank_rent_set( slot_ctx->bank, genesis_block->rent );
 
   fd_bank_block_height_set( slot_ctx->bank, 0UL );
 
@@ -4280,8 +4276,9 @@ fd_runtime_block_pre_execute_process_new_epoch( fd_exec_slot_ctx_t * slot_ctx,
   fd_bank_block_height_set( slot_ctx->bank, fd_bank_block_height_get( slot_ctx->bank ) + 1UL );
 
   if( slot_ctx->slot != 0UL ) {
+    fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
+
     ulong             slot_idx;
-    fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
     ulong             prev_epoch = fd_slot_to_epoch( epoch_schedule, fd_bank_prev_slot_get( slot_ctx->bank ), &slot_idx );
     ulong             new_epoch  = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, &slot_idx );
     if( FD_UNLIKELY( slot_idx==1UL && new_epoch==0UL ) ) {

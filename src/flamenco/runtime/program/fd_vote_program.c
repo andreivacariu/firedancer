@@ -807,9 +807,9 @@ set_vote_account_state( fd_borrowed_account_t *     vote_account,
     ulong vsz = size_of_versioned( 1 );
 
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_state/mod.rs#L175
-    fd_rent_t * rent               = fd_bank_mgr_rent_query( ctx->txn_ctx->bank_mgr );
-    int         resize_needed      = fd_borrowed_account_get_data_len( vote_account ) < vsz;
-    int         resize_rent_exempt = fd_rent_exempt_minimum_balance( rent, vsz ) <= fd_borrowed_account_get_lamports( vote_account );
+    fd_rent_t const * rent               = fd_bank_rent_query( ctx->txn_ctx->bank );
+    int               resize_needed      = fd_borrowed_account_get_data_len( vote_account ) < vsz;
+    int               resize_rent_exempt = fd_rent_exempt_minimum_balance( rent, vsz ) <= fd_borrowed_account_get_lamports( vote_account );
 
     /* The resize operation itself is part of the horrible conditional,
        but behind a short-circuit operator. */

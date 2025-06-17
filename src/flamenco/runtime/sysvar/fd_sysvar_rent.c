@@ -7,7 +7,7 @@
 
 void
 fd_sysvar_rent_write( fd_exec_slot_ctx_t * slot_ctx,
-                      fd_rent_t *          rent ) {
+                      fd_rent_t const *    rent ) {
 
   uchar enc[ 32 ];
 
@@ -26,7 +26,7 @@ fd_sysvar_rent_write( fd_exec_slot_ctx_t * slot_ctx,
 
 void
 fd_sysvar_rent_init( fd_exec_slot_ctx_t * slot_ctx ) {
-  fd_rent_t * rent = fd_bank_mgr_rent_query( slot_ctx->bank_mgr );
+  fd_rent_t const * rent = fd_bank_rent_query( slot_ctx->bank );
   fd_sysvar_rent_write( slot_ctx, rent );
 }
 

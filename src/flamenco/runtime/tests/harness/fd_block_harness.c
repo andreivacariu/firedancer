@@ -325,15 +325,11 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   //                                              epoch_bank->stakes.stake_delegations_root );
 
   /* Finish init epoch bank sysvars */
-  fd_epoch_schedule_t * epoch_schedule    = fd_sysvar_epoch_schedule_read( funk, funk_txn, runner->spad );
-  fd_epoch_schedule_t * epoch_schedule_bm = fd_bank_mgr_epoch_schedule_modify( bank_mgr );
-  fd_memcpy( epoch_schedule_bm, epoch_schedule, sizeof(fd_epoch_schedule_t) );
-  fd_bank_mgr_epoch_schedule_save( bank_mgr );
+  fd_epoch_schedule_t * epoch_schedule = fd_sysvar_epoch_schedule_read( funk, funk_txn, runner->spad );
+  fd_bank_epoch_schedule_set( slot_ctx->bank, *epoch_schedule );
 
-  fd_rent_t const * rent    = fd_sysvar_rent_read( funk, funk_txn, runner->spad );
-  fd_rent_t *       rent_bm = fd_bank_mgr_rent_modify( bank_mgr );
-  fd_memcpy( rent_bm, rent, sizeof(fd_rent_t) );
-  fd_bank_mgr_rent_save( bank_mgr );
+  fd_rent_t const * rent = fd_sysvar_rent_read( funk, funk_txn, runner->spad );
+  fd_bank_rent_set( slot_ctx->bank, *rent );
 
   //epoch_bank->stakes.epoch = fd_slot_to_epoch( epoch_schedule, *prev_slot, NULL );
 

@@ -93,7 +93,9 @@ FD_PROTOTYPES_BEGIN
   X(ulong,                             prev_slot,                   sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Previous slot */ \
   X(fd_hash_t,                         bank_hash,                   sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* Bank hash */ \
   X(fd_hash_t,                         prev_bank_hash,              sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* Previous bank hash */ \
-  X(fd_hash_t,                         genesis_hash,                sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* Genesis hash */
+  X(fd_hash_t,                         genesis_hash,                sizeof(fd_hash_t),                         alignof(fd_hash_t),                         0,   0    )  /* Genesis hash */ \
+  X(fd_epoch_schedule_t,               epoch_schedule,              sizeof(fd_epoch_schedule_t),               alignof(fd_epoch_schedule_t),               0,   0    )  /* Epoch schedule */ \
+  X(fd_rent_t,                         rent,                        sizeof(fd_rent_t),                         alignof(fd_rent_t),                         0,   0    )  /* Rent */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need
@@ -207,9 +209,7 @@ struct fd_bank {
   #undef HAS_LOCK_0
   #undef HAS_LOCK_1
 
-  fd_epoch_schedule_t               epoch_schedule;
-  fd_rent_t                         rent;
-  fd_slot_lthash_t                  lthash;
+  fd_slot_lthash_t lthash;
 
 };
 typedef struct fd_bank fd_bank_t;

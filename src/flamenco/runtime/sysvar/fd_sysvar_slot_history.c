@@ -128,7 +128,7 @@ fd_sysvar_slot_history_update( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtim
     return FD_EXECUTOR_INSTR_ERR_CUSTOM_ERR;
   }
 
-  fd_rent_t * rent = fd_bank_mgr_rent_query( slot_ctx->bank_mgr );
+  fd_rent_t const * rent = fd_bank_rent_query( slot_ctx->bank );
   rec->vt->set_lamports( rec, fd_rent_exempt_minimum_balance( rent, sz ) );
 
   rec->vt->set_data_len( rec, sz );

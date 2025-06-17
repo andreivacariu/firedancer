@@ -278,7 +278,7 @@ fd_calculate_stake_weighted_timestamp( fd_exec_slot_ctx_t * slot_ctx,
       }
 
       ulong slot_delta = fd_ulong_sat_sub(slot_ctx->slot, vote_slot);
-      fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+      fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
       if( slot_delta > epoch_schedule->slots_per_epoch ) {
         continue;
       }
@@ -327,8 +327,8 @@ fd_calculate_stake_weighted_timestamp( fd_exec_slot_ctx_t * slot_ctx,
   FD_LOG_DEBUG(( "stake weighted timestamp: %ld total stake %lu", *result_timestamp, total_stake ));
 
   // Bound estimate by `max_allowable_drift` since the start of the epoch
-  fd_epoch_schedule_t * epoch_schedule   = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
-  ulong                 epoch_start_slot = fd_epoch_slot0( epoch_schedule, clock->epoch );
+  fd_epoch_schedule_t const * epoch_schedule   = fd_bank_epoch_schedule_query( slot_ctx->bank );
+  ulong                       epoch_start_slot = fd_epoch_slot0( epoch_schedule, clock->epoch );
   FD_LOG_DEBUG(( "Epoch start slot %lu", epoch_start_slot ));
   ulong poh_estimate_offset = fd_ulong_sat_mul( slot_duration, fd_ulong_sat_sub( slot_ctx->slot, epoch_start_slot ) );
   ulong estimate_offset     = fd_ulong_sat_mul( NS_IN_S, (fix_estimate_into_u64) ? fd_ulong_sat_sub( (ulong)*result_timestamp, (ulong)clock->epoch_start_timestamp ) : (ulong)(*result_timestamp - clock->epoch_start_timestamp));
@@ -412,7 +412,7 @@ fd_sysvar_clock_update( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad 
 
   clock->slot  = slot_ctx->slot;
 
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
 
   ulong             epoch_old  = clock->epoch;
   ulong             epoch_new  = fd_slot_to_epoch( epoch_schedule,
@@ -453,7 +453,7 @@ fd_sysvar_clock_update( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad 
     return FD_EXECUTOR_INSTR_ERR_CUSTOM_ERR;
   }
 
-  fd_rent_t * rent = fd_bank_mgr_rent_query( slot_ctx->bank_mgr );
+  fd_rent_t const * rent = fd_bank_rent_query( slot_ctx->bank );
   ulong lamps = fd_rent_exempt_minimum_balance( rent, sz );
   if( acc->vt->get_lamports( acc ) < lamps ) {
     acc->vt->set_lamports( acc, lamps );

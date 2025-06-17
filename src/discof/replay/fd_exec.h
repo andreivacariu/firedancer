@@ -24,7 +24,7 @@ generate_stake_weight_msg( fd_exec_slot_ctx_t * slot_ctx,
                                                                            stake_weights,
                                                                            runtime_spad );
 
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
 
   stake_weight_msg->epoch          = epoch;
   stake_weight_msg->staked_cnt     = stake_weight_idx;                           /* staked_cnt */

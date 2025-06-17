@@ -347,7 +347,7 @@ static void
 publish_stake_weights( fd_replay_tile_ctx_t * ctx,
                        fd_stem_context_t *    stem,
                        fd_exec_slot_ctx_t *   slot_ctx ) {
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
 
   fd_vote_accounts_global_t * epoch_stakes = fd_bank_mgr_epoch_stakes_query( slot_ctx->bank_mgr );
   fd_vote_accounts_pair_global_t_mapnode_t * epoch_stakes_root = fd_vote_accounts_vote_accounts_root_join( epoch_stakes );

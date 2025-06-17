@@ -153,7 +153,7 @@ fd_hash_account_deltas( fd_pubkey_hash_pair_list_t * lists, ulong lists_len, fd_
 void
 fd_calculate_epoch_accounts_hash_values( fd_exec_slot_ctx_t * slot_ctx ) {
   ulong slot_idx = 0;
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
   ulong epoch = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, &slot_idx );
 
   if( FD_FEATURE_ACTIVE_BM( slot_ctx->bank_mgr, accounts_lt_hash) ) {

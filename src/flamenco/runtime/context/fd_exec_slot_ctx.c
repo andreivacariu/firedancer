@@ -334,15 +334,11 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* Epoch Schedule */
 
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_modify( slot_ctx->bank_mgr );
-  *epoch_schedule = oldbank->epoch_schedule;
-  fd_bank_mgr_epoch_schedule_save( slot_ctx->bank_mgr );
+  fd_bank_epoch_schedule_set( slot_ctx->bank, oldbank->epoch_schedule );
 
   /* Rent */
 
-  fd_rent_t * rent = fd_bank_mgr_rent_modify( slot_ctx->bank_mgr );
-  *rent = oldbank->rent_collector.rent;
-  fd_bank_mgr_rent_save( slot_ctx->bank_mgr );
+  fd_bank_rent_set( slot_ctx->bank, oldbank->rent_collector.rent );
 
   /* Last Restart Slot */
 
@@ -390,7 +386,7 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
   /* Move EpochStakes */
   do {
 
-    fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+    fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
     ulong epoch = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, NULL );
 
     /* We need to save the vote accounts for the current epoch and the next

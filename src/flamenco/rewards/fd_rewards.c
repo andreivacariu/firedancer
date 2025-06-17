@@ -95,7 +95,7 @@ get_inflation_num_slots( fd_exec_slot_ctx_t * slot_ctx,
 /* https://github.com/anza-xyz/agave/blob/7117ed9653ce19e8b2dea108eff1f3eb6a3378a7/runtime/src/bank.rs#L2121 */
 static double
 slot_in_year_for_inflation( fd_exec_slot_ctx_t * slot_ctx ) {
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
 
   ulong num_slots = get_inflation_num_slots( slot_ctx, epoch_schedule, slot_ctx->slot );
   return (double)num_slots / (double)fd_bank_slots_per_year_get( slot_ctx->bank );
@@ -268,8 +268,8 @@ calculate_points( fd_stake_t const *          stake,
 
    https://github.com/anza-xyz/agave/blob/cbc8320d35358da14d79ebcada4dfb6756ffac79/sdk/program/src/epoch_schedule.rs#L103 */
 static ulong
-get_slots_in_epoch( ulong                 epoch,
-                    fd_epoch_schedule_t * epoch_schedule ) {
+get_slots_in_epoch( ulong                       epoch,
+                    fd_epoch_schedule_t const * epoch_schedule ) {
   return (epoch < epoch_schedule->first_normal_epoch) ?
           1UL << fd_ulong_sat_add(epoch, FD_EPOCH_LEN_MIN_TRAILING_ZERO) :
           epoch_schedule->slots_per_epoch;
@@ -280,7 +280,7 @@ static double
 epoch_duration_in_years( fd_exec_slot_ctx_t *    slot_ctx,
                          ulong                   prev_epoch ) {
 
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
   ulong slots_in_epoch = get_slots_in_epoch( prev_epoch, epoch_schedule );
   return (double)slots_in_epoch / (double)fd_bank_slots_per_year_get( slot_ctx->bank );
 }
@@ -840,7 +840,7 @@ calculate_rewards_for_partitioning( fd_exec_slot_ctx_t *                   slot_
                                runtime_spad );
 
   fd_stake_reward_calculation_t * stake_reward_calculation = &validator_result->calculate_stake_vote_rewards_result.stake_reward_calculation;
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
   ulong num_partitions = get_reward_distribution_num_blocks( epoch_schedule,
                                                              slot_ctx->slot,
                                                              stake_reward_calculation->stake_rewards_len );
@@ -1105,7 +1105,7 @@ fd_distribute_partitioned_epoch_rewards( fd_exec_slot_ctx_t * slot_ctx,
   ulong distribution_end_exclusive         = distribution_starting_block_height + status->partitioned_stake_rewards.partitions_len;
 
   /* TODO: track current epoch in epoch ctx? */
-  fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+  fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
   ulong epoch = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, NULL );
   if( FD_UNLIKELY( get_slots_in_epoch( epoch, epoch_schedule ) <= status->partitioned_stake_rewards.partitions_len ) ) {
     FD_LOG_ERR(( "Should not be distributing rewards" ));
@@ -1204,7 +1204,7 @@ fd_rewards_recalculate_partitioned_rewards( fd_exec_slot_ctx_t * slot_ctx,
         https://github.com/anza-xyz/agave/blob/2316fea4c0852e59c071f72d72db020017ffd7d0/runtime/src/bank/partitioned_epoch_rewards/calculation.rs#L566 */
     FD_LOG_NOTICE(( "epoch rewards is active" ));
 
-    fd_epoch_schedule_t * epoch_schedule = fd_bank_mgr_epoch_schedule_query( slot_ctx->bank_mgr );
+    fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
     ulong epoch          = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, NULL );
     ulong rewarded_epoch = fd_ulong_sat_sub( epoch, 1UL );
 
