@@ -1430,9 +1430,7 @@ exec_slice( fd_replay_tile_ctx_t * ctx,
 
       if( FD_UNLIKELY( !fork ) ) FD_LOG_ERR(( "Unable to select a fork" ));
 
-      ulong * txn_count = fd_bank_mgr_txn_count_modify( ctx->slot_ctx->bank_mgr );
-      *txn_count = *txn_count + 1;
-      fd_bank_mgr_txn_count_save( ctx->slot_ctx->bank_mgr );
+      fd_bank_txn_count_set( ctx->slot_ctx->bank, fd_bank_txn_count_get( ctx->slot_ctx->bank ) + 1 );
 
       /* dispatch dcache */
       fd_runtime_public_txn_msg_t * exec_msg = (fd_runtime_public_txn_msg_t *)fd_chunk_to_laddr( exec_out->mem, exec_out->chunk );

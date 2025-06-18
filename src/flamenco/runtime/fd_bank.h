@@ -107,7 +107,9 @@ FD_PROTOTYPES_BEGIN
   X(ulong,                             nonvote_txn_count,           sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Nonvote transaction count */ \
   X(ulong,                             failed_txn_count,            sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Failed transaction count */ \
   X(ulong,                             nonvote_failed_txn_count,    sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Nonvote failed transaction count */ \
-  X(ulong,                             total_compute_units_used,    sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Total compute units used */
+  X(ulong,                             total_compute_units_used,    sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Total compute units used */ \
+  X(ulong,                             part_width,                  sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Part width */ \
+  X(ulong,                             slots_per_epoch,             sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Slots per epoch */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need

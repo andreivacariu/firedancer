@@ -1,16 +1,5 @@
 #include "fd_bank_mgr.h"
 
-static inline fd_funk_rec_key_t
-fd_bank_mgr_cache_key( ulong entry_id ) {
-  fd_funk_rec_key_t id;
-  memcpy( id.uc, &entry_id, sizeof(ulong) );
-  memset( id.uc + sizeof(ulong), 0, sizeof(fd_funk_rec_key_t) - sizeof(ulong) );
-
-  id.uc[ FD_FUNK_REC_KEY_FOOTPRINT - 1 ] = FD_FUNK_KEY_TYPE_BANK_MGR;
-
-  return id;
-}
-
 ulong
 fd_bank_mgr_align( void ) {
   return alignof(fd_bank_mgr_t);

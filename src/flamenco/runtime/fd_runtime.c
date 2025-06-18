@@ -97,15 +97,14 @@ void
 fd_runtime_register_new_fresh_account( fd_pubkey_t const  * pubkey,
                                        fd_bank_mgr_t *      bank_mgr,
                                        fd_bank_t *          bank ) {
+  (void)bank_mgr;
 
   fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( bank );
 
   fd_rent_fresh_account_t *         fresh_accounts      = fd_rent_fresh_accounts_fresh_accounts_join( rent_fresh_accounts );
 
   /* Insert the new account into the partition */
-  ulong * part_width_ptr = fd_bank_mgr_part_width_query( bank_mgr );
-  ulong * slots_per_epoch_ptr = fd_bank_mgr_slots_per_epoch_query( bank_mgr );
-  ulong partition = fd_rent_key_to_partition( pubkey, *part_width_ptr, *slots_per_epoch_ptr );
+  ulong partition = fd_rent_key_to_partition( pubkey, fd_bank_part_width_get( bank ), fd_bank_slots_per_epoch_get( bank ) );
 
   /* See if there is an unused fresh account we can re-use */
   fd_rent_fresh_account_t * rent_fresh_account = NULL;
@@ -133,9 +132,6 @@ void
 fd_runtime_repartition_fresh_account_partitions( fd_exec_slot_ctx_t * slot_ctx ) {
   /* Update the partition in each rent fresh account */
 
-  ulong * part_width_ptr = fd_bank_mgr_part_width_query( slot_ctx->bank_mgr );
-  ulong * slots_per_epoch_ptr = fd_bank_mgr_slots_per_epoch_query( slot_ctx->bank_mgr );
-
   fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( slot_ctx->bank );
   fd_rent_fresh_account_t *         fresh_accounts      = fd_rent_fresh_accounts_fresh_accounts_join( rent_fresh_accounts );
 
@@ -143,8 +139,8 @@ fd_runtime_repartition_fresh_account_partitions( fd_exec_slot_ctx_t * slot_ctx )
     fd_rent_fresh_account_t * rent_fresh_account = &fresh_accounts[ i ];
     if( FD_UNLIKELY( rent_fresh_account->present == 1UL ) ) {
       rent_fresh_account->partition = fd_rent_key_to_partition( &rent_fresh_account->pubkey,
-                                                                *part_width_ptr,
-                                                                *slots_per_epoch_ptr );
+                                                                fd_bank_part_width_get( slot_ctx->bank ),
+                                                                fd_bank_slots_per_epoch_get( slot_ctx->bank ) );
     }
   }
 
@@ -154,18 +150,13 @@ fd_runtime_repartition_fresh_account_partitions( fd_exec_slot_ctx_t * slot_ctx )
 void
 fd_runtime_update_slots_per_epoch( fd_exec_slot_ctx_t * slot_ctx,
                                    ulong                slots_per_epoch ) {
-  ulong * slots_per_epoch_ptr = fd_bank_mgr_slots_per_epoch_query( slot_ctx->bank_mgr );
-  if( FD_LIKELY( !!slots_per_epoch_ptr && slots_per_epoch == *slots_per_epoch_ptr ) ) {
+  if( FD_LIKELY( slots_per_epoch == fd_bank_slots_per_epoch_get( slot_ctx->bank ) ) ) {
     return;
   }
 
-   slots_per_epoch_ptr = fd_bank_mgr_slots_per_epoch_modify( slot_ctx->bank_mgr );
-  *slots_per_epoch_ptr = slots_per_epoch;
-  fd_bank_mgr_slots_per_epoch_save( slot_ctx->bank_mgr );
+  fd_bank_slots_per_epoch_set( slot_ctx->bank, slots_per_epoch );
 
-  ulong * part_width_ptr = fd_bank_mgr_part_width_modify( slot_ctx->bank_mgr );
-  *part_width_ptr = fd_rent_partition_width( slots_per_epoch );
-  fd_bank_mgr_part_width_save( slot_ctx->bank_mgr );
+  fd_bank_part_width_set( slot_ctx->bank, fd_rent_partition_width( slots_per_epoch ) );
 
 
   fd_runtime_repartition_fresh_account_partitions( slot_ctx );
@@ -1581,25 +1572,15 @@ fd_runtime_block_execute_prepare( fd_exec_slot_ctx_t * slot_ctx,
 
   fd_bank_signature_count_set( slot_ctx->bank, 0UL );
 
-  ulong * txn_count = fd_bank_mgr_txn_count_modify( slot_ctx->bank_mgr );
-  *txn_count = 0UL;
-  fd_bank_mgr_txn_count_save( slot_ctx->bank_mgr );
+  fd_bank_txn_count_set( slot_ctx->bank, 0UL );
 
-  ulong * nonvote_txn_count = fd_bank_mgr_nonvote_txn_count_modify( slot_ctx->bank_mgr );
-  *nonvote_txn_count = 0UL;
-  fd_bank_mgr_nonvote_txn_count_save( slot_ctx->bank_mgr );
+  fd_bank_nonvote_txn_count_set( slot_ctx->bank, 0UL );
 
-  ulong * failed_txn_count = fd_bank_mgr_failed_txn_count_modify( slot_ctx->bank_mgr );
-  *failed_txn_count = 0UL;
-  fd_bank_mgr_failed_txn_count_save( slot_ctx->bank_mgr );
+  fd_bank_failed_txn_count_set( slot_ctx->bank, 0UL );
 
-  ulong * nonvote_failed_txn_count = fd_bank_mgr_nonvote_failed_txn_count_modify( slot_ctx->bank_mgr );
-  *nonvote_failed_txn_count = 0UL;
-  fd_bank_mgr_nonvote_failed_txn_count_save( slot_ctx->bank_mgr );
+  fd_bank_nonvote_failed_txn_count_set( slot_ctx->bank, 0UL );
 
-  ulong * total_compute_units_used = fd_bank_mgr_total_compute_units_used_modify( slot_ctx->bank_mgr );
-  *total_compute_units_used = 0UL;
-  fd_bank_mgr_total_compute_units_used_save( slot_ctx->bank_mgr );
+  fd_bank_total_compute_units_used_set( slot_ctx->bank, 0UL );
 
   int result = fd_runtime_block_sysvar_update_pre_execute( slot_ctx, runtime_spad );
   if( FD_UNLIKELY( result != 0 ) ) {
@@ -2041,25 +2022,26 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
 
   int is_vote = fd_txn_is_simple_vote_transaction( txn_ctx->txn_descriptor, txn_ctx->_txn_raw->raw );
   if( !is_vote ){
-    ulong * nonvote_txn_count = fd_bank_mgr_nonvote_txn_count_modify( bank_mgr );
-    *nonvote_txn_count += 1;
-    fd_bank_mgr_nonvote_txn_count_save( bank_mgr );
+    ulong * nonvote_txn_count = fd_bank_nonvote_txn_count_modify( bank );
+    FD_ATOMIC_FETCH_AND_ADD(nonvote_txn_count, 1);
+    fd_bank_nonvote_txn_count_end_modify( bank );
+
     if( FD_UNLIKELY( exec_txn_err ) ){
-      ulong * nonvote_failed_txn_count = fd_bank_mgr_nonvote_failed_txn_count_modify( bank_mgr );
-      *nonvote_failed_txn_count += 1;
-      fd_bank_mgr_nonvote_failed_txn_count_save( bank_mgr );
+      ulong * nonvote_failed_txn_count = fd_bank_nonvote_failed_txn_count_modify( bank );
+      FD_ATOMIC_FETCH_AND_ADD( nonvote_failed_txn_count, 1 );
+      fd_bank_nonvote_failed_txn_count_end_modify( bank );
     }
   } else {
     if( FD_UNLIKELY( exec_txn_err ) ){
-      ulong * failed_txn_count = fd_bank_mgr_failed_txn_count_modify( bank_mgr );
-      *failed_txn_count += 1;
-      fd_bank_mgr_failed_txn_count_save( bank_mgr );
+      ulong * failed_txn_count = fd_bank_failed_txn_count_modify( bank );
+      FD_ATOMIC_FETCH_AND_ADD( failed_txn_count, 1 );
+      fd_bank_failed_txn_count_end_modify( bank );
     }
   }
 
-  ulong * total_compute_units_used = fd_bank_mgr_total_compute_units_used_modify( bank_mgr );
-  *total_compute_units_used += txn_ctx->compute_unit_limit - txn_ctx->compute_meter;
-  fd_bank_mgr_total_compute_units_used_save( bank_mgr );
+  ulong * total_compute_units_used = fd_bank_total_compute_units_used_modify( bank );
+  FD_ATOMIC_FETCH_AND_ADD( total_compute_units_used, txn_ctx->compute_unit_limit - txn_ctx->compute_meter );
+  fd_bank_total_compute_units_used_end_modify( bank );
 
 }
 
@@ -3740,21 +3722,13 @@ fd_runtime_process_genesis_block( fd_exec_slot_ctx_t * slot_ctx,
 
   fd_bank_signature_count_set( slot_ctx->bank, 0UL );
 
-  ulong * txn_count = fd_bank_mgr_txn_count_modify( slot_ctx->bank_mgr );
-  *txn_count = 0UL;
-  fd_bank_mgr_txn_count_save( slot_ctx->bank_mgr );
+  fd_bank_txn_count_set( slot_ctx->bank, 0UL );
 
-  ulong * failed_txn_count = fd_bank_mgr_failed_txn_count_modify( slot_ctx->bank_mgr );
-  *failed_txn_count = 0UL;
-  fd_bank_mgr_failed_txn_count_save( slot_ctx->bank_mgr );
+  fd_bank_failed_txn_count_set( slot_ctx->bank, 0UL );
 
-  ulong * nonvote_failed_txn_count = fd_bank_mgr_nonvote_failed_txn_count_modify( slot_ctx->bank_mgr );
-  *nonvote_failed_txn_count = 0UL;
-  fd_bank_mgr_nonvote_failed_txn_count_save( slot_ctx->bank_mgr );
+  fd_bank_nonvote_failed_txn_count_set( slot_ctx->bank, 0UL );
 
-  ulong * total_compute_units_used = fd_bank_mgr_total_compute_units_used_modify( slot_ctx->bank_mgr );
-  *total_compute_units_used = 0UL;
-  fd_bank_mgr_total_compute_units_used_save( slot_ctx->bank_mgr );
+  fd_bank_total_compute_units_used_set( slot_ctx->bank, 0UL );
 
   fd_sysvar_slot_history_update( slot_ctx, runtime_spad );
 
@@ -4352,9 +4326,6 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
 
     slot_ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( &slot_ctx->bank_mgr_mem ), funk, slot_ctx->funk_txn );
 
-    ulong * slot_ptr = fd_bank_mgr_slot_modify( slot_ctx->bank_mgr );
-    *slot_ptr = slot;
-    fd_bank_mgr_slot_save( slot_ctx->bank_mgr );
     slot_ctx->slot = slot;
 
     /* Capturing block-agnostic state in preparation for the epoch boundary */
