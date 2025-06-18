@@ -6,7 +6,6 @@
 [blockstore]
     shred_max = 16777216
     block_max = 4096
-    txn_max = 1024
     idx_max = 8192
     alloc_max = 10737418240
     file = "{blockstore_path}"

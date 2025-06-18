@@ -11,7 +11,6 @@
 [blockstore]
     shred_max = 16777216
     block_max = 131072
-    txn_max = 1048576
     idx_max = 8192
     alloc_max = 10737418240
     file = "{blockstore_path}"
@@ -41,4 +40,3 @@
     path = "{ledger_dir}/firedancer-dev.log"
     level_stderr = "INFO"
     level_logfile = "NOTICE"
-
