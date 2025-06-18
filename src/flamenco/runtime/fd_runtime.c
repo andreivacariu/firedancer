@@ -705,71 +705,6 @@ fd_runtime_collect_rent_from_account( ulong                       slot,
 
 #undef FD_RENT_EXEMPT
 
-void
-fd_runtime_write_transaction_status( fd_capture_ctx_t * capture_ctx,
-                                     fd_exec_slot_ctx_t * slot_ctx,
-                                     fd_exec_txn_ctx_t * txn_ctx,
-                                     int exec_txn_err) {
-  /* TODO: The blockstore txn_map is unsafe to write to from multiple threads,
-     so we use this lock to protect it. This function is the only place
-     we write to the txn_map in parallel, and when the ledger replay code
-     is ripped out we can also remove this lock. */
-  fd_capture_ctx_txn_status_start_write();
-
-  /* Look up solana-side transaction status details */
-  fd_blockstore_t * blockstore = slot_ctx->blockstore;
-  uchar * sig = (uchar *)txn_ctx->_txn_raw->raw + txn_ctx->txn_descriptor->signature_off;
-  fd_txn_map_t * txn_map_entry = fd_blockstore_txn_query( blockstore, sig );
-  if( FD_LIKELY( txn_map_entry != NULL ) ) {
-    void * meta = fd_wksp_laddr_fast( fd_blockstore_wksp( blockstore ), txn_map_entry->meta_gaddr );
-
-    fd_solblock_TransactionStatusMeta txn_status = {0};
-    /* Need to handle case for ledgers where transaction status is not available.
-        This case will be handled in fd_solcap_diff. */
-    ulong fd_cus_consumed     = txn_ctx->compute_unit_limit - txn_ctx->compute_meter;
-    ulong solana_cus_consumed = ULONG_MAX;
-    ulong solana_txn_err      = ULONG_MAX;
-    if( FD_LIKELY( meta != NULL ) ) {
-      pb_istream_t stream = pb_istream_from_buffer( meta, txn_map_entry->meta_sz );
-      if ( pb_decode( &stream, fd_solblock_TransactionStatusMeta_fields, &txn_status ) == false ) {
-        FD_LOG_WARNING(("no txn_status decoding found sig=%s (%s)", FD_BASE58_ENC_64_ALLOCA( sig ), PB_GET_ERROR(&stream)));
-      }
-      if ( txn_status.has_compute_units_consumed ) {
-        solana_cus_consumed = txn_status.compute_units_consumed;
-      }
-      if ( txn_status.has_err ) {
-        solana_txn_err = txn_status.err.err->bytes[0];
-      }
-
-      fd_solcap_Transaction txn = {
-        .slot            = slot_ctx->slot,
-        .fd_txn_err      = exec_txn_err,
-        .fd_custom_err   = txn_ctx->custom_err,
-        .solana_txn_err  = solana_txn_err,
-        .fd_cus_used     = fd_cus_consumed,
-        .solana_cus_used = solana_cus_consumed,
-        .instr_err_idx = txn_ctx->instr_err_idx == INT_MAX ? -1 : txn_ctx->instr_err_idx,
-      };
-      memcpy( txn.txn_sig, sig, sizeof(fd_signature_t) );
-
-      fd_exec_instr_ctx_t const * failed_instr = txn_ctx->failed_instr;
-      if( failed_instr ) {
-        FD_TEST( failed_instr->depth < 4 );
-        txn.instr_err               = failed_instr->instr_err;
-        txn.failed_instr_path_count = failed_instr->depth + 1;
-        for( long j = failed_instr->depth; j>=0L; j-- ) {
-          txn.failed_instr_path[j] = failed_instr->index;
-          failed_instr             = failed_instr->parent;
-        }
-      }
-
-      fd_solcap_write_transaction2( capture_ctx->capture, &txn );
-    }
-  }
-
-  fd_capture_ctx_txn_status_end_write();
-}
-
 static bool
 encode_return_data( pb_ostream_t *stream, const pb_field_t *field, void * const *arg ) {
   fd_exec_txn_ctx_t * txn_ctx = (fd_exec_txn_ctx_t *)(*arg);
@@ -924,7 +859,7 @@ fd_runtime_finalize_txns_update_blockstore_meta( fd_exec_slot_ctx_t *         sl
     return;
   }
 
-  fd_blockstore_t * blockstore      = slot_ctx->blockstore;
+  fd_blockstore_t * blockstore      = NULL; /* FIXME: make this work */
   fd_wksp_t * blockstore_wksp       = fd_blockstore_wksp( blockstore );
   fd_alloc_t * blockstore_alloc     = fd_blockstore_alloc( blockstore );
   fd_txn_map_t * txn_map = fd_blockstore_txn_map( blockstore );
@@ -1073,7 +1008,7 @@ fd_runtime_block_sysvar_update_pre_execute( fd_exec_slot_ctx_t * slot_ctx,
 }
 
 int
-fd_runtime_microblock_verify_ticks( fd_exec_slot_ctx_t *        slot_ctx,
+fd_runtime_microblock_verify_ticks( fd_blockstore_t *           blockstore,
                                     ulong                       slot,
                                     fd_microblock_hdr_t const * hdr,
                                     bool               slot_complete,
@@ -1089,7 +1024,7 @@ fd_runtime_microblock_verify_ticks( fd_exec_slot_ctx_t *        slot_ctx,
     an error.
   */
   fd_block_map_query_t quer[1];
-  int err = fd_block_map_prepare( slot_ctx->blockstore->block_map, &slot, NULL, quer, FD_MAP_FLAG_BLOCKING );
+  int err = fd_block_map_prepare( blockstore->block_map, &slot, NULL, quer, FD_MAP_FLAG_BLOCKING );
   fd_block_info_t * query = fd_block_map_query_ele( quer );
   if( FD_UNLIKELY( err || query->slot != slot ) ) {
     FD_LOG_ERR(( "fd_runtime_microblock_verify_ticks: fd_block_map_prepare on %lu failed", slot ));
@@ -1551,11 +1486,12 @@ fd_runtime_poh_verify( fd_poh_verifier_t * poh_info ) {
 
 int
 fd_runtime_block_execute_prepare( fd_exec_slot_ctx_t * slot_ctx,
+                                  fd_blockstore_t *    blockstore,
                                   fd_spad_t *          runtime_spad ) {
 
 
-  if( slot_ctx->blockstore && slot_ctx->slot != 0UL ) {
-    fd_blockstore_block_height_update( slot_ctx->blockstore,
+  if( blockstore && slot_ctx->slot != 0UL ) {
+    fd_blockstore_block_height_update( blockstore,
                                        slot_ctx->slot,
                                        fd_bank_block_height_get( slot_ctx->bank ) );
   }
@@ -1888,6 +1824,8 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
                          fd_spad_t *                  finalize_spad,
                          fd_bank_t *                  bank ) {
 
+  (void)capture_ctx;
+
   /* for all accounts, if account->is_verified==true, propagate update
      to cache entry. */
 
@@ -1902,27 +1840,7 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
   fd_exec_txn_ctx_t * txn_ctx      = task_info->txn_ctx;
   int                 exec_txn_err = task_info->exec_res;
 
-  /* For ledgers that contain txn status, decode and write out for solcap */
-  if( capture_ctx != NULL && capture_ctx->capture && capture_ctx->capture_txns && slot_ctx->slot>=capture_ctx->solcap_start_slot ) {
-    fd_runtime_write_transaction_status( capture_ctx, slot_ctx, txn_ctx, exec_txn_err );
-  }
-
   FD_ATOMIC_FETCH_AND_ADD( fd_bank_signature_count_modify( bank ), txn_ctx->txn_descriptor->signature_cnt );
-
-  // if( slot_ctx->status_cache ) {
-  //   fd_txncache_insert_t status_insert = {0};
-  //   uchar                result        = exec_txn_err == 0 ? 1 : 0;
-
-  //   fd_txncache_insert_t * curr_insert = &status_insert;
-  //   curr_insert->blockhash = ((uchar *)txn_ctx->_txn_raw->raw + txn_ctx->txn_descriptor->recent_blockhash_off);
-  //   curr_insert->slot      = slot_ctx->slot;
-  //   fd_hash_t * hash       = &txn_ctx->blake_txn_msg_hash;
-  //   curr_insert->txnhash   = hash->uc;
-  //   curr_insert->result    = &result;
-  //   if( FD_UNLIKELY( !fd_txncache_insert_batch( slot_ctx->status_cache, &status_insert, 1UL ) ) ) {
-  //     FD_LOG_ERR(( "Status cache is full, this should not be possible" ));
-  //   }
-  // }
 
   if( FD_UNLIKELY( exec_txn_err ) ) {
 
@@ -4027,12 +3945,13 @@ fd_runtime_poh_verify_tpool( fd_poh_verification_info_t * poh_verification_info,
 }
 
 static int
-fd_runtime_block_verify_tpool( fd_exec_slot_ctx_t *    slot_ctx,
+fd_runtime_block_verify_tpool( fd_exec_slot_ctx_t *            slot_ctx,
+                               fd_blockstore_t *               blockstore,
                                fd_runtime_block_info_t const * block_info,
-                               fd_hash_t       const * in_poh_hash,
-                               fd_hash_t *             out_poh_hash,
-                               fd_tpool_t *            tpool,
-                               fd_spad_t *             runtime_spad ) {
+                               fd_hash_t const *               in_poh_hash,
+                               fd_hash_t *                     out_poh_hash,
+                               fd_tpool_t *                    tpool,
+                               fd_spad_t *                     runtime_spad ) {
 
   FD_SPAD_FRAME_BEGIN( runtime_spad ) {
 
@@ -4046,7 +3965,7 @@ fd_runtime_block_verify_tpool( fd_exec_slot_ctx_t *    slot_ctx,
   fd_runtime_block_verify_info_collect( block_info, &tmp_in_poh_hash, poh_verification_info );
 
   uchar * block_data = fd_spad_alloc( runtime_spad, 128UL, FD_SHRED_DATA_PAYLOAD_MAX_PER_SLOT );
-  ulong   tick_res   = fd_runtime_block_verify_ticks( slot_ctx->blockstore,
+  ulong   tick_res   = fd_runtime_block_verify_ticks( blockstore,
                                                       slot_ctx->slot,
                                                       block_data,
                                                       FD_SHRED_DATA_PAYLOAD_MAX_PER_SLOT,
@@ -4141,6 +4060,7 @@ fd_runtime_publish_old_txns( fd_exec_slot_ctx_t * slot_ctx,
 
 int
 fd_runtime_block_execute_tpool( fd_exec_slot_ctx_t *    slot_ctx,
+                                fd_blockstore_t *       blockstore,
                                 fd_capture_ctx_t *      capture_ctx,
                                 fd_runtime_block_info_t const * block_info,
                                 fd_tpool_t *            tpool,
@@ -4154,7 +4074,7 @@ fd_runtime_block_execute_tpool( fd_exec_slot_ctx_t *    slot_ctx,
 
   long block_execute_time = -fd_log_wallclock();
 
-  int res = fd_runtime_block_execute_prepare( slot_ctx, runtime_spad );
+  int res = fd_runtime_block_execute_prepare( slot_ctx, blockstore, runtime_spad );
   if( res != FD_RUNTIME_EXECUTE_SUCCESS ) {
     return res;
   }
@@ -4283,7 +4203,8 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
                              ulong *              txn_cnt,
                              fd_spad_t * *        exec_spads,
                              ulong                exec_spad_cnt,
-                             fd_spad_t *          runtime_spad ) {
+                             fd_spad_t *          runtime_spad,
+                             fd_blockstore_t *    blockstore ) {
 
   /* offline replay */
   (void)scheduler;
@@ -4330,7 +4251,7 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
     /* All runtime allocations here are scoped to the end of a block. */
     FD_SPAD_FRAME_BEGIN( runtime_spad ) {
 
-    if( FD_UNLIKELY( (ret = fd_runtime_block_prepare( slot_ctx->blockstore,
+    if( FD_UNLIKELY( (ret = fd_runtime_block_prepare( blockstore,
                                                       block,
                                                       slot,
                                                       runtime_spad,
@@ -4341,7 +4262,7 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
 
     fd_hash_t poh_out = {0};
     fd_hash_t poh_in = fd_bank_poh_get( slot_ctx->bank );
-    if( FD_UNLIKELY( (ret = fd_runtime_block_verify_tpool( slot_ctx, &block_info, &poh_in, &poh_out, tpool, runtime_spad )) != FD_RUNTIME_EXECUTE_SUCCESS ) ) {
+    if( FD_UNLIKELY( (ret = fd_runtime_block_verify_tpool( slot_ctx, blockstore, &block_info, &poh_in, &poh_out, tpool, runtime_spad )) != FD_RUNTIME_EXECUTE_SUCCESS ) ) {
       break;
     }
 
@@ -4352,7 +4273,14 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
       fd_dump_block_to_protobuf_tx_only( &block_info, slot_ctx, capture_ctx, runtime_spad, block_ctx );
     }
 
-    if( FD_UNLIKELY( (ret = fd_runtime_block_execute_tpool( slot_ctx, capture_ctx, &block_info, tpool, exec_spads, exec_spad_cnt, runtime_spad )) != FD_RUNTIME_EXECUTE_SUCCESS ) ) {
+    if( FD_UNLIKELY( (ret = fd_runtime_block_execute_tpool( slot_ctx,
+                                                            blockstore,
+                                                            capture_ctx,
+                                                            &block_info,
+                                                            tpool,
+                                                            exec_spads,
+                                                            exec_spad_cnt,
+                                                            runtime_spad )) != FD_RUNTIME_EXECUTE_SUCCESS ) ) {
       break;
     }
 

@@ -556,7 +556,7 @@ fd_runtime_fuzz_block_ctx_exec( fd_runtime_fuzz_runner_t * runner,
       fd_spad_pop( runtime_spad );
     }
 
-    res = fd_runtime_block_execute_tpool( slot_ctx, NULL, block_info, tpool, exec_spads, exec_spads_cnt, runtime_spad );
+    res = fd_runtime_block_execute_tpool( slot_ctx, NULL, NULL, block_info, tpool, exec_spads, exec_spads_cnt, runtime_spad );
   } FD_SPAD_FRAME_END;
 
   fd_tpool_worker_pop( tpool );

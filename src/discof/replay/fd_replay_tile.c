@@ -1280,7 +1280,7 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
      an epoch). We pop a frame when rewards are done being distributed. */
   fd_spad_push( ctx->runtime_spad );
 
-  int res = fd_runtime_block_execute_prepare( ctx->slot_ctx, ctx->runtime_spad );
+  int res = fd_runtime_block_execute_prepare( ctx->slot_ctx, ctx->blockstore, ctx->runtime_spad );
   if( res != FD_RUNTIME_EXECUTE_SUCCESS ) {
     FD_LOG_ERR(( "block prep execute failed" ));
   }
@@ -1774,7 +1774,7 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx,
     }
     fd_bank_poh_end_modify( ctx->slot_ctx->bank );
 
-    FD_TEST( fd_runtime_block_execute_prepare( ctx->slot_ctx, ctx->runtime_spad ) == 0 );
+    FD_TEST( fd_runtime_block_execute_prepare( ctx->slot_ctx, ctx->blockstore, ctx->runtime_spad ) == 0 );
     fd_runtime_block_info_t info = { .signature_cnt = 0 };
 
     fd_exec_para_cb_ctx_t exec_para_ctx_block_finalize = {

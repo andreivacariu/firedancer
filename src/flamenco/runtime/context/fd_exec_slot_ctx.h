@@ -30,7 +30,6 @@ struct fd_exec_slot_ctx {
   /* External joins, pointers to be set by caller */
 
   fd_funk_t *                 funk;
-  fd_blockstore_t *           blockstore;
   ulong                       txns_meta_gaddr;
   ulong                       txns_meta_sz;
 

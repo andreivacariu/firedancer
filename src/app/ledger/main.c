@@ -353,7 +353,8 @@ runtime_replay( fd_ledger_args_t * ledger_args ) {
                                           &blk_txn_cnt,
                                           ledger_args->exec_spads,
                                           ledger_args->exec_spad_cnt,
-                                          ledger_args->runtime_spad ) == FD_RUNTIME_EXECUTE_SUCCESS );
+                                          ledger_args->runtime_spad,
+                                          ledger_args->blockstore ) == FD_RUNTIME_EXECUTE_SUCCESS );
     txn_cnt += blk_txn_cnt;
     slot_cnt++;
 

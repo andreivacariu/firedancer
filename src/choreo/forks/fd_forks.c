@@ -177,65 +177,6 @@ fd_forks_query_const( fd_forks_t const * forks, ulong slot ) {
 //   }
 // }
 
-static void FD_FN_UNUSED
-slot_ctx_restore( ulong                 slot,
-                  fd_funk_t *           funk,
-                  fd_blockstore_t *     blockstore,
-                  fd_spad_t *           runtime_spad,
-                  fd_exec_slot_ctx_t *  slot_ctx_out ) {
-  (void)runtime_spad;
-  fd_funk_txn_map_t * txn_map = fd_funk_txn_map( funk );
-  bool block_exists = fd_blockstore_shreds_complete( blockstore, slot );
-
-  FD_LOG_DEBUG( ( "Current slot %lu", slot ) );
-  if( !block_exists )
-    FD_LOG_ERR( ( "missing block at slot we're trying to restore" ) );
-
-  fd_funk_txn_xid_t xid = { .ul = { slot, slot } };
-
-  fd_funk_txn_start_read( funk );
-  fd_funk_txn_t * txn = fd_funk_txn_query( &xid, txn_map );
-  if( !txn ) {
-    memset( xid.uc, 0, sizeof( fd_funk_txn_xid_t ) );
-    xid.ul[0] = slot;
-    txn       = fd_funk_txn_query( &xid, txn_map );
-    if( !txn ) {
-      FD_LOG_ERR( ( "missing txn, parent slot %lu", slot ) );
-    }
-  }
-  fd_funk_txn_end_read( funk );
-
-  if( slot_ctx_out == NULL || slot_ctx_out->magic != FD_EXEC_SLOT_CTX_MAGIC ) {
-    FD_LOG_ERR(( "bad slot context" ));
-  }
-
-  FD_TEST( slot_ctx_out->magic == FD_EXEC_SLOT_CTX_MAGIC );
-
-  slot_ctx_out->funk_txn   = txn;
-  slot_ctx_out->funk       = funk;
-  slot_ctx_out->blockstore = blockstore;
-
-  slot_ctx_out->slot = slot;
-
-  // TODO how do i get this info, ignoring rewards for now
-  // slot_ctx_out->epoch_reward_status = ???
-
-  // signature_cnt, account_delta_hash, prev_banks_hash are used for the banks
-  // hash calculation and not needed when restoring parent
-  fd_hash_t const * bank_hash = fd_bank_bank_hash_query( slot_ctx_out->bank );
-  FD_LOG_NOTICE(( "recovered slot_bank for slot=%lu banks_hash=%s",
-                   slot_ctx_out->slot,
-                   FD_BASE58_ENC_32_ALLOCA( bank_hash->hash ) ));
-
-  /* Prepare bank for next slot */
-  slot_ctx_out->slot = slot;
-
-  /* FIXME epoch boundary stuff when replaying */
-  // fd_features_restore( slot_ctx );
-  // fd_runtime_update_leaders( slot_ctx, slot_ctx->slot );
-  // fd_calculate_epoch_accounts_hash_values( slot_ctx );
-}
-
 fd_fork_t *
 fd_forks_prepare( fd_forks_t const *    forks,
                   ulong                 parent_slot,
