@@ -347,7 +347,7 @@
         { "name": "epoch", "type": "ulong" },
         { "name": "stake_history", "type": "stake_history" }
       ],
-      "comment": "https://github.com/anza-xyz/agave/blob/beb3f582f784a96e59e06ef8f34e855258bcd98c/runtime/src/stakes.rs#L202"
+      "comment": "https://github.com/anza-xyz/agave/blob/3e1c3a2f85b5b1d34031f2710d609347cfb77dfd/runtime/src/stakes.rs#L159"
     },
     {
       "name": "stakes_stake",
@@ -378,7 +378,8 @@
       "fields": [
         { "name": "vote_accounts", "type": "vector", "element":"pubkey" },
         { "name": "total_stake", "type": "ulong" }
-      ]
+      ],
+      "comment": "https://github.com/anza-xyz/agave/blob/de6ce29e1a7ecbdc6dc39527fce80beea404d314/runtime/src/epoch_stakes.rs#L16"
     },
     {
       "name": "pubkey_node_vote_accounts_pair",
@@ -386,7 +387,8 @@
       "fields": [
         { "name": "key", "type": "pubkey" },
         { "name": "value", "type": "node_vote_accounts" }
-      ]
+      ],
+      "comment": "https://github.com/anza-xyz/agave/blob/de6ce29e1a7ecbdc6dc39527fce80beea404d314/runtime/src/epoch_stakes.rs#L10"
     },
     {
       "name": "pubkey_pubkey_pair",
@@ -400,11 +402,12 @@
       "name": "epoch_stakes",
       "type": "struct",
       "fields": [
-        { "name": "stakes", "type": "stakes" },
+        { "name": "stakes", "type": "stakes", "comment": "https://github.com/anza-xyz/agave/blob/3e1c3a2f85b5b1d34031f2710d609347cfb77dfd/runtime/src/stakes/serde_stakes.rs#L84"},
         { "name": "total_stake", "type": "ulong" },
-        { "name": "node_id_to_vote_accounts", "type": "vector", "element": "pubkey_node_vote_accounts_pair" },
-        { "name": "epoch_authorized_voters", "type": "vector", "element": "pubkey_pubkey_pair" }
-      ]
+        { "name": "node_id_to_vote_accounts", "type": "map", "element": "pubkey_node_vote_accounts_pair", "key": "key" },
+        { "name": "epoch_authorized_voters", "type": "map", "element": "pubkey_pubkey_pair", "key": "key" }
+      ],
+      "comment": "https://github.com/anza-xyz/agave/blob/de6ce29e1a7ecbdc6dc39527fce80beea404d314/runtime/src/epoch_stakes.rs#L23"
     },
     {
       "name": "epoch_epoch_stakes_pair",
@@ -544,9 +547,10 @@
       "fields": [
         { "name": "stakes", "type": "stakes_stake" },
         { "name": "total_stake", "type": "ulong" },
-        { "name": "node_id_to_vote_accounts", "type": "vector", "element": "pubkey_node_vote_accounts_pair" },
-        { "name": "epoch_authorized_voters", "type": "vector", "element": "pubkey_pubkey_pair" }
-      ]
+        { "name": "node_id_to_vote_accounts", "type": "map", "element": "pubkey_node_vote_accounts_pair", "key": "key" },
+        { "name": "epoch_authorized_voters", "type": "map", "element": "pubkey_pubkey_pair", "key": "key" }
+      ],
+      "comment": "https://github.com/anza-xyz/agave/blob/de6ce29e1a7ecbdc6dc39527fce80beea404d314/runtime/src/epoch_stakes.rs#L23"
     },
     {
       "name": "versioned_epoch_stakes",

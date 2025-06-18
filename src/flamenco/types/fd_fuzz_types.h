@@ -497,27 +497,21 @@ void *fd_epoch_stakes_generate( void *mem, void **alloc_mem, fd_rng_t * rng ) {
   fd_epoch_stakes_new(mem);
   fd_stakes_generate( &self->stakes, alloc_mem, rng );
   self->total_stake = fd_rng_ulong( rng );
-  self->node_id_to_vote_accounts_len = fd_rng_ulong( rng ) % 8;
-  if( self->node_id_to_vote_accounts_len ) {
-    self->node_id_to_vote_accounts = (fd_pubkey_node_vote_accounts_pair_t *) *alloc_mem;
-    *alloc_mem = (uchar *) *alloc_mem + sizeof(fd_pubkey_node_vote_accounts_pair_t)*self->node_id_to_vote_accounts_len;
-    for( ulong i=0; i < self->node_id_to_vote_accounts_len; i++ ) {
-      fd_pubkey_node_vote_accounts_pair_new( self->node_id_to_vote_accounts + i );
-      fd_pubkey_node_vote_accounts_pair_generate( self->node_id_to_vote_accounts + i, alloc_mem, rng );
-    }
-  } else {
-    self->node_id_to_vote_accounts = NULL;
+  ulong node_id_to_vote_accounts_len = fd_rng_ulong( rng ) % 8;
+  self->node_id_to_vote_accounts_pool = fd_pubkey_node_vote_accounts_pair_t_map_join_new( alloc_mem, node_id_to_vote_accounts_len );
+  self->node_id_to_vote_accounts_root = NULL;
+  for( ulong i=0; i < node_id_to_vote_accounts_len; i++ ) {
+    fd_pubkey_node_vote_accounts_pair_t_mapnode_t * node = fd_pubkey_node_vote_accounts_pair_t_map_acquire( self->node_id_to_vote_accounts_pool );
+    fd_pubkey_node_vote_accounts_pair_generate( &node->elem, alloc_mem, rng );
+    fd_pubkey_node_vote_accounts_pair_t_map_insert( self->node_id_to_vote_accounts_pool, &self->node_id_to_vote_accounts_root, node );
   }
-  self->epoch_authorized_voters_len = fd_rng_ulong( rng ) % 8;
-  if( self->epoch_authorized_voters_len ) {
-    self->epoch_authorized_voters = (fd_pubkey_pubkey_pair_t *) *alloc_mem;
-    *alloc_mem = (uchar *) *alloc_mem + sizeof(fd_pubkey_pubkey_pair_t)*self->epoch_authorized_voters_len;
-    for( ulong i=0; i < self->epoch_authorized_voters_len; i++ ) {
-      fd_pubkey_pubkey_pair_new( self->epoch_authorized_voters + i );
-      fd_pubkey_pubkey_pair_generate( self->epoch_authorized_voters + i, alloc_mem, rng );
-    }
-  } else {
-    self->epoch_authorized_voters = NULL;
+  ulong epoch_authorized_voters_len = fd_rng_ulong( rng ) % 8;
+  self->epoch_authorized_voters_pool = fd_pubkey_pubkey_pair_t_map_join_new( alloc_mem, epoch_authorized_voters_len );
+  self->epoch_authorized_voters_root = NULL;
+  for( ulong i=0; i < epoch_authorized_voters_len; i++ ) {
+    fd_pubkey_pubkey_pair_t_mapnode_t * node = fd_pubkey_pubkey_pair_t_map_acquire( self->epoch_authorized_voters_pool );
+    fd_pubkey_pubkey_pair_generate( &node->elem, alloc_mem, rng );
+    fd_pubkey_pubkey_pair_t_map_insert( self->epoch_authorized_voters_pool, &self->epoch_authorized_voters_root, node );
   }
   return mem;
 }
@@ -762,27 +756,21 @@ void *fd_versioned_epoch_stakes_current_generate( void *mem, void **alloc_mem, f
   fd_versioned_epoch_stakes_current_new(mem);
   fd_stakes_stake_generate( &self->stakes, alloc_mem, rng );
   self->total_stake = fd_rng_ulong( rng );
-  self->node_id_to_vote_accounts_len = fd_rng_ulong( rng ) % 8;
-  if( self->node_id_to_vote_accounts_len ) {
-    self->node_id_to_vote_accounts = (fd_pubkey_node_vote_accounts_pair_t *) *alloc_mem;
-    *alloc_mem = (uchar *) *alloc_mem + sizeof(fd_pubkey_node_vote_accounts_pair_t)*self->node_id_to_vote_accounts_len;
-    for( ulong i=0; i < self->node_id_to_vote_accounts_len; i++ ) {
-      fd_pubkey_node_vote_accounts_pair_new( self->node_id_to_vote_accounts + i );
-      fd_pubkey_node_vote_accounts_pair_generate( self->node_id_to_vote_accounts + i, alloc_mem, rng );
-    }
-  } else {
-    self->node_id_to_vote_accounts = NULL;
+  ulong node_id_to_vote_accounts_len = fd_rng_ulong( rng ) % 8;
+  self->node_id_to_vote_accounts_pool = fd_pubkey_node_vote_accounts_pair_t_map_join_new( alloc_mem, node_id_to_vote_accounts_len );
+  self->node_id_to_vote_accounts_root = NULL;
+  for( ulong i=0; i < node_id_to_vote_accounts_len; i++ ) {
+    fd_pubkey_node_vote_accounts_pair_t_mapnode_t * node = fd_pubkey_node_vote_accounts_pair_t_map_acquire( self->node_id_to_vote_accounts_pool );
+    fd_pubkey_node_vote_accounts_pair_generate( &node->elem, alloc_mem, rng );
+    fd_pubkey_node_vote_accounts_pair_t_map_insert( self->node_id_to_vote_accounts_pool, &self->node_id_to_vote_accounts_root, node );
   }
-  self->epoch_authorized_voters_len = fd_rng_ulong( rng ) % 8;
-  if( self->epoch_authorized_voters_len ) {
-    self->epoch_authorized_voters = (fd_pubkey_pubkey_pair_t *) *alloc_mem;
-    *alloc_mem = (uchar *) *alloc_mem + sizeof(fd_pubkey_pubkey_pair_t)*self->epoch_authorized_voters_len;
-    for( ulong i=0; i < self->epoch_authorized_voters_len; i++ ) {
-      fd_pubkey_pubkey_pair_new( self->epoch_authorized_voters + i );
-      fd_pubkey_pubkey_pair_generate( self->epoch_authorized_voters + i, alloc_mem, rng );
-    }
-  } else {
-    self->epoch_authorized_voters = NULL;
+  ulong epoch_authorized_voters_len = fd_rng_ulong( rng ) % 8;
+  self->epoch_authorized_voters_pool = fd_pubkey_pubkey_pair_t_map_join_new( alloc_mem, epoch_authorized_voters_len );
+  self->epoch_authorized_voters_root = NULL;
+  for( ulong i=0; i < epoch_authorized_voters_len; i++ ) {
+    fd_pubkey_pubkey_pair_t_mapnode_t * node = fd_pubkey_pubkey_pair_t_map_acquire( self->epoch_authorized_voters_pool );
+    fd_pubkey_pubkey_pair_generate( &node->elem, alloc_mem, rng );
+    fd_pubkey_pubkey_pair_t_map_insert( self->epoch_authorized_voters_pool, &self->epoch_authorized_voters_root, node );
   }
   return mem;
 }

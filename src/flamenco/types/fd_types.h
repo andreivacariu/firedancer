@@ -550,7 +550,7 @@ fd_delegation_pair_t_map_join_new( void * * alloc_mem, ulong len ) {
   *alloc_mem = (uchar *)*alloc_mem + fd_delegation_pair_t_map_footprint( len );
   return fd_delegation_pair_t_map_join( fd_delegation_pair_t_map_new( map_mem, len ) );
 }
-/* https://github.com/anza-xyz/agave/blob/beb3f582f784a96e59e06ef8f34e855258bcd98c/runtime/src/stakes.rs#L202 */
+/* https://github.com/anza-xyz/agave/blob/3e1c3a2f85b5b1d34031f2710d609347cfb77dfd/runtime/src/stakes.rs#L159 */
 /* Encoded Size: Dynamic */
 struct __attribute__((aligned(128UL))) fd_stakes {
   fd_vote_accounts_t vote_accounts;
@@ -657,6 +657,7 @@ struct fd_bank_incremental_snapshot_persistence {
 typedef struct fd_bank_incremental_snapshot_persistence fd_bank_incremental_snapshot_persistence_t;
 #define FD_BANK_INCREMENTAL_SNAPSHOT_PERSISTENCE_ALIGN alignof(fd_bank_incremental_snapshot_persistence_t)
 
+/* https://github.com/anza-xyz/agave/blob/de6ce29e1a7ecbdc6dc39527fce80beea404d314/runtime/src/epoch_stakes.rs#L16 */
 /* Encoded Size: Dynamic */
 struct fd_node_vote_accounts {
   ulong vote_accounts_len;
@@ -680,6 +681,7 @@ FD_FN_UNUSED static fd_pubkey_t * fd_node_vote_accounts_vote_accounts_join( fd_n
 FD_FN_UNUSED static void fd_node_vote_accounts_vote_accounts_update( fd_node_vote_accounts_global_t * struct_mem, fd_pubkey_t * vec ) {
   struct_mem->vote_accounts_offset = !!vec ? (ulong)vec - (ulong)struct_mem : 0UL;
 }
+/* https://github.com/anza-xyz/agave/blob/de6ce29e1a7ecbdc6dc39527fce80beea404d314/runtime/src/epoch_stakes.rs#L10 */
 /* Encoded Size: Dynamic */
 struct fd_pubkey_node_vote_accounts_pair {
   fd_pubkey_t key;
@@ -703,14 +705,75 @@ struct fd_pubkey_pubkey_pair {
 typedef struct fd_pubkey_pubkey_pair fd_pubkey_pubkey_pair_t;
 #define FD_PUBKEY_PUBKEY_PAIR_ALIGN alignof(fd_pubkey_pubkey_pair_t)
 
+typedef struct fd_pubkey_node_vote_accounts_pair_t_mapnode fd_pubkey_node_vote_accounts_pair_t_mapnode_t;
+#define REDBLK_T fd_pubkey_node_vote_accounts_pair_t_mapnode_t
+#define REDBLK_NAME fd_pubkey_node_vote_accounts_pair_t_map
+#define REDBLK_IMPL_STYLE 1
+#include "../../util/tmpl/fd_redblack.c"
+struct fd_pubkey_node_vote_accounts_pair_t_mapnode {
+    fd_pubkey_node_vote_accounts_pair_t elem;
+    ulong redblack_parent;
+    ulong redblack_left;
+    ulong redblack_right;
+    int redblack_color;
+};
+static inline fd_pubkey_node_vote_accounts_pair_t_mapnode_t *
+fd_pubkey_node_vote_accounts_pair_t_map_join_new( void * * alloc_mem, ulong len ) {
+  if( FD_UNLIKELY( 0 == len ) ) len = 1; // prevent underflow
+  *alloc_mem = (void*)fd_ulong_align_up( (ulong)*alloc_mem, fd_pubkey_node_vote_accounts_pair_t_map_align() );
+  void * map_mem = *alloc_mem;
+  *alloc_mem = (uchar *)*alloc_mem + fd_pubkey_node_vote_accounts_pair_t_map_footprint( len );
+  return fd_pubkey_node_vote_accounts_pair_t_map_join( fd_pubkey_node_vote_accounts_pair_t_map_new( map_mem, len ) );
+}
+typedef struct fd_pubkey_node_vote_accounts_pair_global_t_mapnode fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t;
+#define REDBLK_T fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t
+#define REDBLK_NAME fd_pubkey_node_vote_accounts_pair_global_t_map
+#define REDBLK_IMPL_STYLE 1
+#include "../../util/tmpl/fd_redblack.c"
+struct fd_pubkey_node_vote_accounts_pair_global_t_mapnode {
+    fd_pubkey_node_vote_accounts_pair_global_t elem;
+    ulong redblack_parent;
+    ulong redblack_left;
+    ulong redblack_right;
+    int redblack_color;
+};
+static inline fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t *
+fd_pubkey_node_vote_accounts_pair_global_t_map_join_new( void * * alloc_mem, ulong len ) {
+  if( FD_UNLIKELY( 0 == len ) ) len = 1; // prevent underflow
+  *alloc_mem = (void*)fd_ulong_align_up( (ulong)*alloc_mem, fd_pubkey_node_vote_accounts_pair_global_t_map_align() );
+  void * map_mem = *alloc_mem;
+  *alloc_mem = (uchar *)*alloc_mem + fd_pubkey_node_vote_accounts_pair_global_t_map_footprint( len );
+  return fd_pubkey_node_vote_accounts_pair_global_t_map_join( fd_pubkey_node_vote_accounts_pair_global_t_map_new( map_mem, len ) );
+}
+typedef struct fd_pubkey_pubkey_pair_t_mapnode fd_pubkey_pubkey_pair_t_mapnode_t;
+#define REDBLK_T fd_pubkey_pubkey_pair_t_mapnode_t
+#define REDBLK_NAME fd_pubkey_pubkey_pair_t_map
+#define REDBLK_IMPL_STYLE 1
+#include "../../util/tmpl/fd_redblack.c"
+struct fd_pubkey_pubkey_pair_t_mapnode {
+    fd_pubkey_pubkey_pair_t elem;
+    ulong redblack_parent;
+    ulong redblack_left;
+    ulong redblack_right;
+    int redblack_color;
+};
+static inline fd_pubkey_pubkey_pair_t_mapnode_t *
+fd_pubkey_pubkey_pair_t_map_join_new( void * * alloc_mem, ulong len ) {
+  if( FD_UNLIKELY( 0 == len ) ) len = 1; // prevent underflow
+  *alloc_mem = (void*)fd_ulong_align_up( (ulong)*alloc_mem, fd_pubkey_pubkey_pair_t_map_align() );
+  void * map_mem = *alloc_mem;
+  *alloc_mem = (uchar *)*alloc_mem + fd_pubkey_pubkey_pair_t_map_footprint( len );
+  return fd_pubkey_pubkey_pair_t_map_join( fd_pubkey_pubkey_pair_t_map_new( map_mem, len ) );
+}
+/* https://github.com/anza-xyz/agave/blob/de6ce29e1a7ecbdc6dc39527fce80beea404d314/runtime/src/epoch_stakes.rs#L23 */
 /* Encoded Size: Dynamic */
 struct fd_epoch_stakes {
   fd_stakes_t stakes;
   ulong total_stake;
-  ulong node_id_to_vote_accounts_len;
-  fd_pubkey_node_vote_accounts_pair_t * node_id_to_vote_accounts;
-  ulong epoch_authorized_voters_len;
-  fd_pubkey_pubkey_pair_t * epoch_authorized_voters;
+  fd_pubkey_node_vote_accounts_pair_t_mapnode_t * node_id_to_vote_accounts_pool;
+  fd_pubkey_node_vote_accounts_pair_t_mapnode_t * node_id_to_vote_accounts_root;
+  fd_pubkey_pubkey_pair_t_mapnode_t * epoch_authorized_voters_pool;
+  fd_pubkey_pubkey_pair_t_mapnode_t * epoch_authorized_voters_root;
 };
 typedef struct fd_epoch_stakes fd_epoch_stakes_t;
 #define FD_EPOCH_STAKES_ALIGN alignof(fd_epoch_stakes_t)
@@ -718,25 +781,41 @@ typedef struct fd_epoch_stakes fd_epoch_stakes_t;
 struct fd_epoch_stakes_global {
   fd_stakes_global_t stakes;
   ulong total_stake;
-  ulong node_id_to_vote_accounts_len;
-  ulong node_id_to_vote_accounts_offset;
-  ulong epoch_authorized_voters_len;
-  ulong epoch_authorized_voters_offset;
+  ulong node_id_to_vote_accounts_pool_offset;
+  ulong node_id_to_vote_accounts_root_offset;
+  ulong epoch_authorized_voters_pool_offset;
+  ulong epoch_authorized_voters_root_offset;
 };
 typedef struct fd_epoch_stakes_global fd_epoch_stakes_global_t;
 #define FD_EPOCH_STAKES_GLOBAL_ALIGN alignof(fd_epoch_stakes_global_t)
 
-FD_FN_UNUSED static fd_pubkey_node_vote_accounts_pair_global_t * fd_epoch_stakes_node_id_to_vote_accounts_join( fd_epoch_stakes_global_t const * struct_mem ) { // vector
-  return struct_mem->node_id_to_vote_accounts_offset ? (fd_pubkey_node_vote_accounts_pair_global_t *)fd_type_pun( (uchar *)struct_mem + struct_mem->node_id_to_vote_accounts_offset ) : NULL;
+static FD_FN_UNUSED fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t * fd_epoch_stakes_node_id_to_vote_accounts_pool_join( fd_epoch_stakes_global_t const * type ) {
+  if( FD_UNLIKELY( !type ) ) return NULL;
+  return !!type->node_id_to_vote_accounts_pool_offset ? (fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t *)fd_pubkey_node_vote_accounts_pair_global_t_map_join( fd_type_pun( (uchar *)type + type->node_id_to_vote_accounts_pool_offset ) ) : NULL;
 }
-FD_FN_UNUSED static void fd_epoch_stakes_node_id_to_vote_accounts_update( fd_epoch_stakes_global_t * struct_mem, fd_pubkey_node_vote_accounts_pair_global_t * vec ) {
-  struct_mem->node_id_to_vote_accounts_offset = !!vec ? (ulong)vec - (ulong)struct_mem : 0UL;
+static FD_FN_UNUSED fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t * fd_epoch_stakes_node_id_to_vote_accounts_root_join( fd_epoch_stakes_global_t const * type ) {
+  if( FD_UNLIKELY( !type ) ) return NULL;
+  return !!type->node_id_to_vote_accounts_root_offset ? (fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t *)fd_type_pun( (uchar *)type + type->node_id_to_vote_accounts_root_offset ) : NULL;
 }
-FD_FN_UNUSED static fd_pubkey_pubkey_pair_t * fd_epoch_stakes_epoch_authorized_voters_join( fd_epoch_stakes_global_t const * struct_mem ) { // vector
-  return struct_mem->epoch_authorized_voters_offset ? (fd_pubkey_pubkey_pair_t *)fd_type_pun( (uchar *)struct_mem + struct_mem->epoch_authorized_voters_offset ) : NULL;
+static FD_FN_UNUSED void fd_epoch_stakes_node_id_to_vote_accounts_pool_update( fd_epoch_stakes_global_t * type, fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t * pool ) {
+  type->node_id_to_vote_accounts_pool_offset = !!pool ? (ulong)fd_pubkey_node_vote_accounts_pair_global_t_map_leave( pool ) - (ulong)type : 0UL;
 }
-FD_FN_UNUSED static void fd_epoch_stakes_epoch_authorized_voters_update( fd_epoch_stakes_global_t * struct_mem, fd_pubkey_pubkey_pair_t * vec ) {
-  struct_mem->epoch_authorized_voters_offset = !!vec ? (ulong)vec - (ulong)struct_mem : 0UL;
+static FD_FN_UNUSED void fd_epoch_stakes_node_id_to_vote_accounts_root_update( fd_epoch_stakes_global_t * type, fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t * root ) {
+  type->node_id_to_vote_accounts_root_offset = !!root ? (ulong)root - (ulong)type : 0UL;
+}
+static FD_FN_UNUSED fd_pubkey_pubkey_pair_t_mapnode_t * fd_epoch_stakes_epoch_authorized_voters_pool_join( fd_epoch_stakes_global_t const * type ) {
+  if( FD_UNLIKELY( !type ) ) return NULL;
+  return !!type->epoch_authorized_voters_pool_offset ? (fd_pubkey_pubkey_pair_t_mapnode_t *)fd_pubkey_pubkey_pair_t_map_join( fd_type_pun( (uchar *)type + type->epoch_authorized_voters_pool_offset ) ) : NULL;
+}
+static FD_FN_UNUSED fd_pubkey_pubkey_pair_t_mapnode_t * fd_epoch_stakes_epoch_authorized_voters_root_join( fd_epoch_stakes_global_t const * type ) {
+  if( FD_UNLIKELY( !type ) ) return NULL;
+  return !!type->epoch_authorized_voters_root_offset ? (fd_pubkey_pubkey_pair_t_mapnode_t *)fd_type_pun( (uchar *)type + type->epoch_authorized_voters_root_offset ) : NULL;
+}
+static FD_FN_UNUSED void fd_epoch_stakes_epoch_authorized_voters_pool_update( fd_epoch_stakes_global_t * type, fd_pubkey_pubkey_pair_t_mapnode_t * pool ) {
+  type->epoch_authorized_voters_pool_offset = !!pool ? (ulong)fd_pubkey_pubkey_pair_t_map_leave( pool ) - (ulong)type : 0UL;
+}
+static FD_FN_UNUSED void fd_epoch_stakes_epoch_authorized_voters_root_update( fd_epoch_stakes_global_t * type, fd_pubkey_pubkey_pair_t_mapnode_t * root ) {
+  type->epoch_authorized_voters_root_offset = !!root ? (ulong)root - (ulong)type : 0UL;
 }
 /* Encoded Size: Dynamic */
 struct fd_epoch_epoch_stakes_pair {
@@ -1011,14 +1090,15 @@ FD_FN_UNUSED static fd_slot_map_pair_t * fd_solana_accounts_db_fields_historical
 FD_FN_UNUSED static void fd_solana_accounts_db_fields_historical_roots_with_hash_update( fd_solana_accounts_db_fields_global_t * struct_mem, fd_slot_map_pair_t * vec ) {
   struct_mem->historical_roots_with_hash_offset = !!vec ? (ulong)vec - (ulong)struct_mem : 0UL;
 }
+/* https://github.com/anza-xyz/agave/blob/de6ce29e1a7ecbdc6dc39527fce80beea404d314/runtime/src/epoch_stakes.rs#L23 */
 /* Encoded Size: Dynamic */
 struct fd_versioned_epoch_stakes_current {
   fd_stakes_stake_t stakes;
   ulong total_stake;
-  ulong node_id_to_vote_accounts_len;
-  fd_pubkey_node_vote_accounts_pair_t * node_id_to_vote_accounts;
-  ulong epoch_authorized_voters_len;
-  fd_pubkey_pubkey_pair_t * epoch_authorized_voters;
+  fd_pubkey_node_vote_accounts_pair_t_mapnode_t * node_id_to_vote_accounts_pool;
+  fd_pubkey_node_vote_accounts_pair_t_mapnode_t * node_id_to_vote_accounts_root;
+  fd_pubkey_pubkey_pair_t_mapnode_t * epoch_authorized_voters_pool;
+  fd_pubkey_pubkey_pair_t_mapnode_t * epoch_authorized_voters_root;
 };
 typedef struct fd_versioned_epoch_stakes_current fd_versioned_epoch_stakes_current_t;
 #define FD_VERSIONED_EPOCH_STAKES_CURRENT_ALIGN alignof(fd_versioned_epoch_stakes_current_t)
@@ -1026,25 +1106,41 @@ typedef struct fd_versioned_epoch_stakes_current fd_versioned_epoch_stakes_curre
 struct fd_versioned_epoch_stakes_current_global {
   fd_stakes_stake_global_t stakes;
   ulong total_stake;
-  ulong node_id_to_vote_accounts_len;
-  ulong node_id_to_vote_accounts_offset;
-  ulong epoch_authorized_voters_len;
-  ulong epoch_authorized_voters_offset;
+  ulong node_id_to_vote_accounts_pool_offset;
+  ulong node_id_to_vote_accounts_root_offset;
+  ulong epoch_authorized_voters_pool_offset;
+  ulong epoch_authorized_voters_root_offset;
 };
 typedef struct fd_versioned_epoch_stakes_current_global fd_versioned_epoch_stakes_current_global_t;
 #define FD_VERSIONED_EPOCH_STAKES_CURRENT_GLOBAL_ALIGN alignof(fd_versioned_epoch_stakes_current_global_t)
 
-FD_FN_UNUSED static fd_pubkey_node_vote_accounts_pair_global_t * fd_versioned_epoch_stakes_current_node_id_to_vote_accounts_join( fd_versioned_epoch_stakes_current_global_t const * struct_mem ) { // vector
-  return struct_mem->node_id_to_vote_accounts_offset ? (fd_pubkey_node_vote_accounts_pair_global_t *)fd_type_pun( (uchar *)struct_mem + struct_mem->node_id_to_vote_accounts_offset ) : NULL;
+static FD_FN_UNUSED fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t * fd_versioned_epoch_stakes_current_node_id_to_vote_accounts_pool_join( fd_versioned_epoch_stakes_current_global_t const * type ) {
+  if( FD_UNLIKELY( !type ) ) return NULL;
+  return !!type->node_id_to_vote_accounts_pool_offset ? (fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t *)fd_pubkey_node_vote_accounts_pair_global_t_map_join( fd_type_pun( (uchar *)type + type->node_id_to_vote_accounts_pool_offset ) ) : NULL;
 }
-FD_FN_UNUSED static void fd_versioned_epoch_stakes_current_node_id_to_vote_accounts_update( fd_versioned_epoch_stakes_current_global_t * struct_mem, fd_pubkey_node_vote_accounts_pair_global_t * vec ) {
-  struct_mem->node_id_to_vote_accounts_offset = !!vec ? (ulong)vec - (ulong)struct_mem : 0UL;
+static FD_FN_UNUSED fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t * fd_versioned_epoch_stakes_current_node_id_to_vote_accounts_root_join( fd_versioned_epoch_stakes_current_global_t const * type ) {
+  if( FD_UNLIKELY( !type ) ) return NULL;
+  return !!type->node_id_to_vote_accounts_root_offset ? (fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t *)fd_type_pun( (uchar *)type + type->node_id_to_vote_accounts_root_offset ) : NULL;
 }
-FD_FN_UNUSED static fd_pubkey_pubkey_pair_t * fd_versioned_epoch_stakes_current_epoch_authorized_voters_join( fd_versioned_epoch_stakes_current_global_t const * struct_mem ) { // vector
-  return struct_mem->epoch_authorized_voters_offset ? (fd_pubkey_pubkey_pair_t *)fd_type_pun( (uchar *)struct_mem + struct_mem->epoch_authorized_voters_offset ) : NULL;
+static FD_FN_UNUSED void fd_versioned_epoch_stakes_current_node_id_to_vote_accounts_pool_update( fd_versioned_epoch_stakes_current_global_t * type, fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t * pool ) {
+  type->node_id_to_vote_accounts_pool_offset = !!pool ? (ulong)fd_pubkey_node_vote_accounts_pair_global_t_map_leave( pool ) - (ulong)type : 0UL;
 }
-FD_FN_UNUSED static void fd_versioned_epoch_stakes_current_epoch_authorized_voters_update( fd_versioned_epoch_stakes_current_global_t * struct_mem, fd_pubkey_pubkey_pair_t * vec ) {
-  struct_mem->epoch_authorized_voters_offset = !!vec ? (ulong)vec - (ulong)struct_mem : 0UL;
+static FD_FN_UNUSED void fd_versioned_epoch_stakes_current_node_id_to_vote_accounts_root_update( fd_versioned_epoch_stakes_current_global_t * type, fd_pubkey_node_vote_accounts_pair_global_t_mapnode_t * root ) {
+  type->node_id_to_vote_accounts_root_offset = !!root ? (ulong)root - (ulong)type : 0UL;
+}
+static FD_FN_UNUSED fd_pubkey_pubkey_pair_t_mapnode_t * fd_versioned_epoch_stakes_current_epoch_authorized_voters_pool_join( fd_versioned_epoch_stakes_current_global_t const * type ) {
+  if( FD_UNLIKELY( !type ) ) return NULL;
+  return !!type->epoch_authorized_voters_pool_offset ? (fd_pubkey_pubkey_pair_t_mapnode_t *)fd_pubkey_pubkey_pair_t_map_join( fd_type_pun( (uchar *)type + type->epoch_authorized_voters_pool_offset ) ) : NULL;
+}
+static FD_FN_UNUSED fd_pubkey_pubkey_pair_t_mapnode_t * fd_versioned_epoch_stakes_current_epoch_authorized_voters_root_join( fd_versioned_epoch_stakes_current_global_t const * type ) {
+  if( FD_UNLIKELY( !type ) ) return NULL;
+  return !!type->epoch_authorized_voters_root_offset ? (fd_pubkey_pubkey_pair_t_mapnode_t *)fd_type_pun( (uchar *)type + type->epoch_authorized_voters_root_offset ) : NULL;
+}
+static FD_FN_UNUSED void fd_versioned_epoch_stakes_current_epoch_authorized_voters_pool_update( fd_versioned_epoch_stakes_current_global_t * type, fd_pubkey_pubkey_pair_t_mapnode_t * pool ) {
+  type->epoch_authorized_voters_pool_offset = !!pool ? (ulong)fd_pubkey_pubkey_pair_t_map_leave( pool ) - (ulong)type : 0UL;
+}
+static FD_FN_UNUSED void fd_versioned_epoch_stakes_current_epoch_authorized_voters_root_update( fd_versioned_epoch_stakes_current_global_t * type, fd_pubkey_pubkey_pair_t_mapnode_t * root ) {
+  type->epoch_authorized_voters_root_offset = !!root ? (ulong)root - (ulong)type : 0UL;
 }
 union fd_versioned_epoch_stakes_inner {
   fd_versioned_epoch_stakes_current_t Current;
