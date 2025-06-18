@@ -27,10 +27,6 @@ struct fd_block {
   ulong batch_cnt;
   ulong micros_gaddr; /* ptr to the list of fd_block_micro_t */
   ulong micros_cnt;
-  ulong txns_gaddr;   /* ptr to the list of fd_block_txn_t */
-  ulong txns_cnt;
-  ulong txns_meta_gaddr; /* ptr to the allocation for txn meta data */
-  ulong txns_meta_sz;
 };
 typedef struct fd_block fd_block_t;
 

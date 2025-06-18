@@ -699,13 +699,8 @@ fd_blockstore_block_allocs_remove( fd_blockstore_t * blockstore,
   FD_COMPILER_MFENCE();
   //block_info->block_gaddr = 0;
 
-  ulong mgaddr = block->txns_meta_gaddr;
-  while( mgaddr ) {
-    ulong * laddr = fd_wksp_laddr_fast( wksp, mgaddr );
-    ulong mgaddr2 = laddr[0]; /* link to next allocation */
-    fd_alloc_free( alloc, laddr );
-    mgaddr = mgaddr2;
-  }
+  if( block->micros_gaddr ) fd_alloc_free( alloc, fd_wksp_laddr_fast( wksp, block->micros_gaddr ) );
+
   fd_alloc_free( alloc, block );
 }
 
