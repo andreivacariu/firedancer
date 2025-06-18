@@ -222,7 +222,6 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   slot_ctx->funk_txn                    = funk_txn;
   slot_ctx->funk                        = funk;
   slot_ctx->enable_exec_recording       = 0;
-  slot_ctx->runtime_wksp                = fd_wksp_containing( slot_ctx );
   slot_ctx->slot                        = slot;
 
   fd_hash_t * bank_hash = fd_bank_bank_hash_modify( slot_ctx->bank );

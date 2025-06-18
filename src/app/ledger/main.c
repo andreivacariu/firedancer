@@ -225,7 +225,7 @@ runtime_replay( fd_ledger_args_t * ledger_args ) {
   long              replay_time = -fd_log_wallclock();
   ulong             txn_cnt     = 0;
   ulong             slot_cnt    = 0;
-  fd_blockstore_t * blockstore  = ledger_args->slot_ctx->blockstore;
+  fd_blockstore_t * blockstore  = ledger_args->blockstore;
 
   ulong prev_slot  = ledger_args->slot_ctx->slot;
   ulong start_slot = ledger_args->slot_ctx->slot + 1;
@@ -575,9 +575,6 @@ fd_ledger_capture_setup( fd_ledger_args_t * args ) {
 void
 fd_ledger_main_setup( fd_ledger_args_t * args ) {
   fd_flamenco_boot( NULL, NULL );
-
-  args->slot_ctx->runtime_wksp = fd_wksp_containing( args->runtime_spad );
-  FD_TEST( args->slot_ctx->runtime_wksp );
 
   /* Finish other runtime setup steps */
   fd_features_restore( args->slot_ctx, args->runtime_spad );
@@ -950,7 +947,6 @@ ingest( fd_ledger_args_t * args ) {
   args->slot_ctx = slot_ctx;
 
   slot_ctx->funk       = funk;
-  slot_ctx->blockstore = args->blockstore;
 
   // if( args->status_cache_wksp ) {
   //   void * status_cache_mem = fd_spad_alloc_check( spad,
@@ -1110,7 +1106,6 @@ replay( fd_ledger_args_t * args ) {
   void * slot_ctx_mem        = fd_spad_alloc_check( spad, FD_EXEC_SLOT_CTX_ALIGN, FD_EXEC_SLOT_CTX_FOOTPRINT );
   args->slot_ctx             = fd_exec_slot_ctx_join( fd_exec_slot_ctx_new( slot_ctx_mem ) );
   args->slot_ctx->funk       = funk;
-  args->slot_ctx->blockstore = args->blockstore;
 
   args->slot_ctx->banks    = banks;
   FD_TEST( args->slot_ctx->banks );

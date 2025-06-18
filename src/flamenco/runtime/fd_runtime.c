@@ -526,12 +526,9 @@ fd_runtime_freeze( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
       /* TODO: is it ok to not check the overflow error here? */
       rec->vt->checked_add_lamports( rec, fees );
       rec->vt->set_slot( rec, slot_ctx->slot );
-      slot_ctx->block_rewards.post_balance = rec->vt->get_lamports( rec );
 
       fd_txn_account_mutable_fini( rec, slot_ctx->funk, slot_ctx->funk_txn );
 
-      slot_ctx->block_rewards.collected_fees = fees;
-      slot_ctx->block_rewards.leader         = *leader;
     } while(0);
 
     ulong old = fd_bank_capitalization_get( slot_ctx->bank );
@@ -1643,8 +1640,6 @@ fd_runtime_block_execute_finalize_finish( fd_exec_slot_ctx_t *             slot_
   if( FD_UNLIKELY( err ) ) {
     FD_LOG_ERR(( "Unable to hash at end of slot" ));
   }
-
-  slot_ctx->total_compute_units_requested = 0UL;
 
   return FD_RUNTIME_EXECUTE_SUCCESS;
 

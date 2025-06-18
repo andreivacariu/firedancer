@@ -20,7 +20,6 @@ fd_sysvar_slot_hashes_write( fd_exec_slot_ctx_t *      slot_ctx,
   fd_bincode_encode_ctx_t ctx = {
     .data    = enc,
     .dataend = enc + slot_hashes_account_size,
-    .wksp    = slot_ctx->runtime_wksp
   };
   if( fd_slot_hashes_encode_global( slot_hashes_global, &ctx ) ) {
     FD_LOG_ERR(("fd_slot_hashes_encode failed"));

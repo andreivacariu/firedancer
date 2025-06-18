@@ -45,7 +45,6 @@ fd_sysvar_slot_history_write_history( fd_exec_slot_ctx_t *       slot_ctx,
   fd_bincode_encode_ctx_t ctx;
   ctx.data    = enc;
   ctx.dataend = enc + sz;
-  ctx.wksp    = slot_ctx->runtime_wksp;
   int err = fd_slot_history_encode_global( history, &ctx );
   if (0 != err)
     return err;
@@ -121,7 +120,6 @@ fd_sysvar_slot_history_update( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtim
   fd_bincode_encode_ctx_t e_ctx = {
     .data    = rec->vt->get_data_mut( rec ),
     .dataend = rec->vt->get_data_mut( rec )+sz,
-    .wksp    = slot_ctx->runtime_wksp
   };
 
   if( FD_UNLIKELY( fd_slot_history_encode_global( history, &e_ctx ) ) ) {

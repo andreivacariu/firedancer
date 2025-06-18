@@ -47,7 +47,6 @@ fd_runtime_fuzz_instr_ctx_create( fd_runtime_fuzz_runner_t *           runner,
 
   slot_ctx->funk_txn     = funk_txn;
   slot_ctx->funk         = funk;
-  slot_ctx->runtime_wksp = runner->wksp;
 
   /* Bank manager */
 

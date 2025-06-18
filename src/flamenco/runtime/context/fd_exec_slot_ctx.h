@@ -31,11 +31,8 @@ struct fd_exec_slot_ctx {
 
   fd_funk_t *                 funk;
   fd_blockstore_t *           blockstore;
-  fd_block_rewards_t          block_rewards;
   ulong                       txns_meta_gaddr;
   ulong                       txns_meta_sz;
-
-  ulong                       total_compute_units_requested;
 
   fd_txncache_t *             status_cache;
 
@@ -43,9 +40,6 @@ struct fd_exec_slot_ctx {
                                                         recording, e.g. txn logs.  Analogue
                                                         of Agave's ExecutionRecordingConfig. */
 
-  fd_wksp_t *                 runtime_wksp; /* TODO: this should hold wksp for runtime_spad. */
-
-  ulong                       shred_cnt;
 };
 
 #define FD_EXEC_SLOT_CTX_ALIGN     (alignof(fd_exec_slot_ctx_t))

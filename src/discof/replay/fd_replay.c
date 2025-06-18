@@ -214,7 +214,7 @@ leader_pipeline( void ) {
   // /* Init PoH if it is ready                                            */
   // /**********************************************************************/
 
-  // if( FD_UNLIKELY( !(flags & REPLAY_FLAG_CATCHING_UP) && ctx->poh_init_done == 0 && ctx->slot_ctx->blockstore ) ) {
+  // if( FD_UNLIKELY( !(flags & REPLAY_FLAG_CATCHING_UP) && ctx->poh_init_done == 0 && ctx->blockstore ) ) {
   //   init_poh( ctx );
   // }
 

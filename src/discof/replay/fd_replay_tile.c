@@ -979,7 +979,7 @@ publish_slot_notifications( fd_replay_tile_ctx_t * ctx,
     msg->slot_exec.root = fd_fseq_query( ctx->published_wmark );
     msg->slot_exec.height = block_entry_block_height;
     msg->slot_exec.transaction_count = fd_bank_txn_count_get( ctx->slot_ctx->bank );
-    msg->slot_exec.shred_cnt = ctx->slot_ctx->shred_cnt;
+    msg->slot_exec.shred_cnt = fd_bank_shred_cnt_get( ctx->slot_ctx->bank );
 
     msg->slot_exec.bank_hash = fd_bank_bank_hash_get( ctx->slot_ctx->bank );
 
@@ -991,7 +991,7 @@ publish_slot_notifications( fd_replay_tile_ctx_t * ctx,
     msg->slot_exec.ts = tsorig;
     NOTIFY_END;
   }
-  ctx->slot_ctx->shred_cnt = 0UL;
+  fd_bank_shred_cnt_set( ctx->slot_ctx->bank, 0UL );
 
   FD_TEST( curr_slot == ctx->slot_ctx->bank->slot );
 
@@ -1235,7 +1235,6 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
   fd_bank_max_tick_height_end_modify( ctx->slot_ctx->bank );
 
   ctx->slot_ctx->enable_exec_recording = ctx->tx_metadata_storage;
-  ctx->slot_ctx->runtime_wksp          = fd_wksp_containing( ctx->runtime_spad );
 
   ctx->slot_ctx->status_cache = ctx->status_cache;
 
@@ -1580,7 +1579,7 @@ handle_slice( fd_replay_tile_ctx_t * ctx,
   fd_fork_t * fork = fd_fork_frontier_ele_query( ctx->forks->frontier, &slot, NULL, ctx->forks->pool );
   ulong slice_sz;
   uint start_idx = fork->end_idx + 1;
-  int err = fd_blockstore_slice_query( ctx->slot_ctx->blockstore,
+  int err = fd_blockstore_slice_query( ctx->blockstore,
                                         slot,
                                         start_idx,
                                         start_idx + data_cnt - 1,
@@ -1589,7 +1588,7 @@ handle_slice( fd_replay_tile_ctx_t * ctx,
                                         &slice_sz );
   fork->end_idx += data_cnt;
   fd_slice_exec_begin( &ctx->slice_exec_ctx, slice_sz, slot_complete );
-  ctx->slot_ctx->shred_cnt += data_cnt;
+  fd_bank_shred_cnt_set( ctx->slot_ctx->bank, fd_bank_shred_cnt_get( ctx->slot_ctx->bank ) + data_cnt );
 
   if( FD_UNLIKELY( err ) ) {
     FD_LOG_ERR(( "Failed to query blockstore for slot %lu", slot ));
@@ -1600,7 +1599,7 @@ static void
 kickoff_repair_orphans( fd_replay_tile_ctx_t * ctx, fd_stem_context_t * stem ) {
   ctx->slot_ctx->slot = ctx->curr_slot;
   FD_LOG_WARNING(("KICKING OFF REPAIR ORPHANS %lu", ctx->slot_ctx->slot));
-  fd_blockstore_init( ctx->slot_ctx->blockstore,
+  fd_blockstore_init( ctx->blockstore,
                       ctx->blockstore_fd,
                       FD_BLOCKSTORE_ARCHIVE_MIN_SIZE,
                       ctx->slot_ctx->slot );
@@ -1892,7 +1891,6 @@ init_snapshot( fd_replay_tile_ctx_t * ctx,
   ctx->slot_ctx->bank         = fd_banks_get_bank( ctx->banks, 0UL );
 
   ctx->slot_ctx->funk         = ctx->funk;
-  ctx->slot_ctx->blockstore   = ctx->blockstore;
   ctx->slot_ctx->status_cache = ctx->status_cache;
   fd_runtime_update_slots_per_epoch( ctx->slot_ctx, FD_DEFAULT_SLOTS_PER_EPOCH );
 
