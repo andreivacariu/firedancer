@@ -986,6 +986,7 @@ distribute_epoch_reward_to_stake_acc( fd_exec_slot_ctx_t * slot_ctx,
 /* Sets the epoch reward status to inactive, and destroys any allocated state associated with the active state. */
 static void
 set_epoch_reward_status_inactive( fd_exec_slot_ctx_t * slot_ctx ) {
+  FD_LOG_WARNING(("LOCK %d", slot_ctx->bank->epoch_reward_status_lock.value));
   fd_epoch_reward_status_global_t * epoch_reward_status = fd_bank_epoch_reward_status_modify( slot_ctx->bank );
   if( epoch_reward_status->discriminant == fd_epoch_reward_status_enum_Active ) {
     FD_LOG_NOTICE(( "Done partitioning rewards for current epoch" ));
@@ -1029,6 +1030,7 @@ set_epoch_reward_status_active( fd_exec_slot_ctx_t *             slot_ctx,
   epoch_reward_status->inner.Active.partitioned_stake_rewards.partitions_offset = (ulong)partitions_mem - (ulong)&epoch_reward_status->inner.Active.partitioned_stake_rewards;
 
   fd_bank_epoch_reward_status_end_modify( slot_ctx->bank );
+  FD_LOG_WARNING(("LOCK %d", slot_ctx->bank->epoch_reward_status_lock.value));
 }
 
 /*  Process reward credits for a partition of rewards.
@@ -1086,6 +1088,7 @@ fd_distribute_partitioned_epoch_rewards( fd_exec_slot_ctx_t * slot_ctx,
   fd_epoch_reward_status_global_t const * epoch_reward_status = fd_bank_epoch_reward_status_query( slot_ctx->bank );
 
   if( epoch_reward_status->discriminant == fd_epoch_reward_status_enum_Inactive ) {
+    fd_bank_epoch_reward_status_end_query( slot_ctx->bank );
     return;
   }
 
@@ -1118,8 +1121,11 @@ fd_distribute_partitioned_epoch_rewards( fd_exec_slot_ctx_t * slot_ctx,
                                            runtime_spad );
   }
 
+  fd_bank_epoch_reward_status_end_query( slot_ctx->bank );
+
   /* If we have finished distributing rewards, set the status to inactive */
   if( fd_ulong_sat_add( height, 1UL ) >= distribution_end_exclusive ) {
+
     set_epoch_reward_status_inactive( slot_ctx );
     fd_sysvar_epoch_rewards_set_inactive( slot_ctx,runtime_spad );
   }
