@@ -1,7 +1,6 @@
 #include <errno.h>
 #include "../../flamenco/fd_flamenco.h"
 #include "../../flamenco/runtime/fd_hashes.h"
-#include "../../funk/fd_funk_filemap.h"
 #include "../../flamenco/types/fd_types.h"
 #include "../../flamenco/runtime/fd_runtime.h"
 #include "../../flamenco/runtime/fd_runtime_public.h"
@@ -32,15 +31,12 @@ struct fd_ledger_args {
   char const *          checkpt_funk;            /* wksp checkpoint for a funk wksp */
   char const *          checkpt_status_cache;    /* status cache checkpoint */
   char const *          restore;                 /* wksp restore */
-  char const *          restore_funk;            /* wksp restore for a funk wksp */
   char const *          allocator;               /* allocator used during replay (libc/wksp) */
   ulong                 shred_max;               /* maximum number of shreds*/
   ulong                 slot_history_max;        /* number of slots stored by blockstore*/
   ulong                 txns_max;                /* txns_max*/
   uint                  index_max;               /* size of funk index (same as rec max) */
-  char const *          funk_file;               /* path to funk backing store */
   ulong                 funk_page_cnt;
-  fd_funk_close_file_args_t funk_close_args;
   char const *          snapshot;                /* path to agave snapshot */
   char const *          incremental;             /* path to agave incremental snapshot */
   char const *          genesis;                 /* path to agave genesis */
@@ -59,6 +55,8 @@ struct fd_ledger_args {
   int                   dump_insn_to_pb;         /* instruction dumping: should insns be dumped */
   int                   dump_txn_to_pb;          /* txn dumping: should txns be dumped */
   int                   dump_block_to_pb;        /* block dumping: should blocks be dumped */
+  int                   dump_syscall_to_pb;      /* syscall dumping: should syscalls be dumped */
+  int                   dump_elf_to_pb;          /* elf dumping: should elfs be dumped */
   ulong                 dump_proto_start_slot;   /* instruction / txn dumping: what slot to start dumping*/
   char const *          dump_proto_sig_filter;   /* instruction / txn dumping: specify txn sig to dump at */
   char const *          dump_proto_output_dir;   /* instruction / txn dumping: output directory for protobuf messages */
@@ -663,7 +661,7 @@ fd_ledger_capture_setup( fd_ledger_args_t * args ) {
   int has_solcap           = args->capture_fpath && args->capture_fpath[0] != '\0';
   int has_checkpt          = args->checkpt_path && args->checkpt_path[0] != '\0';
   int has_checkpt_funk     = args->checkpt_funk && args->checkpt_funk[0] != '\0';
-  int has_dump_to_protobuf = args->dump_insn_to_pb || args->dump_txn_to_pb || args->dump_block_to_pb;
+  int has_dump_to_protobuf = args->dump_insn_to_pb || args->dump_txn_to_pb || args->dump_block_to_pb || args->dump_syscall_to_pb || args->dump_elf_to_pb;
 
   if( has_solcap || has_checkpt || has_checkpt_funk || has_dump_to_protobuf ) {
     FILE * capture_file = NULL;
@@ -695,6 +693,8 @@ fd_ledger_capture_setup( fd_ledger_args_t * args ) {
       args->capture_ctx->dump_insn_to_pb       = args->dump_insn_to_pb;
       args->capture_ctx->dump_txn_to_pb        = args->dump_txn_to_pb;
       args->capture_ctx->dump_block_to_pb      = args->dump_block_to_pb;
+      args->capture_ctx->dump_syscall_to_pb    = args->dump_syscall_to_pb;
+      args->capture_ctx->dump_elf_to_pb        = args->dump_elf_to_pb;
       args->capture_ctx->dump_proto_sig_filter = args->dump_proto_sig_filter;
       args->capture_ctx->dump_proto_output_dir = args->dump_proto_output_dir;
       args->capture_ctx->dump_proto_start_slot = args->dump_proto_start_slot;
@@ -726,11 +726,6 @@ fd_ledger_main_setup( fd_ledger_args_t * args ) {
   fd_bpf_scan_and_create_bpf_program_cache_entry_para( args->slot_ctx,
                                                        args->runtime_spad,
                                                        &exec_para_ctx );
-
-  /* First, load in the sysvars into the sysvar cache. This is required to
-      make the StakeHistory sysvar available to the rewards calculation. */
-
-  fd_runtime_sysvar_cache_load( args->slot_ctx, args->runtime_spad );
 
   /* After both snapshots have been loaded in, we can determine if we should
       start distributing rewards. */
@@ -903,20 +898,23 @@ parse_rocksdb_list( fd_ledger_args_t * args,
 
 void
 init_funk( fd_ledger_args_t * args ) {
-  fd_funk_t * funk;
-  if( args->restore_funk ) {
-    funk = fd_funk_recover_checkpoint( args->funk, args->funk_file, 1, args->restore_funk, &args->funk_close_args );
-  } else  {
-    funk = fd_funk_open_file( args->funk, args->funk_file, 1, args->hashseed, args->txns_max, args->index_max, args->funk_page_cnt*(1UL<<30), FD_FUNK_OVERWRITE, &args->funk_close_args );
+  ulong funk_tag = 42UL;
+  void * funk_shmem = fd_funk_new( fd_wksp_alloc_laddr(
+      args->funk_wksp,
+      fd_funk_align(),
+      fd_funk_footprint( args->txns_max, args->index_max ),
+      funk_tag
+    ),
+    funk_tag,
+    args->hashseed,
+    args->txns_max,
+    args->index_max
+  );
+  if( FD_UNLIKELY( !funk_shmem ) ) {
+    FD_LOG_ERR(( "Failed to allocate shmem for funk" ));
   }
-  if( FD_UNLIKELY( !funk ) ) FD_LOG_ERR(( "Failed to join funk" ));
-  args->funk_wksp = fd_funk_wksp( funk );
-  FD_LOG_NOTICE(( "Funk database is at %s:0x%lx", fd_wksp_name( args->wksp ), fd_wksp_gaddr_fast( args->funk_wksp, funk ) ));
-}
-
-void
-cleanup_funk( fd_ledger_args_t * args ) {
-  fd_funk_close_file( &args->funk_close_args );
+  fd_funk_join( args->funk, funk_shmem );
+  FD_LOG_NOTICE(( "Funk database is at %s:0x%lx", fd_wksp_name( args->wksp ), fd_wksp_gaddr_fast( args->funk_wksp, args->funk ) ));
 }
 
 void
@@ -1082,7 +1080,7 @@ ingest( fd_ledger_args_t * args ) {
   fd_exec_epoch_ctx_t * epoch_ctx = fd_exec_epoch_ctx_join( fd_exec_epoch_ctx_new( epoch_ctx_mem, args->vote_acct_max ) );
 
   uchar slot_ctx_mem[FD_EXEC_SLOT_CTX_FOOTPRINT] __attribute__((aligned(FD_EXEC_SLOT_CTX_ALIGN)));
-  fd_exec_slot_ctx_t * slot_ctx = fd_exec_slot_ctx_join( fd_exec_slot_ctx_new( slot_ctx_mem, spad ) );
+  fd_exec_slot_ctx_t * slot_ctx = fd_exec_slot_ctx_join( fd_exec_slot_ctx_new( slot_ctx_mem ) );
   slot_ctx->epoch_ctx = epoch_ctx;
   args->slot_ctx = slot_ctx;
 
@@ -1141,7 +1139,7 @@ ingest( fd_ledger_args_t * args ) {
     fd_runtime_read_genesis( slot_ctx, args->genesis, args->snapshot != NULL, NULL, args->runtime_spad );
   }
 
-  if( !args->snapshot && (args->restore_funk != NULL || args->restore != NULL) ) {
+  if( !args->snapshot && (args->restore != NULL) ) {
     fd_runtime_recover_banks( slot_ctx, 0, 1, args->runtime_spad );
   }
 
@@ -1187,8 +1185,6 @@ ingest( fd_ledger_args_t * args ) {
 #endif
 
   checkpt( args );
-
-  cleanup_funk( args );
 }
 
 int
@@ -1272,7 +1268,7 @@ replay( fd_ledger_args_t * args ) {
   fd_memcpy( &args->epoch_ctx->runtime_public->features, &args->epoch_ctx->features, sizeof(fd_features_t) );
 
   void * slot_ctx_mem        = fd_spad_alloc_check( spad, FD_EXEC_SLOT_CTX_ALIGN, FD_EXEC_SLOT_CTX_FOOTPRINT );
-  args->slot_ctx             = fd_exec_slot_ctx_join( fd_exec_slot_ctx_new( slot_ctx_mem, spad ) );
+  args->slot_ctx             = fd_exec_slot_ctx_join( fd_exec_slot_ctx_new( slot_ctx_mem ) );
   args->slot_ctx->epoch_ctx  = args->epoch_ctx;
   args->slot_ctx->funk       = funk;
   args->slot_ctx->blockstore = args->blockstore;
@@ -1346,8 +1342,6 @@ replay( fd_ledger_args_t * args ) {
 
   fd_ledger_main_teardown( args );
 
-  cleanup_funk( args );
-
   return ret;
 
   } FD_SPAD_FRAME_END;
@@ -1369,8 +1363,7 @@ initial_setup( int argc, char ** argv, fd_ledger_args_t * args ) {
   int          reset                 = fd_env_strip_cmdline_int   ( &argc, &argv, "--reset",                 NULL, 0                                                  );
   char const * cmd                   = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--cmd",                   NULL, NULL                                               );
   uint        index_max              = fd_env_strip_cmdline_uint  ( &argc, &argv, "--index-max",             NULL, 450000000                                          );
-  ulong        txns_max              = fd_env_strip_cmdline_ulong ( &argc, &argv, "--txn-max",               NULL,      1000                                          );
-  char const * funk_file             = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--funk-file",             NULL, NULL                                               );
+  ulong        txns_max              = fd_env_strip_cmdline_ulong ( &argc, &argv, "--txn-max",               NULL,      100                                          );
   int          verify_funk           = fd_env_strip_cmdline_int   ( &argc, &argv, "--verify-funky",          NULL, 0                                                  );
   char const * snapshot              = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--snapshot",              NULL, NULL                                               );
   char const * incremental           = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--incremental",           NULL, NULL                                               );
@@ -1383,7 +1376,6 @@ initial_setup( int argc, char ** argv, fd_ledger_args_t * args ) {
   uint         verify_acc_hash       = fd_env_strip_cmdline_uint  ( &argc, &argv, "--verify-acc-hash",       NULL, 1                                                  );
   uint         check_acc_hash        = fd_env_strip_cmdline_uint  ( &argc, &argv, "--check-acc-hash",        NULL, 1                                                  );
   char const * restore               = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--restore",               NULL, NULL                                               );
-  char const * restore_funk          = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--funk-restore",          NULL, NULL                                               );
   char const * shredcap              = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--shred-cap",             NULL, NULL                                               );
   ulong        trash_hash            = fd_env_strip_cmdline_ulong ( &argc, &argv, "--trash-hash",            NULL, ULONG_MAX                                          );
   char const * mini_db_dir           = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--minified-rocksdb",      NULL, NULL                                               );
@@ -1401,6 +1393,8 @@ initial_setup( int argc, char ** argv, fd_ledger_args_t * args ) {
   int          dump_insn_to_pb       = fd_env_strip_cmdline_int   ( &argc, &argv, "--dump-insn-to-pb",       NULL, 0                                                  );
   int          dump_txn_to_pb        = fd_env_strip_cmdline_int   ( &argc, &argv, "--dump-txn-to-pb",        NULL, 0                                                  );
   int          dump_block_to_pb      = fd_env_strip_cmdline_int   ( &argc, &argv, "--dump-block-to-pb",      NULL, 0                                                  );
+  int          dump_syscall_to_pb    = fd_env_strip_cmdline_int   ( &argc, &argv, "--dump-syscall-to-pb",    NULL, 0                                                  );
+  int          dump_elf_to_pb        = fd_env_strip_cmdline_int   ( &argc, &argv, "--dump-elf-to-pb",        NULL, 0                                                  );
   ulong        dump_proto_start_slot = fd_env_strip_cmdline_ulong ( &argc, &argv, "--dump-proto-start-slot", NULL, 0                                                  );
   char const * dump_proto_sig_filter = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--dump-proto-sig-filter", NULL, NULL                                               );
   char const * dump_proto_output_dir = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--dump-proto-output-dir", NULL, NULL                                               );
@@ -1454,6 +1448,16 @@ initial_setup( int argc, char ** argv, fd_ledger_args_t * args ) {
   }
   args->wksp = wksp;
 
+  args->funk_wksp = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ,
+    funk_page_cnt*(1UL<<18),
+    0,
+    "funk",
+    0
+  );
+  if( FD_UNLIKELY( !args->funk_wksp ) ) {
+    FD_LOG_ERR(( "failed to create funk workspace" ));
+  }
+
   if( checkpt_status_cache && checkpt_status_cache[0] != '\0' ) {
     FD_LOG_NOTICE(( "Creating status cache wksp" ));
     fd_wksp_t * status_cache_wksp = fd_wksp_new_anonymous( FD_SHMEM_GIGANTIC_PAGE_SZ, 23UL, 0, "status_cache_wksp", 0UL );
@@ -1484,9 +1488,7 @@ initial_setup( int argc, char ** argv, fd_ledger_args_t * args ) {
   args->txns_max                = txns_max;
   args->index_max               = index_max;
   args->funk_page_cnt           = funk_page_cnt;
-  args->funk_file               = funk_file;
   args->restore                 = restore;
-  args->restore_funk            = restore_funk;
   args->mini_db_dir             = mini_db_dir;
   args->funk_only               = funk_only;
   args->copy_txn_status         = copy_txn_status;
@@ -1509,6 +1511,8 @@ initial_setup( int argc, char ** argv, fd_ledger_args_t * args ) {
   args->dump_insn_to_pb         = dump_insn_to_pb;
   args->dump_txn_to_pb          = dump_txn_to_pb;
   args->dump_block_to_pb        = dump_block_to_pb;
+  args->dump_syscall_to_pb      = dump_syscall_to_pb;
+  args->dump_elf_to_pb          = dump_elf_to_pb;
   args->dump_proto_start_slot   = dump_proto_start_slot;
   args->dump_proto_sig_filter   = dump_proto_sig_filter;
   args->dump_proto_output_dir   = dump_proto_output_dir;

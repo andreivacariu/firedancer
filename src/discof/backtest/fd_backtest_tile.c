@@ -1,14 +1,8 @@
-#if FD_HAS_ROCKSDB
+#include "../../disco/tiles.h"
+#include "../../disco/fd_disco.h"
+#include "../../disco/stem/fd_stem.h"
+#include "../../choreo/tower/fd_tower.h"
 
-#define _GNU_SOURCE  /* Enable GNU and POSIX extensions */
-#include "fd_archiver.h"
-#include <fcntl.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <linux/unistd.h>
-#include <sys/socket.h>
 #include "../../util/pod/fd_pod_format.h"
 #include "../../flamenco/runtime/fd_rocksdb.h"
 #include "../../discof/replay/fd_replay_notif.h"
@@ -18,7 +12,7 @@
 
 #define FD_ARCHIVER_ROCKSDB_ALLOC_TAG (4UL)
 
-struct fd_archiver_backtest_tile_ctx {
+typedef struct {
   ulong                  use_rocksdb;
   fd_rocksdb_t           rocksdb;
   rocksdb_iterator_t *   rocksdb_iter;
@@ -39,89 +33,28 @@ struct fd_archiver_backtest_tile_ctx {
   ulong                  replay_in_wmark;
   fd_replay_notif_msg_t  replay_notification;
 
+  ulong                  tower_replay_out_idx;
+
   ulong                  playback_started;
-  ulong                  playback_end_slot;
-  ulong                  playback_start_slot;
+  ulong                  end_slot;
+  ulong                  start_slot;
 
   ulong *                published_wmark; /* same as the one in replay tile */
   fd_alloc_t *           alloc;
   fd_valloc_t            valloc;
-};
-typedef struct fd_archiver_backtest_tile_ctx fd_archiver_backtest_tile_ctx_t;
+  long                   replay_time;
+  ulong                  slot_cnt;
+
+  fd_tower_t *           tower;
+} ctx_t;
 
 FD_FN_PURE static inline ulong
 loose_footprint( fd_topo_tile_t const * tile FD_PARAM_UNUSED ) {
   return 2UL * FD_SHMEM_GIGANTIC_PAGE_SZ;
 }
 
-static void
-rocksdb_inspect( fd_archiver_backtest_tile_ctx_t * ctx ) {
-  ulong start_slot = 0;
-  ulong end_slot   = 0;
-  ulong shred_cnt  = 0;
-  do {
-    if( FD_UNLIKELY( fd_rocksdb_root_iter_next( &ctx->rocksdb_root_iter, &ctx->rocksdb_slot_meta, ctx->valloc ) ) ) break;
-    if( FD_UNLIKELY( fd_rocksdb_get_meta( &ctx->rocksdb, ctx->rocksdb_slot_meta.slot, &ctx->rocksdb_slot_meta, ctx->valloc ) ) ) break;
-    if( FD_UNLIKELY( ctx->rocksdb_slot_meta.slot>ctx->playback_end_slot ) ) break;
-    ulong slot = ctx->rocksdb_slot_meta.slot;
-    ulong start_idx = 0;
-    ulong end_idx = ctx->rocksdb_slot_meta.received;
-
-    rocksdb_iterator_t * iter = rocksdb_create_iterator_cf(ctx->rocksdb.db, ctx->rocksdb.ro, ctx->rocksdb.cf_handles[FD_ROCKSDB_CFIDX_DATA_SHRED]);
-
-    char k[16];
-    *((ulong *) &k[0]) = fd_ulong_bswap(slot);
-    *((ulong *) &k[8]) = fd_ulong_bswap(start_idx);
-
-    rocksdb_iter_seek(iter, (const char *) k, sizeof(k));
-
-    for (ulong i = start_idx; i < end_idx; i++) {
-      ulong cur_slot, index;
-      uchar valid = rocksdb_iter_valid(iter);
-
-      if (valid) {
-        size_t klen = 0;
-        const char* key = rocksdb_iter_key(iter, &klen); // There is no need to free key
-            if (klen != 16)  // invalid key
-              FD_LOG_ERR(( "rocksdb has invalid key length" ));
-            cur_slot = fd_ulong_bswap(*((ulong *) &key[0]));
-            index = fd_ulong_bswap(*((ulong *) &key[8]));
-      }
-
-      if (!valid || cur_slot != slot)
-        FD_LOG_ERR(("missing shreds for slot %lu, valid=%u", slot, valid));
-
-      if (index != i)
-        FD_LOG_ERR(("missing shred %lu at index %lu for slot %lu", i, index, slot));
-
-      size_t dlen = 0;
-      // Data was first copied from disk into memory to make it available to this API
-      const unsigned char *data = (const unsigned char *) rocksdb_iter_value(iter, &dlen);
-      if (data == NULL)
-        FD_LOG_ERR(("failed to read shred %lu/%lu", slot, i));
-
-      // This just correctly selects from inside the data pointer to the
-      // actual data without a memory copy
-      fd_shred_t const * shred = fd_shred_parse( data, (ulong) dlen );
-      if( start_slot==0 ) start_slot = shred->slot;
-      end_slot = shred->slot;
-      shred_cnt++;
-
-      rocksdb_iter_next(iter);
-    }
-  } while(1);
-
-  ctx->rocksdb_end_slot=end_slot;
-  if( FD_UNLIKELY( ctx->rocksdb_end_slot<ctx->playback_end_slot ) ) {
-    FD_LOG_ERR(( "RocksDB only has shreds up to slot=%lu, so it cannot playback to end_slot=%lu",
-                 ctx->rocksdb_end_slot, ctx->playback_end_slot ));
-  }
-  FD_LOG_NOTICE(( "RocksDB contains %lu shreds from slot %lu to %lu", shred_cnt, start_slot, end_slot ));
-  FD_TEST( shred_cnt>0 );
-}
-
 static fd_shred_t const *
-rocksdb_get_shred( fd_archiver_backtest_tile_ctx_t * ctx,
+rocksdb_get_shred( ctx_t * ctx,
                    ulong                           * out_sz ) {
   if( ctx->rocksdb_curr_idx==ctx->rocksdb_end_idx ) {
     if( FD_UNLIKELY( fd_rocksdb_root_iter_next( &ctx->rocksdb_root_iter, &ctx->rocksdb_slot_meta, ctx->valloc ) ) ) return NULL;
@@ -170,11 +103,10 @@ rocksdb_get_shred( fd_archiver_backtest_tile_ctx_t * ctx,
 }
 
 static void
-notify_one_slot( fd_archiver_backtest_tile_ctx_t * ctx,
-                 fd_stem_context_t *               stem ) {
+notify_one_slot( ctx_t * ctx, fd_stem_context_t * stem ) {
   uint entry_batch_start_idx = 0;
   int  slot_complete         = 0;
-  while(!slot_complete) {
+  while( !slot_complete ) {
     ulong sz                 = 0;
     fd_shred_t const * shred = rocksdb_get_shred( ctx, &sz );
     if( FD_UNLIKELY( shred==NULL ) ) {
@@ -196,12 +128,25 @@ notify_one_slot( fd_archiver_backtest_tile_ctx_t * ctx,
 }
 
 static void
+notify_tower_root( ctx_t *             ctx,
+                   fd_stem_context_t * stem,
+                   ulong               tsorig,
+                   ulong               tspub ) {
+  ulong replayed_slot = ctx->replay_notification.slot_exec.slot;
+  ulong root          = fd_tower_vote( ctx->tower, replayed_slot );
+  if( FD_LIKELY( root != FD_SLOT_NULL ) ) {
+    fd_stem_publish( stem, ctx->tower_replay_out_idx, root, 0UL, 0UL, 0UL, tsorig, tspub );
+  }
+}
+
+static void
 unprivileged_init( fd_topo_t *      topo,
                    fd_topo_tile_t * tile ) {
   void * scratch = fd_topo_obj_laddr( topo, tile->tile_obj_id );
   FD_SCRATCH_ALLOC_INIT( l, scratch );
-  fd_archiver_backtest_tile_ctx_t * ctx = FD_SCRATCH_ALLOC_APPEND( l, alignof(fd_archiver_backtest_tile_ctx_t), sizeof(fd_archiver_backtest_tile_ctx_t) );
-  void * alloc_shmem                   = FD_SCRATCH_ALLOC_APPEND( l, fd_alloc_align(), fd_alloc_footprint() );
+  ctx_t * ctx = FD_SCRATCH_ALLOC_APPEND( l, alignof(ctx_t), sizeof(ctx_t) );
+  void * alloc_shmem = FD_SCRATCH_ALLOC_APPEND( l, fd_alloc_align(), fd_alloc_footprint() );
+  void * tower_mem   = FD_SCRATCH_ALLOC_APPEND( l, fd_tower_align(), fd_tower_footprint() );
   FD_SCRATCH_ALLOC_FINI( l, 4096UL );
 
   /* Allocator */
@@ -210,6 +155,12 @@ unprivileged_init( fd_topo_t *      topo,
     FD_LOG_ERR( ( "fd_alloc_join failed" ) );
   }
   ctx->valloc = fd_alloc_virtual( ctx->alloc );
+
+  /* Tower */
+  ctx->tower = fd_tower_join( fd_tower_new( tower_mem ) );
+  if( FD_UNLIKELY( !ctx->tower ) ) {
+    FD_LOG_ERR( ( "fd_tower_join failed" ) );
+  }
 
   ctx->rocksdb_curr_idx = 0;
   ctx->rocksdb_end_idx  = 0;
@@ -228,10 +179,24 @@ unprivileged_init( fd_topo_t *      topo,
   ctx->replay_in_chunk0           = fd_dcache_compact_chunk0( ctx->replay_in_mem, replay_in_link->dcache );
   ctx->replay_in_wmark            = fd_dcache_compact_wmark( ctx->replay_in_mem, replay_in_link->dcache, replay_in_link->mtu );
 
+  ctx->tower_replay_out_idx = fd_topo_find_tile_out_link( topo, tile, "tower_replay", 0 );
+  FD_TEST( ctx->tower_replay_out_idx!= ULONG_MAX );
+
   ctx->playback_started           = 0;
-  ctx->playback_end_slot          = tile->archiver.end_slot;
-  ctx->playback_start_slot        = ULONG_MAX;
-  if( FD_UNLIKELY( 0==ctx->playback_end_slot ) ) FD_LOG_ERR(( "end_slot is required for rocksdb playback" ));
+  ctx->end_slot          = tile->archiver.end_slot;
+  ctx->start_slot        = ULONG_MAX;
+  if( FD_UNLIKELY( 0==ctx->end_slot ) ) FD_LOG_ERR(( "end_slot is required for rocksdb playback" ));
+
+  char * err = NULL;
+  ulong rocksdb_end_slot = fd_rocksdb_last_slot( &ctx->rocksdb, &err );
+  if( FD_UNLIKELY( err!=NULL ) ) {
+    FD_LOG_ERR(( "fd_rocksdb_last_slot returned %s", err ));
+  }
+  if( FD_UNLIKELY( rocksdb_end_slot<ctx->end_slot ) ) {
+    FD_LOG_ERR(( "RocksDB only has shreds up to slot=%lu, so it cannot playback to end_slot=%lu",
+                 rocksdb_end_slot, ctx->end_slot ));
+  }
+  ctx->rocksdb_end_slot=rocksdb_end_slot;
 
   /* Setup the blockstore */
   ulong blockstore_obj_id = fd_pod_queryf_ulong( topo->props, ULONG_MAX, "blockstore" );
@@ -250,25 +215,31 @@ unprivileged_init( fd_topo_t *      topo,
   FD_TEST( root_slot_obj_id!=ULONG_MAX );
   ctx->published_wmark = fd_fseq_join( fd_topo_obj_laddr( topo, root_slot_obj_id ) );
 
-  FD_LOG_WARNING(( "Rocksdb tile finishes initialization" ));
+  ctx->replay_time = LONG_MAX;
+  ctx->slot_cnt    = 0UL;
+
+  FD_LOG_NOTICE(("Finished unprivileged init"));
 }
 
 static void
-after_credit( fd_archiver_backtest_tile_ctx_t * ctx,
+after_credit( ctx_t * ctx,
               fd_stem_context_t *               stem,
               int *                             opt_poll_in FD_PARAM_UNUSED,
               int *                             charge_busy FD_PARAM_UNUSED ) {
   if( FD_UNLIKELY( !ctx->playback_started ) ) {
     ulong wmark = fd_fseq_query( ctx->published_wmark );
     if( wmark==ULONG_MAX ) return;
-    if( ctx->playback_start_slot==ULONG_MAX ) ctx->playback_start_slot=wmark;
+    if( ctx->start_slot==ULONG_MAX ) ctx->start_slot=wmark;
     if( wmark!=ctx->replay_notification.slot_exec.slot ) return;
+
+    if (ctx->replay_time==LONG_MAX) {
+      ctx->replay_time = -fd_log_wallclock();
+    }
 
     ctx->playback_started=1;
     fd_rocksdb_root_iter_new( &ctx->rocksdb_root_iter );
     if( FD_UNLIKELY( fd_rocksdb_root_iter_seek( &ctx->rocksdb_root_iter, &ctx->rocksdb, wmark, &ctx->rocksdb_slot_meta, ctx->valloc ) ) )
         FD_LOG_ERR(( "Failed at seeking rocksdb root iter for slot=%lu", wmark ));
-    rocksdb_inspect( ctx );
 
     fd_rocksdb_root_iter_new( &ctx->rocksdb_root_iter );
     if( FD_UNLIKELY( fd_rocksdb_root_iter_seek( &ctx->rocksdb_root_iter, &ctx->rocksdb, wmark, &ctx->rocksdb_slot_meta, ctx->valloc ) ) )
@@ -280,7 +251,7 @@ after_credit( fd_archiver_backtest_tile_ctx_t * ctx,
 }
 
 static void
-during_frag( fd_archiver_backtest_tile_ctx_t * ctx,
+during_frag( ctx_t * ctx,
              ulong                             in_idx,
              ulong                             seq FD_PARAM_UNUSED,
              ulong                             sig FD_PARAM_UNUSED,
@@ -293,13 +264,13 @@ during_frag( fd_archiver_backtest_tile_ctx_t * ctx,
 }
 
 static void
-after_frag( fd_archiver_backtest_tile_ctx_t * ctx,
+after_frag( ctx_t * ctx,
             ulong                             in_idx FD_PARAM_UNUSED,
             ulong                             seq FD_PARAM_UNUSED,
             ulong                             sig FD_PARAM_UNUSED,
             ulong                             sz FD_PARAM_UNUSED,
-            ulong                             tsorig FD_PARAM_UNUSED,
-            ulong                             tspub FD_PARAM_UNUSED,
+            ulong                             tsorig,
+            ulong                             tspub,
             fd_stem_context_t *               stem ) {
   if( FD_LIKELY( ctx->replay_notification.type==FD_REPLAY_SLOT_TYPE ) ) {
     ulong slot            = ctx->replay_notification.slot_exec.slot;
@@ -307,6 +278,7 @@ after_frag( fd_archiver_backtest_tile_ctx_t * ctx,
     fd_hash_t * bank_hash = &ctx->replay_notification.slot_exec.bank_hash;
 
     /* Compare bank_hash with the record in rocksdb */
+
     size_t vallen = 0;
     char * err = NULL;
     char * res = rocksdb_get_cf(
@@ -333,9 +305,10 @@ after_frag( fd_archiver_backtest_tile_ctx_t * ctx,
       FD_LOG_ERR(( "Failed at decoding bank hash from rocksdb" ));
     }
 
-    if( slot!=ctx->playback_start_slot && ctx->playback_start_slot!=ULONG_MAX ) {
+    if( slot!=ctx->start_slot && ctx->start_slot!=ULONG_MAX ) {
+      ctx->slot_cnt++;
       if( FD_LIKELY( !memcmp( bank_hash, &versioned->inner.current.frozen_hash, sizeof(fd_hash_t) ) ) ) {
-        FD_LOG_WARNING(( "Bank hash matches! slot=%lu, hash=%s", slot, FD_BASE58_ENC_32_ALLOCA( bank_hash->hash ) ));
+        FD_LOG_NOTICE(( "Bank hash matches! slot=%lu, hash=%s", slot, FD_BASE58_ENC_32_ALLOCA( bank_hash->hash ) ));
       } else {
         FD_LOG_ERR(( "Bank hash mismatch! slot=%lu expected=%s, got=%s",
                     slot,
@@ -343,44 +316,36 @@ after_frag( fd_archiver_backtest_tile_ctx_t * ctx,
                     FD_BASE58_ENC_32_ALLOCA( bank_hash->hash ) ));
       }
     }
+    notify_tower_root( ctx, stem, tsorig, tspub );
     notify_one_slot( ctx, stem );
 
-    if( FD_UNLIKELY( slot>=ctx->playback_end_slot ) ) FD_LOG_ERR(( "Rocksdb playback done." ));
+    if( FD_UNLIKELY( slot>=ctx->end_slot ) ) {
+      ctx->replay_time += fd_log_wallclock();
+      double replay_time_s = (double)ctx->replay_time * 1e-9;
+      double sec_per_slot  = replay_time_s / (double)ctx->slot_cnt;
+      FD_LOG_NOTICE((
+            "replay completed - slots: %lu, elapsed: %6.6f s, sec/slot: %6.6f",
+            ctx->slot_cnt,
+            replay_time_s,
+            sec_per_slot ));
+      FD_LOG_ERR(( "Rocksdb playback done." ));
+    }
   }
 }
 
 #define STEM_BURST                  (1UL)
-#define STEM_CALLBACK_CONTEXT_TYPE  fd_archiver_backtest_tile_ctx_t
-#define STEM_CALLBACK_CONTEXT_ALIGN alignof(fd_archiver_backtest_tile_ctx_t)
+#define STEM_CALLBACK_CONTEXT_TYPE  ctx_t
+#define STEM_CALLBACK_CONTEXT_ALIGN alignof(ctx_t)
 
 #define STEM_CALLBACK_AFTER_CREDIT  after_credit
 #define STEM_CALLBACK_DURING_FRAG   during_frag
 #define STEM_CALLBACK_AFTER_FRAG    after_frag
 
-#include "../stem/fd_stem.c"
+#include "../../disco/stem/fd_stem.c"
 
-fd_topo_run_tile_t fd_tile_archiver_backtest = {
-  .name                     = "btest",
+fd_topo_run_tile_t fd_tile_backtest = {
+  .name                     = "back",
   .loose_footprint          = loose_footprint,
   .unprivileged_init        = unprivileged_init,
   .run                      = stem_run,
 };
-
-#else /* RocksDB not supported */
-
-#include "../topo/fd_topo.h"
-
-static void
-unprivileged_init( fd_topo_t *      topo,
-                   fd_topo_tile_t * tile ) {
-  (void)topo; (void)tile;
-  FD_LOG_ERR(( "backtest functionality is unavailable: Build does not include RocksDB support.\n"
-               "To fix, run ./deps.sh +dev and do a clean rebuild." ));
-}
-
-fd_topo_run_tile_t fd_tile_archiver_backtest = {
-  .name              = "btest",
-  .unprivileged_init = unprivileged_init,
-};
-
-#endif /* FD_HAS_ROCKSDB */

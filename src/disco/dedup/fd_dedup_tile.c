@@ -16,9 +16,9 @@
    checks the transaction signature field for duplicates and filters
    them out. */
 
-#define IN_KIND_GOSSIP (0UL)
-#define IN_KIND_VOTER  (1UL)
-#define IN_KIND_VERIFY (2UL)
+#define IN_KIND_GOSSIP       (0UL)
+#define IN_KIND_VERIFY       (1UL)
+#define IN_KIND_EXECUTED_TXN (2UL)
 
 /* fd_dedup_in_ctx_t is a context object for each in (producer) mcache
    connected to the dedup tile. */
@@ -27,6 +27,7 @@ typedef struct {
   fd_wksp_t * mem;
   ulong       chunk0;
   ulong       wmark;
+  ulong       mtu;
 } fd_dedup_in_ctx_t;
 
 /* fd_dedup_ctx_t is the context object provided to callbacks from the
@@ -107,19 +108,26 @@ during_frag( fd_dedup_ctx_t * ctx,
              ulong            sz,
              ulong            ctl FD_PARAM_UNUSED ) {
 
-  if( FD_UNLIKELY( chunk<ctx->in[ in_idx ].chunk0 || chunk>ctx->in[ in_idx ].wmark || sz>FD_TPU_PARSED_MTU ) )
+  if( FD_UNLIKELY( chunk<ctx->in[ in_idx ].chunk0 || chunk>ctx->in[ in_idx ].wmark || sz>ctx->in[ in_idx ].mtu ) )
     FD_LOG_ERR(( "chunk %lu %lu corrupt, not in range [%lu,%lu]", chunk, sz, ctx->in[ in_idx ].chunk0, ctx->in[ in_idx ].wmark ));
 
   uchar * src = (uchar *)fd_chunk_to_laddr( ctx->in[ in_idx ].mem, chunk );
   uchar * dst = (uchar *)fd_chunk_to_laddr( ctx->out_mem, ctx->out_chunk );
 
-  if( FD_UNLIKELY( ctx->in_kind[ in_idx ]==IN_KIND_GOSSIP || ctx->in_kind[ in_idx ]==IN_KIND_VOTER ) ) {
-    if( FD_UNLIKELY( sz>FD_TPU_MTU ) ) FD_LOG_ERR(( "received a gossip or voter transaction that was too large" ));
+  if( FD_UNLIKELY( ctx->in_kind[ in_idx ]==IN_KIND_GOSSIP ) ) {
+    if( FD_UNLIKELY( sz>FD_TPU_MTU ) ) FD_LOG_ERR(( "received a gossip transaction that was too large" ));
 
     fd_txn_m_t * txnm = (fd_txn_m_t *)dst;
     txnm->payload_sz = (ushort)sz;
     fd_memcpy( fd_txn_m_payload( txnm ), src, sz );
     txnm->block_engine.bundle_id = 0UL;
+  } else if( FD_UNLIKELY( ctx->in_kind[ in_idx ]==IN_KIND_EXECUTED_TXN ) ) {
+    /* Executed txns just have their signature inserted into the tcache
+       so we can dedup them easily. */
+    ulong ha_dedup_tag = fd_hash( ctx->hashmap_seed, src+64UL, 64UL );
+    int _is_dup;
+    FD_TCACHE_INSERT( _is_dup, *ctx->tcache_sync, ctx->tcache_ring, ctx->tcache_depth, ctx->tcache_map, ctx->tcache_map_cnt, ha_dedup_tag );
+    (void)_is_dup;
   } else {
     fd_memcpy( dst, src, sz );
   }
@@ -146,6 +154,8 @@ after_frag( fd_dedup_ctx_t *    ctx,
   (void)sz;
   (void)_tspub;
 
+  if( FD_UNLIKELY( ctx->in_kind[ in_idx ]==IN_KIND_EXECUTED_TXN ) ) return;
+
   fd_txn_m_t * txnm = (fd_txn_m_t *)fd_chunk_to_laddr( ctx->out_mem, ctx->out_chunk );
   FD_TEST( txnm->payload_sz<=FD_TPU_MTU );
   fd_txn_t * txn = fd_txn_m_txn_t( txnm );
@@ -161,7 +171,7 @@ after_frag( fd_dedup_ctx_t *    ctx,
     return;
   }
 
-  if( FD_UNLIKELY( ctx->in_kind[ in_idx ]==IN_KIND_GOSSIP || ctx->in_kind[ in_idx]==IN_KIND_VOTER ) ) {
+  if( FD_UNLIKELY( ctx->in_kind[ in_idx ]==IN_KIND_GOSSIP ) ) {
     /* Transactions coming in from these links are not parsed.
 
        We'll need to parse it so it's ready for downstream consumers.
@@ -170,7 +180,7 @@ after_frag( fd_dedup_ctx_t *    ctx,
     txnm->txn_t_sz = (ushort)fd_txn_parse( fd_txn_m_payload( txnm ), txnm->payload_sz, txn, NULL );
     if( FD_UNLIKELY( !txnm->txn_t_sz ) ) FD_LOG_ERR(( "fd_txn_parse failed for vote transactions that should have been sigverified" ));
 
-    if( FD_UNLIKELY( ctx->in_kind[ in_idx ]==IN_KIND_GOSSIP ) ) FD_MCNT_INC( DEDUP, GOSSIPED_VOTES_RECEIVED, 1UL );
+    FD_MCNT_INC( DEDUP, GOSSIPED_VOTES_RECEIVED, 1UL );
   }
 
   int is_dup = 0;
@@ -246,15 +256,16 @@ unprivileged_init( fd_topo_t *      topo,
     fd_topo_wksp_t * link_wksp = &topo->workspaces[ topo->objs[ link->dcache_obj_id ].wksp_id ];
 
     ctx->in[i].mem    = link_wksp->wksp;
+    ctx->in[i].mtu    = link->mtu;
     ctx->in[i].chunk0 = fd_dcache_compact_chunk0( ctx->in[i].mem, link->dcache );
     ctx->in[i].wmark  = fd_dcache_compact_wmark ( ctx->in[i].mem, link->dcache, link->mtu );
 
     if( !strcmp( link->name, "gossip_dedup" ) ) {
       ctx->in_kind[ i ] = IN_KIND_GOSSIP;
-    } else if( !strcmp( link->name, "voter_dedup" ) ) {
-      ctx->in_kind[ i ] = IN_KIND_VOTER;
     } else if( !strcmp( link->name, "verify_dedup" ) ) {
       ctx->in_kind[ i ] = IN_KIND_VERIFY;
+    } else if( !strcmp( link->name, "executed_txn" ) ) {
+      ctx->in_kind[ i ] = IN_KIND_EXECUTED_TXN;
     } else {
       FD_LOG_ERR(( "unexpected link name %s", link->name ));
     }

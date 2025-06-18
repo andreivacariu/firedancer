@@ -10,7 +10,6 @@
 #include "tls/fd_quic_tls.h"
 #include "fd_quic_stream_pool.h"
 #include "fd_quic_pretty_print.h"
-#include "fd_quic_svc_q.h"
 #include <math.h>
 
 #include "../../util/log/fd_dtrace.h"
@@ -42,7 +41,22 @@
 
 #define FD_QUIC_MAGIC (0xdadf8cfa01cc5460UL)
 
+/* FD_QUIC_SVC_{...} specify connection timer types. */
 
+#define FD_QUIC_SVC_INSTANT (0U)  /* as soon as possible */
+#define FD_QUIC_SVC_ACK_TX  (1U)  /* within local max_ack_delay (ACK TX coalesce) */
+#define FD_QUIC_SVC_WAIT    (2U)  /* within min(idle_timeout, peer max_ack_delay) */
+#define FD_QUIC_SVC_CNT     (3U)  /* number of FD_QUIC_SVC_{...} levels */
+
+/* fd_quic_svc_queue_t is a simple doubly linked list. */
+
+struct fd_quic_svc_queue {
+  /* FIXME track count */ // uint cnt;
+  uint head;
+  uint tail;
+};
+
+typedef struct fd_quic_svc_queue fd_quic_svc_queue_t;
 
 
 /* fd_quic_state_t is the internal state of an fd_quic_t.  Valid for
@@ -82,6 +96,8 @@ struct __attribute__((aligned(16UL))) fd_quic_state_private {
   fd_quic_stream_pool_t * stream_pool;    /* stream pool, nullable */
   fd_quic_pkt_meta_t    * pkt_meta_pool;
   fd_rng_t                _rng[1];        /* random number generator */
+  fd_quic_svc_queue_t     svc_queue[ FD_QUIC_SVC_CNT ]; /* dlists */
+  ulong                   svc_delay[ FD_QUIC_SVC_CNT ]; /* target service delay */
 
   /* need to be able to access connections by index */
   ulong                   conn_base;      /* address of array of all connections */
@@ -96,18 +112,12 @@ struct __attribute__((aligned(16UL))) fd_quic_state_private {
   /* last arp/routing tables update */
   ulong ip_table_upd;
 
-  /* state for QUIC sampling */
-  fd_quic_pretty_print_t quic_pretty_print;
-
   /* secret for generating RETRY tokens */
   uchar retry_secret[FD_QUIC_RETRY_SECRET_SZ];
   uchar retry_iv    [FD_QUIC_RETRY_IV_SZ];
 
   /* Scratch space for packet protection */
   uchar                   crypt_scratch[FD_QUIC_MTU];
-
-  /* the timer structs, large private fields / data follow */
-  fd_quic_svc_timers_t  * svc_timers;
 };
 
 /* FD_QUIC_STATE_OFF is the offset of fd_quic_state_t within fd_quic_t. */
@@ -155,6 +165,23 @@ fd_quic_get_state_const( fd_quic_t const * quic ) {
   return (fd_quic_state_t const *)( (ulong)quic + FD_QUIC_STATE_OFF );
 }
 
+static inline fd_quic_conn_map_t *
+fd_quic_conn_query1( fd_quic_conn_map_t * map,
+                     ulong                conn_id,
+                     fd_quic_conn_map_t * sentinel ) {
+  if( !conn_id ) return sentinel;
+  return fd_quic_conn_map_query( map, conn_id, sentinel );
+}
+
+static inline fd_quic_conn_t *
+fd_quic_conn_query( fd_quic_conn_map_t * map,
+                    ulong                conn_id ) {
+  fd_quic_conn_map_t sentinel = {0};
+  if( !conn_id ) return NULL;
+  fd_quic_conn_map_t * entry = fd_quic_conn_map_query( map, conn_id, &sentinel );
+  return entry->conn;
+}
+
 /* fd_quic_conn_service is called periodically to perform pending
    operations and time based operations.
 
@@ -167,6 +194,20 @@ fd_quic_conn_service( fd_quic_t *      quic,
                       fd_quic_conn_t * conn,
                       ulong            now );
 
+/* fd_quic_svc_schedule installs a connection timer.  svc_type is in
+   [0,FD_QUIC_SVC_CNT) and specifies the timer delay.  Lower timers
+   override higher ones. */
+
+void
+fd_quic_svc_schedule( fd_quic_state_t * state,
+                      fd_quic_conn_t *  conn,
+                      uint              svc_type );
+
+static inline void
+fd_quic_svc_schedule1( fd_quic_conn_t * conn,
+                       uint             svc_type ) {
+  fd_quic_svc_schedule( fd_quic_get_state( conn->quic ), conn, svc_type );
+}
 
 /* Memory management **************************************************/
 
@@ -180,8 +221,9 @@ fd_quic_conn_create( fd_quic_t *               quic,
                      ushort                    self_udp_port,
                      int                       server );
 
-/* fd_quic_conn_free frees up resources related to the connection and
-   returns it to the connection free list. */
+/* fd_quic_conn_free frees up most resources related to the connection
+   and returns it to the connection free list.  The dead conn remains in
+   the conn_id_map to catch inflight packets by the peer. */
 void
 fd_quic_conn_free( fd_quic_t *      quic,
                    fd_quic_conn_t * conn );
@@ -324,6 +366,14 @@ fd_quic_handle_v1_initial( fd_quic_t *               quic,
                            fd_quic_conn_id_t const * scid,
                            uchar *                   cur_ptr,
                            ulong                     cur_sz );
+ulong
+fd_quic_handle_v1_handshake(
+    fd_quic_t *      quic,
+    fd_quic_conn_t * conn,
+    fd_quic_pkt_t *  pkt,
+    uchar *          cur_ptr,
+    ulong            cur_sz
+);
 
 ulong
 fd_quic_handle_v1_one_rtt( fd_quic_t *      quic,

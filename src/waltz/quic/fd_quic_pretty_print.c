@@ -530,14 +530,10 @@ ip4_to_str( char buf[IP4_TO_STR_BUF_SZ], uint ip4_addr ) {
 
 
 ulong
-fd_quic_pretty_print_quic_pkt( fd_quic_pretty_print_t * pretty_print,
+fd_quic_pretty_print_quic_pkt( fd_quic_pretty_print_t * pkt_ctx,
                                ulong                    now,
                                uchar const *            buf,
-                               ulong                    buf_sz,
-                               char const *             flow,
-                               uint                     ip4_saddr,
-                               ushort                   udp_sport ) {
-  (void)pretty_print;
+                               ulong                    buf_sz ) {
   (void)now;
 
   char tmp_buf[16];
@@ -554,12 +550,29 @@ fd_quic_pretty_print_quic_pkt( fd_quic_pretty_print_t * pretty_print,
   uchar const * frame_ptr = NULL;
   ulong         frame_sz  = 0;
 
-  ulong sz = safe_snprintf( out_buf, out_buf_sz, "{ \"type\": \"packet\", \"flow\": \"%s\", ", flow );
+  ulong sz = safe_snprintf( out_buf, out_buf_sz, "{ \"type\": \"packet\", \"flow\": \"%s\", ",
+                            pkt_ctx->flow ? "egress" : "ingress" );
+  out_buf    += sz;
+  out_buf_sz -= sz;
+
+  /* */ sz = safe_snprintf( out_buf, out_buf_sz, "\"conn_idx\": %u, ",
+                            pkt_ctx->conn_idx );
+  out_buf    += sz;
+  out_buf_sz -= sz;
+
+  char time_str[FD_LOG_WALLCLOCK_CSTR_BUF_SZ];
+  /* */ sz = safe_snprintf( out_buf, out_buf_sz, "\"trace_time\": \"%s\", ",
+                            fd_log_wallclock_cstr( fd_log_wallclock(), time_str ) );
   out_buf    += sz;
   out_buf_sz -= sz;
 
   /* */ sz = safe_snprintf( out_buf, out_buf_sz, "\"src_ip_addr\": \"%s\", \"src_udp_port\": \"%u\", ",
-                            ip4_to_str( tmp_buf, ip4_saddr ), fd_ushort_bswap( udp_sport ) );
+                            ip4_to_str( tmp_buf, pkt_ctx->ip4_saddr ), fd_ushort_bswap( (ushort)pkt_ctx->udp_sport ) );
+  out_buf    += sz;
+  out_buf_sz -= sz;
+
+  /* */ sz = safe_snprintf( out_buf, out_buf_sz, "\"dst_ip_addr\": \"%s\", \"dst_udp_port\": \"%u\", ",
+                            ip4_to_str( tmp_buf, pkt_ctx->ip4_daddr ), fd_ushort_bswap( (ushort)pkt_ctx->udp_dport ) );
   out_buf    += sz;
   out_buf_sz -= sz;
 

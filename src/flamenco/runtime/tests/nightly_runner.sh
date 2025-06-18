@@ -1,7 +1,5 @@
 #!/bin/bash -f
 
-set -e
-
 # Pull the latest code
 cd $FD_NIGHTLY_REPO_DIR
 git checkout $FD_NIGHTLY_BRANCH
@@ -20,11 +18,34 @@ source ~/.cargo/env
 make -j
 
 # Run the tests
-make run-runtime-test-nightly > ~/nightly_run.txt
+make run-runtime-backtest-nightly > ~/nightly_run.txt
 
-make clean
-EXTRAS="asan deepasan" make -j
+send_slack_message() {
+    local MESSAGE="$1"
+    json_payload=$(cat <<EOF
+{
+    "text": "$MESSAGE",
+    "link_names": 1
+}
+EOF
+)
+    curl -X POST -H 'Content-type: application/json' --data "$json_payload" "$SLACK_WEBHOOK_URL"
+}
 
-make run-runtime-test-nightly-asan > ~/nightly_run_asan.txt
+set +e
+set -x
 
-make clean
+echo "Running Backtest Tests"
+
+./src/flamenco/runtime/tests/run_backtest_tests_all.sh
+status=$?
+
+set +x
+
+echo "Backtest script exit status: $status"
+
+if [ $status -eq 0 ]; then
+    send_slack_message "Nightly Backtest Passed"
+else
+    send_slack_message "@here Nightly Backtest Ledger Tests Failed"
+fi

@@ -17,13 +17,17 @@ struct fd_grpc_h2_stream {
   fd_grpc_resp_hdrs_t hdrs;
 
   /* Buffer an incoming gRPC message */
-  uchar msg_buf[ sizeof(fd_grpc_hdr_t)+FD_GRPC_CLIENT_MSG_SZ_MAX ];
-  uint  hdrs_received : 1;
-  ulong msg_buf_used; /* including header */
-  ulong msg_sz;       /* size of next message */
-};
+  uchar * msg_buf;
+  ulong   msg_buf_max;
+  uint    hdrs_received : 1;
+  ulong   msg_buf_used; /* including header */
+  ulong   msg_sz;       /* size of next message */
 
-typedef struct fd_grpc_h2_stream fd_grpc_h2_stream_t;
+  long header_deadline_nanos;  /* deadline to first resp header bit */
+  long rx_end_deadline_nanos;  /* deadline to end of stream signal */
+  uint has_header_deadline : 1;
+  uint has_rx_end_deadline : 1;
+};
 
 /* Declare a pool of stream objects.
 
@@ -99,6 +103,11 @@ struct fd_grpc_client_private {
   fd_h2_rbuf_t frame_rx[1]; /* unencrypted HTTP/2 RX frame buffer */
   fd_h2_rbuf_t frame_tx[1]; /* unencrypted HTTP/2 TX frame buffer */
 
+  /* HTTP/2 authority */
+  char   host[ 256 ];
+  ushort port; /* <=65535 */
+  uchar  host_len; /* <=255 */
+
   /* TLS connection */
   uint  ssl_hs_done : 1;
   uint  h2_hs_done : 1;
@@ -110,6 +119,7 @@ struct fd_grpc_client_private {
 
   /* Stream pool */
   fd_grpc_h2_stream_t * stream_pool;
+  uchar *               stream_bufs;
 
   /* Stream map */
   /* FIXME pull this into a fd_map_tiny.c? */
@@ -119,7 +129,15 @@ struct fd_grpc_client_private {
 
   /* Buffers */
   uchar * nanopb_tx;
+  ulong   nanopb_tx_max;
   uchar * frame_scratch;
+  ulong   frame_scratch_max;
+
+  /* Frame buffers */
+  uchar * frame_rx_buf;
+  ulong   frame_rx_buf_max;
+  uchar * frame_tx_buf;
+  ulong   frame_tx_buf_max;
 
   /* Version string */
   uchar version_len;
@@ -128,16 +146,41 @@ struct fd_grpc_client_private {
   fd_grpc_client_metrics_t * metrics;
 };
 
-struct fd_grpc_client_bufs {
-  /* Nanopb serialize buffer */
-  uchar nanopb_tx[ FD_GRPC_CLIENT_MSG_SZ_MAX ];
+FD_PROTOTYPES_BEGIN
 
-  /* Frame buffers */
-  uchar frame_rx_buf[ FD_GRPC_CLIENT_BUFSZ ];
-  uchar frame_tx_buf[ FD_GRPC_CLIENT_BUFSZ ];
-  uchar frame_scratch[ FD_GRPC_CLIENT_BUFSZ ];
-};
+/* fd_grpc_client_stream_acquire grabs a new stream ID and a stream
+   object. */
 
-typedef struct fd_grpc_client_bufs fd_grpc_client_bufs_t;
+int
+fd_grpc_client_stream_acquire_is_safe( fd_grpc_client_t * client );
+
+
+fd_grpc_h2_stream_t *
+fd_grpc_client_stream_acquire( fd_grpc_client_t * client,
+                               ulong              request_ctx );
+
+void
+fd_grpc_client_stream_release( fd_grpc_client_t *    client,
+                               fd_grpc_h2_stream_t * stream );
+
+/* fd_grpc_client_service_streams checks all streams for timeouts and
+   optionally generates receive window updates.
+   FIXME poor algorithmic inefficiency (O(n)).  Consider using a service
+         queue/heap */
+
+void
+fd_grpc_client_service_streams( fd_grpc_client_t * client,
+                                long               ts_nanos );
+
+void
+fd_grpc_h2_cb_headers(
+    fd_h2_conn_t *   conn,
+    fd_h2_stream_t * h2_stream,
+    void const *     data,
+    ulong            data_sz,
+    ulong            flags
+);
+
+FD_PROTOTYPES_END
 
 #endif /* HEADER_fd_src_waltz_grpc_fd_grpc_client_private_h */

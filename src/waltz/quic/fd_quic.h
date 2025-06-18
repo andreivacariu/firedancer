@@ -135,7 +135,6 @@ struct fd_quic_layout {
   int   lg_slot_cnt;       /* see conn_map_new                 */
   ulong hs_pool_off;       /* offset of the handshake pool     */
   ulong stream_pool_off;   /* offset of the stream pool        */
-  ulong svc_timers_off;    /* offset of the service timers     */
   ulong pkt_meta_pool_off; /* offset of the pkt_meta pool      */
 };
 
@@ -152,6 +151,28 @@ typedef ulong
    immutable during an active join. */
 
 struct __attribute__((aligned(16UL))) fd_quic_config {
+  /* Used by tracing/logging code */
+#define FD_QUIC_CONFIG_ENUM_LIST_role(X,...) \
+  X( FD_QUIC_ROLE_CLIENT, "ROLE_CLIENT" )    \
+  X( FD_QUIC_ROLE_SERVER, "ROLE_SERVER" )
+
+#define FD_QUIC_CONFIG_LIST(X,...) \
+  X( role,                        "%d",     enum,  "enum",         __VA_ARGS__ ) \
+  X( retry,                       "%d",     bool,  "bool",         __VA_ARGS__ ) \
+  X( tick_per_us,                 "%f",     units, "ticks per ms", __VA_ARGS__ ) \
+  X( idle_timeout,                "%lu",    units, "ns",           __VA_ARGS__ ) \
+  X( keep_alive,                  "%d",     bool,  "bool",         __VA_ARGS__ ) \
+  X( ack_delay,                   "%lu",    units, "ns",           __VA_ARGS__ ) \
+  X( ack_threshold,               "%lu",    units, "bytes",        __VA_ARGS__ ) \
+  X( retry_ttl,                   "%lu",    units, "ns",           __VA_ARGS__ ) \
+  X( tls_hs_ttl,                  "%lu",    units, "ns",           __VA_ARGS__ ) \
+  X( identity_public_key,         "%x",     hex32, "",             __VA_ARGS__ ) \
+  X( sign,                        "%p",     ptr,   "",             __VA_ARGS__ ) \
+  X( sign_ctx,                    "%p",     ptr,   "",             __VA_ARGS__ ) \
+  X( keylog_file,                 "%s",     value, "",             __VA_ARGS__ ) \
+  X( initial_rx_max_stream_data,  "%lu",    units, "bytes",        __VA_ARGS__ ) \
+  X( net.dscp,                    "0x%02x", value, "",             __VA_ARGS__ )
+
   /* Protocol config ***************************************/
 
   /* role: one of FD_QUIC_ROLE_{CLIENT,SERVER} */
@@ -326,9 +347,9 @@ union fd_quic_metrics {
     ulong pkt_decrypt_fail_cnt[4]; /* number of packets that failed decryption due to auth tag */
     ulong pkt_no_key_cnt[4];       /* number of packets that failed decryption due to missing key */
     ulong pkt_no_conn_cnt;         /* number of packets with unknown conn ID (excl. Initial) */
-    ulong pkt_tx_alloc_fail_cnt;   /* number of pkt_meta alloc fails */
+    ulong frame_tx_alloc_cnt[3];   /* number of pkt_meta alloc successes, fails for empty pool, fails at conn max */
     ulong pkt_verneg_cnt;          /* number of QUIC version negotiation packets or packets with wrong version */
-    ulong pkt_retransmissions_cnt;  /* number of pkt_meta retries */
+    ulong pkt_retransmissions_cnt; /* number of pkt_meta retries */
 
     /* Frame metrics */
     ulong frame_rx_cnt[ 22 ];      /* number of frames received (indexed by implementation-defined IDs) */
@@ -550,13 +571,13 @@ fd_quic_get_next_wakeup( fd_quic_t * quic );
 FD_QUIC_API int
 fd_quic_service( fd_quic_t * quic );
 
-/* fd_quic_state_validate checks for violations of service queue and free
+/* fd_quic_svc_validate checks for violations of service queue and free
    list invariants, such as cycles in linked lists.  Prints to warning/
    error log and exits the process if checks fail.  Intended for use in
    tests. */
 
 void
-fd_quic_state_validate( fd_quic_t * quic );
+fd_quic_svc_validate( fd_quic_t * quic );
 
 /* Stream Send API ****************************************************/
 

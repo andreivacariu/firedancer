@@ -33,7 +33,7 @@
 /* Sha256 pre-image size for pings */
 #define FD_PING_PRE_IMAGE_SZ (48UL)
 /* Number of peers to send requests to. */
-#define FD_REPAIR_NUM_NEEDED_PEERS (4)
+#define FD_REPAIR_NUM_NEEDED_PEERS (2)
 
 typedef fd_gossip_peer_addr_t fd_repair_peer_addr_t;
 
@@ -74,11 +74,11 @@ struct fd_active_elem {
     ulong next; /* used internally by fd_map_giant */
 
     fd_repair_peer_addr_t addr;
+    // Might be worth keeping these fields, but currently response rate is pretty high.
+    // latency could be a useful metric to keep track of.
     ulong avg_reqs; /* Moving average of the number of requests */
     ulong avg_reps; /* Moving average of the number of requests */
     long  avg_lat;  /* Moving average of response latency */
-    uchar sticky;
-    long  first_request_time;
     ulong stake;
 };
 /* Active table */
@@ -94,44 +94,44 @@ enum fd_needed_elem_type {
   fd_needed_window_index, fd_needed_highest_window_index, fd_needed_orphan
 };
 
-struct fd_dupdetect_key {
+struct fd_inflight_key {
   enum fd_needed_elem_type type;
   ulong slot;
   uint shred_index;
 };
-typedef struct fd_dupdetect_key fd_dupdetect_key_t;
+typedef struct fd_inflight_key fd_inflight_key_t;
 
-struct fd_dupdetect_elem {
-  fd_dupdetect_key_t key;
+struct fd_inflight_elem {
+  fd_inflight_key_t key;
   long               last_send_time;
   uint               req_cnt;
   ulong              next;
 };
-typedef struct fd_dupdetect_elem fd_dupdetect_elem_t;
+typedef struct fd_inflight_elem fd_inflight_elem_t;
 
 FD_FN_PURE static inline int
-fd_dupdetect_eq( const fd_dupdetect_key_t * key1, const fd_dupdetect_key_t * key2 ) {
+fd_inflight_eq( const fd_inflight_key_t * key1, const fd_inflight_key_t * key2 ) {
   return (key1->type == key2->type) &&
          (key1->slot == key2->slot) &&
          (key1->shred_index == key2->shred_index);
 }
 
 FD_FN_PURE static inline ulong
-fd_dupdetect_hash( const fd_dupdetect_key_t * key, ulong seed ) {
+fd_inflight_hash( const fd_inflight_key_t * key, ulong seed ) {
   return (key->slot + seed)*9540121337UL + key->shred_index*131U;
 }
 
 static inline void
-fd_dupdetect_copy( fd_dupdetect_key_t * keyd, const fd_dupdetect_key_t * keys ) {
+fd_inflight_copy( fd_inflight_key_t * keyd, const fd_inflight_key_t * keys ) {
   *keyd = *keys;
 }
 
-#define MAP_NAME     fd_dupdetect_table
-#define MAP_KEY_T    fd_dupdetect_key_t
-#define MAP_KEY_EQ   fd_dupdetect_eq
-#define MAP_KEY_HASH fd_dupdetect_hash
-#define MAP_KEY_COPY fd_dupdetect_copy
-#define MAP_T        fd_dupdetect_elem_t
+#define MAP_NAME     fd_inflight_table
+#define MAP_KEY_T    fd_inflight_key_t
+#define MAP_KEY_EQ   fd_inflight_eq
+#define MAP_KEY_HASH fd_inflight_hash
+#define MAP_KEY_COPY fd_inflight_copy
+#define MAP_T        fd_inflight_elem_t
 #include "../../util/tmpl/fd_map_giant.c"
 
 FD_FN_PURE static inline int
@@ -149,22 +149,6 @@ fd_repair_nonce_copy( fd_repair_nonce_t * keyd, const fd_repair_nonce_t * keys )
   *keyd = *keys;
 }
 
-struct fd_needed_elem {
-  fd_repair_nonce_t key;
-  ulong next;
-  fd_pubkey_t id;
-  fd_dupdetect_key_t dupkey;
-  long when;
-};
-typedef struct fd_needed_elem fd_needed_elem_t;
-#define MAP_NAME     fd_needed_table
-#define MAP_KEY_T    fd_repair_nonce_t
-#define MAP_KEY_EQ   fd_repair_nonce_eq
-#define MAP_KEY_HASH fd_repair_nonce_hash
-#define MAP_KEY_COPY fd_repair_nonce_copy
-#define MAP_T        fd_needed_elem_t
-#include "../../util/tmpl/fd_map_giant.c"
-
 struct fd_pinged_elem {
   fd_repair_peer_addr_t key;
   ulong next;
@@ -181,8 +165,11 @@ typedef struct fd_pinged_elem fd_pinged_elem_t;
 #define MAP_T        fd_pinged_elem_t
 #include "../../util/tmpl/fd_map_giant.c"
 
-/* Callbacks when a repair is requested. shred_idx==-1 means the last index. */
-
+struct fd_peer {
+  fd_pubkey_t   key;
+  fd_ip4_port_t ip4;
+};
+typedef struct fd_peer fd_peer_t;
 /* Repair Metrics */
 struct fd_repair_metrics {
   ulong recv_clnt_pkt;
@@ -211,13 +198,20 @@ struct fd_repair {
     void * fun_arg;
     /* Table of validators that we are actively pinging, keyed by repair address */
     fd_active_elem_t * actives;
+
+    /* TODO remove, along with good peer cache file */
     fd_pubkey_t actives_sticky[FD_REPAIR_STICKY_MAX]; /* cache of chosen repair peer samples */
     ulong       actives_sticky_cnt;
     ulong       actives_random_seed;
+
+    fd_peer_t peers[ FD_ACTIVE_KEY_MAX ];
+    ulong     peer_cnt; /* number of peers in the peers array */
+    ulong     peer_idx; /* max number of peers in the peers array */
+
     /* Duplicate request detection table */
-    fd_dupdetect_elem_t * dupdetect;
+    fd_inflight_elem_t * dupdetect;
+
     /* Table of needed shreds */
-    fd_needed_elem_t * needed;
     fd_repair_nonce_t oldest_nonce;
     fd_repair_nonce_t current_nonce;
     fd_repair_nonce_t next_nonce;
@@ -238,6 +232,8 @@ struct fd_repair {
     /* Stake weights */
     ulong stake_weights_cnt;
     fd_stake_weight_t * stake_weights;
+    ulong stake_weights_temp_cnt;
+    fd_stake_weight_t * stake_weights_temp;
     /* Path to the file where we write the cache of known good repair peers, to make cold booting faster */
     int good_peer_cache_file_fd;
     /* Metrics */
@@ -253,9 +249,10 @@ fd_repair_footprint( void ) {
   ulong l = FD_LAYOUT_INIT;
   l = FD_LAYOUT_APPEND( l, alignof(fd_repair_t), sizeof(fd_repair_t) );
   l = FD_LAYOUT_APPEND( l, fd_active_table_align(), fd_active_table_footprint(FD_ACTIVE_KEY_MAX) );
-  l = FD_LAYOUT_APPEND( l, fd_needed_table_align(), fd_needed_table_footprint(FD_NEEDED_KEY_MAX) );
-  l = FD_LAYOUT_APPEND( l, fd_dupdetect_table_align(), fd_dupdetect_table_footprint(FD_NEEDED_KEY_MAX) );
+  l = FD_LAYOUT_APPEND( l, fd_inflight_table_align(), fd_inflight_table_footprint(FD_NEEDED_KEY_MAX) );
   l = FD_LAYOUT_APPEND( l, fd_pinged_table_align(), fd_pinged_table_footprint(FD_REPAIR_PINGED_MAX) );
+  /* regular and temp stake weights */
+  l = FD_LAYOUT_APPEND( l, alignof(fd_stake_weight_t), FD_STAKE_WEIGHTS_MAX * sizeof(fd_stake_weight_t) );
   l = FD_LAYOUT_APPEND( l, alignof(fd_stake_weight_t), FD_STAKE_WEIGHTS_MAX * sizeof(fd_stake_weight_t) );
   return FD_LAYOUT_FINI(l, fd_repair_align() );
 }
@@ -299,8 +296,9 @@ int fd_repair_start( fd_repair_t * glob );
  * called inside the main spin loop. calling settime first is recommended. */
 int fd_repair_continue( fd_repair_t * glob );
 
-/* Determine if the request queue is full */
-int fd_repair_is_full( fd_repair_t * glob );
+int fd_repair_inflight_remove( fd_repair_t * glob,
+                               ulong         slot,
+                               uint          shred_index );
 
 /* Register a request for a shred */
 int fd_repair_need_window_index( fd_repair_t * glob, ulong slot, uint shred_index );
@@ -309,13 +307,23 @@ int fd_repair_need_highest_window_index( fd_repair_t * glob, ulong slot, uint sh
 
 int fd_repair_need_orphan( fd_repair_t * glob, ulong slot );
 
+int
+fd_repair_construct_request_protocol( fd_repair_t          * glob,
+                                      fd_repair_protocol_t * protocol,
+                                      enum fd_needed_elem_type type,
+                                      ulong                  slot,
+                                      uint                   shred_index,
+                                      fd_pubkey_t const    * recipient,
+                                      uint                   nonce,
+                                      long                   now );
+
 void fd_repair_add_sticky( fd_repair_t * glob, fd_pubkey_t const * id );
 
-void fd_repair_set_stake_weights( fd_repair_t * repair,
-                                  fd_stake_weight_t const * stake_weights,
-                                  ulong stake_weights_cnt );
+void fd_repair_set_stake_weights_init( fd_repair_t             * repair,
+                                       fd_stake_weight_t const * stake_weights,
+                                       ulong                     stake_weights_cnt );
 
-
+void fd_repair_set_stake_weights_fini( fd_repair_t * repair );
 
 fd_repair_metrics_t *
 fd_repair_get_metrics( fd_repair_t * repair );

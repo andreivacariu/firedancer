@@ -247,6 +247,7 @@ after_frag( fd_gui_ctx_t *      ctx,
                                      trailer->txn_start_pct,
                                      trailer->txn_load_end_pct,
                                      trailer->txn_end_pct,
+                                     trailer->txn_preload_end_pct,
                                      trailer->tips );
   } else {
     FD_LOG_ERR(( "unexpected in_kind %lu", ctx->in_kind[ in_idx ] ));
@@ -404,7 +405,7 @@ pre_compress_files( fd_wksp_t * wksp ) {
 
   /* Allocate permanent space for the compressed files. */
   ulong glo, ghi;
-  if( FD_UNLIKELY( !fd_wksp_alloc_at_least( wksp, FD_SPAD_ALIGN, loose_footprint( NULL ), 1UL, &glo, &ghi ) ) ) {
+  if( FD_UNLIKELY( !fd_wksp_alloc_at_least( wksp, FD_SPAD_ALIGN, dist_file_sz(), 1UL, &glo, &ghi ) ) ) {
     FD_LOG_WARNING(( "Failed to allocate space for compressing assets" ));
     fd_wksp_free_laddr( cctx_mem );
     return;
@@ -487,7 +488,7 @@ unprivileged_init( fd_topo_t *      topo,
   FD_TEST( fd_cstr_printf_check( ctx->version_string, sizeof( ctx->version_string ), NULL, "%s", fdctl_version_string ) );
 
   ctx->topo = topo;
-  ctx->gui  = fd_gui_join( fd_gui_new( _gui, ctx->gui_server, ctx->version_string, tile->gui.cluster, ctx->identity_key, tile->gui.is_voting, ctx->topo ) );
+  ctx->gui  = fd_gui_join( fd_gui_new( _gui, ctx->gui_server, ctx->version_string, tile->gui.cluster, ctx->identity_key, tile->gui.is_voting, tile->gui.schedule_strategy, ctx->topo ) );
   FD_TEST( ctx->gui );
 
   ctx->keyswitch = fd_keyswitch_join( fd_topo_obj_laddr( topo, tile->keyswitch_obj_id ) );

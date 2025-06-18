@@ -7,6 +7,7 @@
 #include "../fd_quic_private.h"
 #include "../templ/fd_quic_parse_util.h"
 #include "../../tls/fd_tls_proto.h"
+#include "../../../disco/metrics/generated/fd_metrics_enums.h"
 
 /* RFC 9000 Section 4.1. Data Flow Control
 
@@ -119,13 +120,13 @@ test_quic_ping_frame( fd_quic_sandbox_t * sandbox,
   fd_quic_sandbox_init( sandbox, FD_QUIC_ROLE_SERVER );
   fd_quic_conn_t * conn = fd_quic_sandbox_new_conn_established( sandbox, rng );
   conn->ack_gen->is_elicited = 0;
-  FD_TEST( conn->svc_meta.idx != FD_QUIC_SVC_IDX_INVAL );
+  FD_TEST( conn->svc_type == FD_QUIC_SVC_WAIT );
 
   uchar buf[1] = {0x01};
   fd_quic_sandbox_send_lone_frame( sandbox, conn, buf, sizeof(buf) );
   FD_TEST( conn->state == FD_QUIC_CONN_STATE_ACTIVE );
   FD_TEST( conn->ack_gen->is_elicited == 1 );
-  FD_TEST( conn->svc_meta.idx != FD_QUIC_SVC_IDX_INVAL );
+  FD_TEST( conn->svc_type == FD_QUIC_SVC_ACK_TX );
 }
 
 /* Test an ALPN failure when acting as a server */
@@ -522,15 +523,15 @@ test_quic_inflight_pkt_limit( fd_quic_sandbox_t * sandbox,
       FD_QUIC_STREAM_LIST_INSERT_BEFORE( conn->send_streams, empty_stream );
       FD_TEST( in_stream_list( empty_stream, conn->send_streams ) );
 
-      ulong metrics_before = quic->metrics.pkt_tx_alloc_fail_cnt;
+      ulong conn_max_fails_before = quic->metrics.frame_tx_alloc_cnt[2];
       fd_quic_conn_service( quic, conn, 0 );
-      ulong metrics_after = quic->metrics.pkt_tx_alloc_fail_cnt;
+      ulong metrics_after = quic->metrics.frame_tx_alloc_cnt[2];
       if( i==11 ) {
         /* 12th packet should fail */
-        FD_TEST( metrics_after == metrics_before + 1 );
+        FD_TEST( metrics_after == conn_max_fails_before + 1 );
       } else {
         /* 11th packet should succeed */
-        FD_TEST( metrics_after == metrics_before );
+        FD_TEST( metrics_after == conn_max_fails_before );
       }
     }
 
@@ -553,6 +554,178 @@ test_quic_inflight_pkt_limit( fd_quic_sandbox_t * sandbox,
     FD_TEST( !fd_quic_footprint( &quic_limits ) );
   } while(0);
 
+}
+
+static __attribute__((noinline)) void
+test_quic_conn_free( fd_quic_sandbox_t * sandbox,
+                     fd_rng_t *          rng ) {
+  fd_quic_sandbox_init( sandbox, FD_QUIC_ROLE_SERVER );
+  fd_quic_t *       quic     = sandbox->quic;
+  fd_quic_state_t * state    = fd_quic_get_state( quic );
+  ulong             conn_max = quic->limits.conn_cnt;
+
+  /* If no CIDs are cached, our_conn_id must be initialized to zero
+     (zero acts as the conn_map key sentinel) */
+  for( ulong j=0UL; j<conn_max; j++ ) {
+    FD_TEST( fd_quic_conn_at_idx( state, j )->our_conn_id == 0UL );
+  }
+  fd_quic_svc_validate( quic );
+
+  /* Create a bunch of conns */
+  for( ulong j=0UL; j<conn_max; j++ ) {
+    FD_TEST( fd_quic_sandbox_new_conn_established( sandbox, rng ) );
+  }
+  fd_quic_svc_validate( quic );
+
+  /* Ensure each conn is in conn_id_map */
+  static fd_quic_conn_map_t sentinel[1] = {0};
+  for( ulong j=0UL; j<conn_max; j++ ) {
+    fd_quic_conn_t * conn = fd_quic_conn_at_idx( state, j );
+    ulong const cid = conn->our_conn_id;
+    FD_TEST( fd_quic_conn_query( state->conn_map, cid )==conn );
+
+    /* Free conn */
+    fd_quic_conn_free( quic, conn );
+    FD_TEST( conn->state == FD_QUIC_CONN_STATE_INVALID );
+    FD_TEST( conn->our_conn_id == cid ); /* CID is kept */
+    FD_TEST( fd_quic_conn_query1( state->conn_map, cid, sentinel )->conn==conn );
+  }
+  fd_quic_svc_validate( quic );
+
+  /* Now, allocate new conns.  CIDs should be replaced one by one. */
+  for( ulong i=0UL; i<conn_max; i++ ) {
+    /* LIFO allocation policy */
+    ulong j = conn_max - 1UL - i;
+
+    fd_quic_conn_t * conn = fd_quic_conn_at_idx( state, j );
+    ulong const old_cid = conn->our_conn_id;
+    FD_TEST( fd_quic_conn_query1( state->conn_map, old_cid, sentinel )->conn==conn );
+
+    FD_TEST( fd_quic_sandbox_new_conn_established( sandbox, rng )==conn );
+    FD_TEST( fd_quic_conn_query1( state->conn_map, old_cid, sentinel )->conn==NULL );
+    ulong const new_cid = conn->our_conn_id;
+    FD_TEST( fd_quic_conn_query1( state->conn_map, new_cid, sentinel )->conn==conn );
+  }
+  fd_quic_svc_validate( quic );
+
+  /* Finally, validate that packet handlers count freed conns as
+     "keys not available" in metrics.  (Logically, for the receiver
+     side, a dead conn is comparable to a conn where all receive keys
+     were discarded) */
+  fd_quic_conn_t * conn = fd_quic_conn_at_idx( state, 0UL );
+  ulong const old_cid = conn->our_conn_id;
+  fd_quic_conn_free( quic, conn );
+  conn->keys_avail = UINT_MAX;
+  FD_TEST( conn->state == FD_QUIC_CONN_STATE_INVALID );
+  FD_TEST( fd_quic_conn_query1( state->conn_map, old_cid, sentinel )->conn==conn );
+
+  FD_TEST( quic->metrics.pkt_no_key_cnt[ fd_quic_enc_level_initial_id   ]==0 );
+  FD_TEST( quic->metrics.pkt_no_key_cnt[ fd_quic_enc_level_handshake_id ]==0 );
+  FD_TEST( quic->metrics.pkt_no_key_cnt[ fd_quic_enc_level_appdata_id   ]==0 );
+  fd_quic_handle_v1_initial( quic, &conn, NULL, NULL, NULL, NULL, 0UL );
+  FD_TEST( quic->metrics.pkt_no_key_cnt[ fd_quic_enc_level_initial_id   ]==1 );
+  fd_quic_handle_v1_handshake( quic, conn, NULL, NULL, 0UL );
+  FD_TEST( quic->metrics.pkt_no_key_cnt[ fd_quic_enc_level_handshake_id ]==1 );
+  fd_quic_handle_v1_one_rtt( quic, conn, NULL, NULL, 0UL );
+  FD_TEST( quic->metrics.pkt_no_key_cnt[ fd_quic_enc_level_appdata_id   ]==1 );
+}
+
+/* Ensure that packet numbers aren't skipped when pkt-meta runs out */
+
+void
+test_quic_pktmeta_pktnum_skip( fd_quic_sandbox_t * sandbox,
+                               fd_rng_t *          rng ) {
+
+  fd_quic_sandbox_init( sandbox, FD_QUIC_ROLE_SERVER );
+  fd_quic_t *                  quic    = sandbox->quic;
+  fd_quic_conn_t *             conn    = fd_quic_sandbox_new_conn_established( sandbox, rng );
+  fd_quic_metrics_t *          metrics = &conn->quic->metrics;
+  fd_quic_pkt_meta_tracker_t * tracker = &conn->pkt_meta_tracker;
+  fd_quic_pkt_meta_t         * pool    = tracker->pool;
+
+  ulong next_pkt_number = conn->pkt_number[2];
+
+  /* trigger a few pings */
+  for( uint j = 0; j < 5; ++j ) {
+    conn->flags          = ( conn->flags & ~FD_QUIC_CONN_FLAGS_PING_SENT ) | FD_QUIC_CONN_FLAGS_PING;
+    conn->upd_pkt_number = FD_QUIC_PKT_NUM_PENDING;
+    sandbox->wallclock += (ulong)10e6;
+    fd_quic_svc_schedule1( conn, FD_QUIC_SVC_INSTANT );
+    fd_quic_service( quic );
+    FD_TEST( conn->pkt_number[2] == next_pkt_number + 1UL );
+    next_pkt_number++;
+  }
+
+  fd_quic_pkt_meta_t sentinel[1]   = {0};
+  fd_quic_pkt_meta_t *cur_pkt_meta = sentinel;
+
+  /* allocate all the pkt-meta */
+  while( fd_quic_pkt_meta_pool_free( pool ) ) {
+    fd_quic_pkt_meta_t * pkt_meta = fd_quic_pkt_meta_pool_ele_acquire( pool );
+
+    cur_pkt_meta->next = (ulong)pkt_meta;
+    cur_pkt_meta       = pkt_meta;
+    pkt_meta->next     = 0UL;
+  }
+
+  ulong * metrics_alloc_fail_cnt =
+      &metrics->frame_tx_alloc_cnt[FD_METRICS_ENUM_FRAME_TX_ALLOC_RESULT_V_FAIL_EMPTY_POOL_IDX];
+  FD_TEST(( *metrics_alloc_fail_cnt == 0UL ));
+
+  /* trigger a few pings
+     with no pkt_meta available, no packets should be sent, and the test
+     is to ensure the packet number does NOT increase */
+  ulong alloc_fail_cnt = 0UL;
+  for( uint j = 0; j < 15; ++j ) {
+    conn->flags          = ( conn->flags & ~FD_QUIC_CONN_FLAGS_PING_SENT ) | FD_QUIC_CONN_FLAGS_PING;
+    conn->upd_pkt_number = FD_QUIC_PKT_NUM_PENDING;
+    sandbox->wallclock += (ulong)10e6;
+    fd_quic_svc_schedule1( conn, FD_QUIC_SVC_INSTANT );
+    fd_quic_service( quic );
+    FD_TEST( conn->pkt_number[2] == next_pkt_number );
+    FD_TEST( *metrics_alloc_fail_cnt > alloc_fail_cnt );
+    alloc_fail_cnt = *metrics_alloc_fail_cnt;
+  }
+
+  /* acks should still be possible
+     send pings from peer, and we should send acks, incrementing pktnum */
+  ulong pktnum = 42;
+
+  for( uint j = 0; j < 5; ++j ) {
+    fd_quic_sandbox_send_ping_pkt( sandbox, conn, pktnum++ );
+
+    /* wait for the ack delay timeout */
+    sandbox->wallclock += (ulong)100e6;
+    fd_quic_service( quic );
+
+    /* verify packet sent */
+    FD_TEST( conn->pkt_number[2] == next_pkt_number + 1UL );
+    next_pkt_number++;
+  }
+
+  /* return a few pkt_meta */
+  for( uint j = 0; j < 5; ++j ) {
+    fd_quic_pkt_meta_t * pkt_meta = (fd_quic_pkt_meta_t*)sentinel->next;
+    FD_TEST( pkt_meta );
+
+    /* move up linked list head */
+    sentinel->next = (ulong)pkt_meta->next;
+
+    fd_quic_pkt_meta_pool_ele_release( pool, pkt_meta );
+  }
+
+  /* trigger a few pings */
+  for( uint j = 0; j < 5; ++j ) {
+    conn->flags          = ( conn->flags & ~FD_QUIC_CONN_FLAGS_PING_SENT ) | FD_QUIC_CONN_FLAGS_PING;
+    conn->upd_pkt_number = FD_QUIC_PKT_NUM_PENDING;
+    sandbox->wallclock += (ulong)10e6;
+    fd_quic_svc_schedule1( conn, FD_QUIC_SVC_INSTANT );
+    fd_quic_service( quic );
+    FD_TEST( conn->pkt_number[2] == next_pkt_number + 1UL );
+    next_pkt_number++;
+  }
+
+  FD_TEST( *metrics_alloc_fail_cnt == alloc_fail_cnt );
 }
 
 int
@@ -615,6 +788,8 @@ main( int     argc,
   test_quic_send_streams                 ( sandbox, rng );
   test_quic_inflight_pkt_limit           ( sandbox, rng );
   test_quic_parse_path_challenge();
+  test_quic_conn_free                    ( sandbox, rng );
+  test_quic_pktmeta_pktnum_skip          ( sandbox, rng );
 
   /* Wind down */
 

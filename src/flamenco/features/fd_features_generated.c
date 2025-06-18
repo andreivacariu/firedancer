@@ -591,7 +591,8 @@ fd_feature_id_t const ids[] = {
     .id                        = {"\x7f\xc6\x29\x7b\xa9\x98\xf8\x5b\xa2\x48\x57\xc0\xde\x06\x74\x63\x2f\x56\xd9\x5a\x5c\xc5\x54\x31\x39\x41\xb0\x13\xe2\x53\xf6\xf2"},
                                  /* 9bn2vTJUsUcnpiZWbu2woSKtTGW3ErZC9ERv88SDqQjK */
     .name                      = "enable_partitioned_epoch_reward",
-    .cleaned_up                = {UINT_MAX, UINT_MAX, UINT_MAX} },
+    .cleaned_up                = {2, 2, 0},
+    .activated_on_all_clusters = 1 },
 
   { .index                     = offsetof(fd_features_t, spl_token_v3_4_0)>>3,
     .id                        = {"\xdd\x49\x17\x14\x26\x0f\xf1\xe8\xa1\x87\xe0\x3b\x4b\x80\x5d\xde\xd4\x52\xd3\x90\x4e\x14\x4c\xa2\xc5\x99\x39\x3f\x15\xf2\x37\x85"},
@@ -832,7 +833,7 @@ fd_feature_id_t const ids[] = {
     .id                        = {"\xd4\xaa\xef\x53\x4b\x5a\xa1\xad\x90\xf8\x49\xb9\x13\x45\x25\x3c\x4c\x39\x46\x28\xb4\xb6\xb4\xfa\x41\x0d\xb5\x1e\xa1\x4f\xa8\xf5"},
                                  /* FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap */
     .name                      = "relax_authority_signer_check_for_lookup_table_creation",
-    .cleaned_up                = {UINT_MAX, UINT_MAX, UINT_MAX},
+    .cleaned_up                = {2, 2, 0},
     .activated_on_all_clusters = 1 },
 
   { .index                     = offsetof(fd_features_t, stop_sibling_instruction_search_at_parent)>>3,
@@ -1142,7 +1143,7 @@ fd_feature_id_t const ids[] = {
     .id                        = {"\x0d\x4d\x3c\x51\x23\x21\xd3\xe9\x47\x3d\xc8\x19\x36\x5e\x45\xf8\x09\x81\x7b\xaf\xff\x69\x17\x9f\x2e\x58\x3d\xf1\x6e\xc8\x10\x6b"},
                                  /* tvcF6b1TRz353zKuhBjinZkKzjmihXmBAHJdjNYw1sQ */
     .name                      = "timely_vote_credits",
-    .cleaned_up                = {UINT_MAX, UINT_MAX, UINT_MAX},
+    .cleaned_up                = {2, 2, 0},
     .activated_on_all_clusters = 1 },
 
   { .index                     = offsetof(fd_features_t, remaining_compute_units_syscall_enabled)>>3,
@@ -1300,7 +1301,7 @@ fd_feature_id_t const ids[] = {
     .id                        = {"\x0d\xeb\x8b\x43\x43\x80\x51\xa1\x77\x30\xda\xfa\x17\x13\xc7\x34\x05\xe6\xe3\x35\x39\x8a\x57\x63\x96\x99\xb4\x10\xf0\xd6\x5e\x87"},
                                  /* wLckV1a64ngtcKPRGU4S4grVTestXjmNjxBjaKZrAcn */
     .name                      = "cost_model_requested_write_lock_cost",
-    .cleaned_up                = {UINT_MAX, UINT_MAX, UINT_MAX},
+    .cleaned_up                = {2, 2, 0},
     .activated_on_all_clusters = 1 },
 
   { .index                     = offsetof(fd_features_t, enable_gossip_duplicate_proof_ingestion)>>3,
@@ -1321,7 +1322,7 @@ fd_feature_id_t const ids[] = {
     .id                        = {"\xa1\xc5\x8f\xd3\x78\xb5\xe0\xfd\x51\x5e\x90\xf9\x71\xc6\x61\x77\xef\x58\x74\xfb\xd9\x46\x9a\x1e\x4d\x8a\x45\x3b\x36\xb9\x61\x4e"},
                                  /* BtVN7YjDzNE6Dk7kTT7YTDgMNUZTNgiSJgsdzAeTg2jF */
     .name                      = "remove_rounding_in_fee_calculation",
-    .cleaned_up                = {UINT_MAX, UINT_MAX, UINT_MAX},
+    .cleaned_up                = {2, 2, 0},
     .activated_on_all_clusters = 1 },
 
   { .index                     = offsetof(fd_features_t, enable_tower_sync_ix)>>3,
@@ -1409,7 +1410,7 @@ fd_feature_id_t const ids[] = {
     .id                        = {"\x05\xb1\xf6\xd0\xa0\xbf\xfc\x81\xbc\x95\xde\xeb\x35\x7a\x88\x3e\xa6\x5e\x44\xce\xb5\x15\x5a\xd2\xb0\xb5\x57\xbf\x87\xf9\x4b\x53"},
                                  /* PERzQrt5gBD1XEe2c9XdFWqwgHY3mr7cYWbm5V772V8 */
     .name                      = "partitioned_epoch_rewards_superfeature",
-    .cleaned_up                = {UINT_MAX, UINT_MAX, UINT_MAX},
+    .cleaned_up                = {2, 2, 0},
     .activated_on_all_clusters = 1 },
 
   { .index                     = offsetof(fd_features_t, enable_secp256r1_precompile)>>3,
@@ -1598,6 +1599,18 @@ fd_feature_id_t const ids[] = {
     .id                        = {"\x06\x35\x10\xb8\x8d\xba\x0a\x21\x00\x8d\x28\x53\xaf\xe3\xa7\x61\x15\x06\x67\x97\x6d\x00\x38\x42\x50\xb5\x71\xf9\x6a\x30\x65\xf7"},
                                  /* RENtePQcDLrAbxAsP3k8dwVcnNYQ466hi2uKvALjnXx */
     .name                      = "mask_out_rent_epoch_in_vm_serialization",
+    .cleaned_up                = {UINT_MAX, UINT_MAX, UINT_MAX} },
+
+  { .index                     = offsetof(fd_features_t, disable_zk_elgamal_proof_program)>>3,
+    .id                        = {"\x0e\xcb\x71\x9e\x06\x4c\x3a\xec\xc3\xa9\x71\xb0\x61\x33\x9b\x7e\xdc\x71\xc0\x35\x81\x8f\xf0\x0a\xb0\x53\x46\xaa\x28\xd7\x0b\xe1"},
+                                 /* zkdoVwnSFnSLtGJG7irJPEYUpmb4i7sGMGcnN6T9rnC */
+    .name                      = "disable_zk_elgamal_proof_program",
+    .cleaned_up                = {UINT_MAX, UINT_MAX, UINT_MAX} },
+
+  { .index                     = offsetof(fd_features_t, reenable_zk_elgamal_proof_program)>>3,
+    .id                        = {"\x0e\xcb\x76\x6d\x26\x21\xec\xbb\xf2\xbc\x2e\x97\x6c\x5b\xa0\x50\x3c\xcc\xe4\xb5\x24\xba\x7b\x74\x4e\xf8\x46\x28\x79\xe1\x8d\x2c"},
+                                 /* zkemPXcuM3G4wpMDZ36Cpw34EjUpvm1nuioiSGbGZPR */
+    .name                      = "reenable_zk_elgamal_proof_program",
     .cleaned_up                = {UINT_MAX, UINT_MAX, UINT_MAX} },
 
   { .index = ULONG_MAX }
@@ -1840,6 +1853,8 @@ fd_feature_id_query( ulong prefix ) {
   case 0x0272a3278356fa9c: return &ids[ 231 ];
   case 0x494f963ae12b5106: return &ids[ 232 ];
   case 0x210aba8db8103506: return &ids[ 233 ];
+  case 0xec3a4c069e71cb0e: return &ids[ 234 ];
+  case 0xbbec21266d76cb0e: return &ids[ 235 ];
   default: break;
   }
   return NULL;
@@ -2079,4 +2094,6 @@ FD_STATIC_ASSERT( offsetof( fd_features_t, verify_retransmitter_signature       
 FD_STATIC_ASSERT( offsetof( fd_features_t, enable_turbine_extended_fanout_experiments              )>>3==231UL, layout );
 FD_STATIC_ASSERT( offsetof( fd_features_t, vote_only_retransmitter_signed_fec_sets                 )>>3==232UL, layout );
 FD_STATIC_ASSERT( offsetof( fd_features_t, mask_out_rent_epoch_in_vm_serialization                 )>>3==233UL, layout );
+FD_STATIC_ASSERT( offsetof( fd_features_t, disable_zk_elgamal_proof_program                        )>>3==234UL, layout );
+FD_STATIC_ASSERT( offsetof( fd_features_t, reenable_zk_elgamal_proof_program                       )>>3==235UL, layout );
 FD_STATIC_ASSERT( sizeof( fd_features_t )>>3==FD_FEATURE_ID_CNT, layout );

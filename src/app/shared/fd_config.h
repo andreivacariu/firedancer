@@ -35,6 +35,7 @@ struct fd_configh {
     char  account_index_exclude_keys[ 32 ][ FD_BASE58_ENCODED_32_SZ ];
     char  accounts_index_path[ PATH_MAX ];
     char  accounts_hash_cache_path[ PATH_MAX ];
+    int   enable_accounts_disk_index;
     int   require_tower;
     char  snapshot_archive_format[ 10 ];
   } ledger;
@@ -93,10 +94,6 @@ typedef struct fd_configh fd_configh_t;
 
 struct fd_configf {
   struct {
-    int vote;
-  } consensus;
-
-  struct {
     ulong shred_max;
     ulong block_max;
     ulong idx_max;
@@ -118,6 +115,12 @@ struct fd_configf {
       ulong max_vote_accounts;
     } limits;
   } runtime;
+
+  struct {
+    ulong max_account_records;
+    ulong heap_size_gib;
+    ulong max_database_transactions;
+  } funk;
 
   struct {
     uint exec_tile_count; /* TODO: redundant ish with bank tile cnt */
@@ -336,11 +339,14 @@ struct fd_config {
       char tip_distribution_authority[ FD_BASE58_ENCODED_32_SZ ];
       uint commission_bps;
       ulong keepalive_interval_millis;
+      int   tls_cert_verify;
     } bundle;
 
     struct {
       uint max_pending_transactions;
       int  use_consumed_cus;
+      char schedule_strategy[ 16 ];
+      int  schedule_strategy_enum;
     } pack;
 
     struct {
@@ -377,10 +383,6 @@ struct fd_config {
     struct {
       char  capture[ PATH_MAX ];
       char  funk_checkpt[ PATH_MAX ];
-      uint  funk_rec_max;
-      ulong funk_sz_gb;
-      ulong funk_txn_max;
-      char  funk_file[ PATH_MAX ];
       char  genesis[ PATH_MAX ];
       char  incremental[ PATH_MAX ];
       char  incremental_url[ PATH_MAX ];

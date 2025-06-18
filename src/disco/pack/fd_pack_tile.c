@@ -6,11 +6,9 @@
 #include "../keyguard/fd_keyload.h"
 #include "../keyguard/fd_keyswitch.h"
 #include "../keyguard/fd_keyguard.h"
-#include "../shred/fd_shredder.h"
 #include "../metrics/fd_metrics.h"
 #include "../pack/fd_pack.h"
 #include "../pack/fd_pack_pacing.h"
-#include "../../ballet/base64/fd_base64.h"
 
 #include <linux/unistd.h>
 
@@ -20,12 +18,11 @@
    multiple microblocks can execute in parallel, if they don't
    write to the same accounts. */
 
-#define IN_KIND_RESOLV (0UL)
-#define IN_KIND_POH    (1UL)
-#define IN_KIND_BANK   (2UL)
-#define IN_KIND_SIGN   (3UL)
-
-#define MAX_SLOTS_PER_EPOCH          432000UL
+#define IN_KIND_RESOLV       (0UL)
+#define IN_KIND_POH          (1UL)
+#define IN_KIND_BANK         (2UL)
+#define IN_KIND_SIGN         (3UL)
+#define IN_KIND_EXECUTED_TXN (4UL)
 
 /* Pace microblocks, but only slightly.  This helps keep performance
    more stable.  This limit is 2,000 microblocks/second/bank.  At 31
@@ -103,6 +100,14 @@ FD_IMPORT( wait_duration, "src/disco/pack/pack_delay.bin", ulong, 6, "" );
 
 #endif
 
+/* Sync with src/app/shared/fd_config.c */
+#define FD_PACK_STRATEGY_PERF     0
+#define FD_PACK_STRATEGY_BALANCED 1
+#define FD_PACK_STRATEGY_BUNDLE   2
+
+static char const * const schedule_strategy_strings[3] = { "PRF", "BAL", "BUN" };
+
+
 typedef struct {
   fd_acct_addr_t commission_pubkey[1];
   ulong          commission;
@@ -118,6 +123,11 @@ typedef struct {
   fd_pack_t *  pack;
   fd_txn_e_t * cur_spot;
   int          is_bundle; /* is the current transaction a bundle */
+
+  uchar executed_txn_sig[ 64UL ];
+
+  /* One of the FD_PACK_STRATEGY_* values defined above */
+  int      strategy;
 
   /* The value passed to fd_pack_new, etc. */
   ulong    max_pending_transactions;
@@ -164,6 +174,15 @@ typedef struct {
      leader slot has ended.  Might be off by one housekeeping duration,
      but that should be small relative to a slot duration. */
   long  approx_wallclock_ns;
+
+  /* approx_tickcount is updated in during_housekeeping() with
+     fd_tickcount() and will match approx_wallclock_ns.  This is done
+     because we need to include an accurate nanosecond timestamp in
+     every fd_txn_p_t but don't want to have to call the expensive
+     fd_log_wallclock() in in the critical path. We can use
+     fd_tempo_tick_per_ns() to convert from ticks to nanoseconds over
+     small periods of time. */
+  long  approx_tickcount;
 
   fd_rng_t * rng;
 
@@ -303,8 +322,10 @@ static inline void
 remove_ib( fd_pack_ctx_t * ctx ) {
   /* It's likely the initializer bundle is long scheduled, but we want to
      try deleting it just in case. */
-  if( FD_UNLIKELY( ctx->crank->enabled & ctx->crank->ib_inserted ) )
-    fd_pack_delete_transaction( ctx->pack, (fd_ed25519_sig_t const *)ctx->crank->last_sig );
+  if( FD_UNLIKELY( ctx->crank->enabled & ctx->crank->ib_inserted ) ) {
+    int deleted = fd_pack_delete_transaction( ctx->pack, (fd_ed25519_sig_t const *)ctx->crank->last_sig );
+    FD_MCNT_INC( PACK, TRANSACTION_DELETED, (ulong)deleted );
+  }
   ctx->crank->ib_inserted = 0;
 }
 
@@ -372,6 +393,7 @@ metrics_write( fd_pack_ctx_t * ctx ) {
 static inline void
 during_housekeeping( fd_pack_ctx_t * ctx ) {
   ctx->approx_wallclock_ns = fd_log_wallclock();
+  ctx->approx_tickcount = fd_tickcount();
 
   if( FD_UNLIKELY( ctx->crank->enabled && fd_keyswitch_state_query( ctx->crank->keyswitch )==FD_KEYSWITCH_STATE_SWITCH_PENDING ) ) {
     fd_memcpy( ctx->crank->identity_pubkey, ctx->crank->keyswitch->bytes, 32UL );
@@ -637,14 +659,28 @@ after_credit( fd_pack_ctx_t *     ctx,
 
     int i = fd_ulong_find_lsb( ctx->bank_idle_bitset );
 
-    /* We want to exempt votes from pacing, so we always allow
-       scheduling votes.  It doesn't really make much sense to pace
-       bundles, because they get scheduled in FIFO order.  However, we
-       keep pacing for normal transactions.  For example, if
-       pacing_bank_cnt is 0, then pack won't schedule normal
-       transactions to any bank tile. */
-    int flags = FD_PACK_SCHEDULE_VOTE | fd_int_if( i==0,              FD_PACK_SCHEDULE_BUNDLE, 0 )
+    int flags;
+
+    switch( ctx->strategy ) {
+      default:
+      case FD_PACK_STRATEGY_PERF:
+        flags = FD_PACK_SCHEDULE_VOTE | FD_PACK_SCHEDULE_BUNDLE | FD_PACK_SCHEDULE_TXN;
+        break;
+      case FD_PACK_STRATEGY_BALANCED:
+        /* We want to exempt votes from pacing, so we always allow
+           scheduling votes.  It doesn't really make much sense to pace
+           bundles, because they get scheduled in FIFO order.  However,
+           we keep pacing for normal transactions.  For example, if
+           pacing_bank_cnt is 0, then pack won't schedule normal
+           transactions to any bank tile. */
+        flags = FD_PACK_SCHEDULE_VOTE | fd_int_if( i==0,              FD_PACK_SCHEDULE_BUNDLE, 0 )
                                       | fd_int_if( i<pacing_bank_cnt, FD_PACK_SCHEDULE_TXN,    0 );
+        break;
+      case FD_PACK_STRATEGY_BUNDLE:
+        flags = FD_PACK_SCHEDULE_VOTE | FD_PACK_SCHEDULE_BUNDLE
+                                      | fd_int_if( ctx->slot_end_ns - ctx->approx_wallclock_ns<50000000L, FD_PACK_SCHEDULE_TXN,  0 );
+        break;
+    }
 
     fd_txn_p_t * microblock_dst = fd_chunk_to_laddr( ctx->out_mem, ctx->out_chunk );
     long schedule_duration = -fd_tickcount();
@@ -894,12 +930,17 @@ during_frag( fd_pack_ctx_t * ctx,
        The transactions should have been parsed and verified. */
     FD_MCNT_INC( PACK, NORMAL_TRANSACTION_RECEIVED, 1UL );
 
-
     fd_memcpy( ctx->cur_spot->txnp->payload, fd_txn_m_payload( txnm ), payload_sz    );
     fd_memcpy( TXN(ctx->cur_spot->txnp),     txn,                      txn_t_sz      );
     fd_memcpy( ctx->cur_spot->alt_accts,     fd_txn_m_alut( txnm ),    addr_table_sz );
     ctx->cur_spot->txnp->payload_sz = payload_sz;
+    ctx->cur_spot->txnp->scheduler_arrival_time_nanos = ctx->approx_wallclock_ns + (long)((double)(fd_tickcount() - ctx->approx_tickcount) / ctx->ticks_per_ns);
 
+    break;
+  }
+  case IN_KIND_EXECUTED_TXN: {
+    FD_TEST( sz==64UL );
+    fd_memcpy( ctx->executed_txn_sig, dcache_entry, sz );
     break;
   }
   }
@@ -983,6 +1024,11 @@ after_frag( fd_pack_ctx_t *     ctx,
     ctx->cur_spot = NULL;
     break;
   }
+  case IN_KIND_EXECUTED_TXN: {
+    int deleted = fd_pack_delete_transaction( ctx->pack, fd_type_pun( ctx->executed_txn_sig ) );
+    FD_MCNT_INC( PACK, TRANSACTION_DELETED, (ulong)deleted );
+    break;
+  }
   }
 
   update_metric_state( ctx, now, FD_PACK_METRIC_STATE_TRANSACTIONS, fd_pack_avail_txn_cnt( ctx->pack )>0 );
@@ -992,6 +1038,10 @@ static void
 privileged_init( fd_topo_t *      topo,
                  fd_topo_tile_t * tile ) {
   if( FD_LIKELY( !tile->pack.bundle.enabled ) ) return;
+  if( FD_UNLIKELY( !tile->pack.bundle.vote_account_path[0] ) ) {
+    FD_LOG_WARNING(( "Disabling bundle crank because no vote account was specified" ));
+    return;
+  }
 
   void * scratch = fd_topo_obj_laddr( topo, tile->tile_obj_id );
 
@@ -1052,11 +1102,12 @@ unprivileged_init( fd_topo_t *      topo,
   for( ulong i=0UL; i<tile->in_cnt; i++ ) {
     fd_topo_link_t const * link = &topo->links[ tile->in_link_id[ i ] ];
 
-    if( FD_LIKELY(      !strcmp( link->name, "resolv_pack" ) ) ) ctx->in_kind[ i ] = IN_KIND_RESOLV;
-    else if( FD_LIKELY( !strcmp( link->name, "dedup_pack"  ) ) ) ctx->in_kind[ i ] = IN_KIND_RESOLV;
-    else if( FD_LIKELY( !strcmp( link->name, "poh_pack"    ) ) ) ctx->in_kind[ i ] = IN_KIND_POH;
-    else if( FD_LIKELY( !strcmp( link->name, "bank_pack"   ) ) ) ctx->in_kind[ i ] = IN_KIND_BANK;
-    else if( FD_LIKELY( !strcmp( link->name, "sign_pack"   ) ) ) ctx->in_kind[ i ] = IN_KIND_SIGN;
+    if( FD_LIKELY(      !strcmp( link->name, "resolv_pack"  ) ) ) ctx->in_kind[ i ] = IN_KIND_RESOLV;
+    else if( FD_LIKELY( !strcmp( link->name, "dedup_pack"   ) ) ) ctx->in_kind[ i ] = IN_KIND_RESOLV;
+    else if( FD_LIKELY( !strcmp( link->name, "poh_pack"     ) ) ) ctx->in_kind[ i ] = IN_KIND_POH;
+    else if( FD_LIKELY( !strcmp( link->name, "bank_pack"    ) ) ) ctx->in_kind[ i ] = IN_KIND_BANK;
+    else if( FD_LIKELY( !strcmp( link->name, "sign_pack"    ) ) ) ctx->in_kind[ i ] = IN_KIND_SIGN;
+    else if( FD_LIKELY( !strcmp( link->name, "executed_txn" ) ) ) ctx->in_kind[ i ] = IN_KIND_EXECUTED_TXN;
     else FD_LOG_ERR(( "pack tile has unexpected input link %lu %s", i, link->name ));
   }
 
@@ -1073,13 +1124,16 @@ unprivileged_init( fd_topo_t *      topo,
   if( FD_UNLIKELY( bank_cnt>FD_PACK_MAX_BANK_TILES      ) ) FD_LOG_ERR(( "pack tile connects to too many banking tiles" ));
   if( FD_UNLIKELY( bank_cnt!=tile->pack.bank_tile_count ) ) FD_LOG_ERR(( "pack tile connects to %lu banking tiles, but tile->pack.bank_tile_count is %lu", bank_cnt, tile->pack.bank_tile_count ));
 
+  FD_TEST( (tile->pack.schedule_strategy>=0) & (tile->pack.schedule_strategy<=FD_PACK_STRATEGY_BUNDLE) );
 
   ctx->crank->enabled = tile->pack.bundle.enabled;
   if( FD_UNLIKELY( tile->pack.bundle.enabled ) ) {
     if( FD_UNLIKELY( !fd_bundle_crank_gen_init( ctx->crank->gen, (fd_acct_addr_t const *)tile->pack.bundle.tip_distribution_program_addr,
             (fd_acct_addr_t const *)tile->pack.bundle.tip_payment_program_addr,
             (fd_acct_addr_t const *)ctx->crank->vote_pubkey->b,
-            (fd_acct_addr_t const *)tile->pack.bundle.tip_distribution_authority, tile->pack.bundle.commission_bps ) ) ) {
+            (fd_acct_addr_t const *)tile->pack.bundle.tip_distribution_authority,
+            schedule_strategy_strings[ tile->pack.schedule_strategy ],
+            tile->pack.bundle.commission_bps ) ) ) {
       FD_LOG_ERR(( "constructing bundle generator failed" ));
     }
 
@@ -1120,6 +1174,7 @@ unprivileged_init( fd_topo_t *      topo,
 
   ctx->cur_spot                      = NULL;
   ctx->is_bundle                     = 0;
+  ctx->strategy                      = tile->pack.schedule_strategy;
   ctx->max_pending_transactions      = tile->pack.max_pending_transactions;
   ctx->leader_slot                   = ULONG_MAX;
   ctx->leader_bank                   = NULL;
@@ -1130,6 +1185,7 @@ unprivileged_init( fd_topo_t *      topo,
   ctx->larger_shred_limits_per_block = tile->pack.larger_shred_limits_per_block;
   ctx->drain_banks                   = 0;
   ctx->approx_wallclock_ns           = fd_log_wallclock();
+  ctx->approx_tickcount              = fd_tickcount();
   ctx->rng                           = rng;
   ctx->ticks_per_ns                  = fd_tempo_tick_per_ns( NULL );
   ctx->last_successful_insert        = 0L;
@@ -1195,7 +1251,7 @@ unprivileged_init( fd_topo_t *      topo,
   memset( ctx->blk_engine_cfg,     '\0', sizeof(ctx->blk_engine_cfg)     );
   memset( ctx->last_sched_metrics, '\0', sizeof(ctx->last_sched_metrics) );
 
-  FD_LOG_INFO(( "packing microblocks of at most %lu transactions to %lu bank tiles", EFFECTIVE_TXN_PER_MICROBLOCK, tile->pack.bank_tile_count ));
+  FD_LOG_INFO(( "packing microblocks of at most %lu transactions to %lu bank tiles using strategy %i", EFFECTIVE_TXN_PER_MICROBLOCK, tile->pack.bank_tile_count, ctx->strategy ));
 
   ulong scratch_top = FD_SCRATCH_ALLOC_FINI( l, 1UL );
   if( FD_UNLIKELY( scratch_top > (ulong)scratch + scratch_footprint( tile ) ) )

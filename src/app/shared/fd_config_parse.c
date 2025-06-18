@@ -33,6 +33,7 @@ fd_config_extract_podh( uchar *        pod,
   CFG_POP_ARRAY( cstr,   ledger.account_index_exclude_keys                );
   CFG_POP      ( cstr,   ledger.accounts_index_path                       );
   CFG_POP      ( cstr,   ledger.accounts_hash_cache_path                  );
+  CFG_POP      ( bool,   ledger.enable_accounts_disk_index                );
   CFG_POP      ( bool,   ledger.require_tower                             );
   CFG_POP      ( cstr,   ledger.snapshot_archive_format                   );
 
@@ -88,8 +89,6 @@ fd_config_extract_podf( uchar *        pod,
   CFG_POP      ( cstr,   blockstore.checkpt                               );
   CFG_POP      ( cstr,   blockstore.restore                               );
 
-  CFG_POP      ( bool,   consensus.vote                                   );
-
   CFG_POP      ( ulong,  runtime.heap_size_gib                            );
 
   CFG_POP      ( ulong,  runtime.limits.max_rooted_slots                  );
@@ -97,6 +96,10 @@ fd_config_extract_podf( uchar *        pod,
   CFG_POP      ( ulong,  runtime.limits.max_transactions_per_slot         );
   CFG_POP      ( ulong,  runtime.limits.snapshot_grace_period_seconds     );
   CFG_POP      ( ulong,  runtime.limits.max_vote_accounts                 );
+
+  CFG_POP      ( ulong,  funk.max_account_records                         );
+  CFG_POP      ( ulong,  funk.heap_size_gib                               );
+  CFG_POP      ( ulong,  funk.max_database_transactions                   );
 
   return config;
 }
@@ -189,9 +192,11 @@ fd_config_extract_pod( uchar *       pod,
   CFG_POP      ( cstr,   tiles.bundle.tip_distribution_authority          );
   CFG_POP      ( uint,   tiles.bundle.commission_bps                      );
   CFG_POP      ( ulong,  tiles.bundle.keepalive_interval_millis           );
+  CFG_POP      ( bool,   tiles.bundle.tls_cert_verify                     );
 
   CFG_POP      ( uint,   tiles.pack.max_pending_transactions              );
   CFG_POP      ( bool,   tiles.pack.use_consumed_cus                      );
+  CFG_POP      ( cstr,   tiles.pack.schedule_strategy                     );
 
   CFG_POP      ( bool,   tiles.poh.lagged_consecutive_leader_start        );
 
@@ -216,10 +221,6 @@ fd_config_extract_pod( uchar *       pod,
 
   CFG_POP      ( cstr,   tiles.replay.capture                             );
   CFG_POP      ( cstr,   tiles.replay.funk_checkpt                        );
-  CFG_POP      ( uint,   tiles.replay.funk_rec_max                        );
-  CFG_POP      ( ulong,  tiles.replay.funk_sz_gb                          );
-  CFG_POP      ( ulong,  tiles.replay.funk_txn_max                        );
-  CFG_POP      ( cstr,   tiles.replay.funk_file                           );
   CFG_POP      ( cstr,   tiles.replay.genesis                             );
   CFG_POP      ( cstr,   tiles.replay.incremental                         );
   CFG_POP      ( cstr,   tiles.replay.incremental_url                     );

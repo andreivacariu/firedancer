@@ -133,11 +133,6 @@ do{
   uchar * rodata = fd_spad_alloc_check( spad, 8UL, rodata_sz );
   memcpy( rodata, input->vm_ctx.rodata->bytes, rodata_sz );
 
-  /* Enable direct_mapping for SBPF version >= v1 */
-  if( input->vm_ctx.sbpf_version >= FD_SBPF_V1 ) {
-    ((fd_exec_txn_ctx_t *)(instr_ctx->txn_ctx))->features.bpf_account_data_direct_mapping = 0UL;
-  }
-
   /* Setup input region */
   ulong                    input_sz                                = 0UL;
   ulong                    pre_lens[256]                           = {0};
@@ -250,7 +245,8 @@ do{
     input_mem_regions_cnt,
     acc_region_metas, /* vm_acc_region_meta*/
     is_deprecated, /* is deprecated */
-    direct_mapping /* direct mapping */
+    direct_mapping, /* direct mapping */
+    0 /* dump_syscall_to_pb */
   );
 
   /* Setup registers.
@@ -409,8 +405,11 @@ fd_runtime_fuzz_vm_syscall_run( fd_runtime_fuzz_runner_t * runner,
     goto error;
   }
 
-  if (input->vm_ctx.return_data.program_id && input->vm_ctx.return_data.program_id->size == sizeof(fd_pubkey_t)) {
+  if( input->vm_ctx.return_data.program_id && input->vm_ctx.return_data.program_id->size == sizeof(fd_pubkey_t) ) {
     fd_memcpy( ctx->txn_ctx->return_data.program_id.uc, input->vm_ctx.return_data.program_id->bytes, sizeof(fd_pubkey_t) );
+  }
+
+  if( input->vm_ctx.return_data.data && input->vm_ctx.return_data.data->size>0U ) {
     ctx->txn_ctx->return_data.len = input->vm_ctx.return_data.data->size;
     fd_memcpy( ctx->txn_ctx->return_data.data, input->vm_ctx.return_data.data->bytes, ctx->txn_ctx->return_data.len );
   }
@@ -503,7 +502,8 @@ fd_runtime_fuzz_vm_syscall_run( fd_runtime_fuzz_runner_t * runner,
               input_mem_regions_cnt,
               acc_region_metas,
               is_deprecated,
-              FD_FEATURE_ACTIVE( ctx->txn_ctx->slot, ctx->txn_ctx->features, bpf_account_data_direct_mapping ) );
+              FD_FEATURE_ACTIVE( ctx->txn_ctx->slot, ctx->txn_ctx->features, bpf_account_data_direct_mapping ),
+              0 /* dump_syscall_to_pb */ );
 
   // Override some execution state values from the syscall fuzzer input
   // This is so we can test if the syscall mutates any of these erroneously

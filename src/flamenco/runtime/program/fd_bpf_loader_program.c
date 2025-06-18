@@ -7,7 +7,6 @@
 #include "../../../ballet/sbpf/fd_sbpf_loader.h"
 #include "../sysvar/fd_sysvar_clock.h"
 #include "../sysvar/fd_sysvar_rent.h"
-#include "../sysvar/fd_sysvar_cache.h"
 #include "../../vm/syscall/fd_vm_syscall.h"
 #include "../../vm/fd_vm.h"
 #include "../fd_executor.h"
@@ -221,27 +220,28 @@ fd_deploy_program( fd_exec_instr_ctx_t * instr_ctx,
   fd_vm_t * vm = fd_vm_join( fd_vm_new( _vm ) );
 
   vm = fd_vm_init(
-    /* vm              */ vm,
-    /* instr_ctx       */ instr_ctx,
-    /* heap_max        */ instr_ctx->txn_ctx->heap_size,
-    /* entry_cu        */ instr_ctx->txn_ctx->compute_meter,
-    /* rodata          */ prog->rodata,
-    /* rodata_sz       */ prog->rodata_sz,
-    /* text            */ prog->text,
-    /* text_cnt        */ prog->text_cnt,
-    /* text_off        */ prog->text_off, /* FIXME: What if text_off is not multiple of 8 */
-    /* text_sz         */ prog->text_sz,
-    /* entry_pc        */ prog->entry_pc,
-    /* calldests       */ prog->calldests,
-    /* sbpf_version    */ elf_info->sbpf_version,
-    /* syscalls        */ syscalls,
-    /* trace           */ NULL,
-    /* sha             */ NULL,
-    /* mem_regions     */ NULL,
-    /* mem_regions_cnt */ 0,
-    /* mem_region_accs */ NULL,
-    /* is_deprecated   */ 0,
-    /* direct mapping */  direct_mapping );
+    /* vm                 */ vm,
+    /* instr_ctx          */ instr_ctx,
+    /* heap_max           */ instr_ctx->txn_ctx->heap_size,
+    /* entry_cu           */ instr_ctx->txn_ctx->compute_meter,
+    /* rodata             */ prog->rodata,
+    /* rodata_sz          */ prog->rodata_sz,
+    /* text               */ prog->text,
+    /* text_cnt           */ prog->text_cnt,
+    /* text_off           */ prog->text_off, /* FIXME: What if text_off is not multiple of 8 */
+    /* text_sz            */ prog->text_sz,
+    /* entry_pc           */ prog->entry_pc,
+    /* calldests          */ prog->calldests,
+    /* sbpf_version       */ elf_info->sbpf_version,
+    /* syscalls           */ syscalls,
+    /* trace              */ NULL,
+    /* sha                */ NULL,
+    /* mem_regions        */ NULL,
+    /* mem_regions_cnt    */ 0,
+    /* mem_region_accs    */ NULL,
+    /* is_deprecated      */ 0,
+    /* direct mapping     */ direct_mapping,
+    /* dump_syscall_to_pb */ 0 );
   if ( FD_UNLIKELY( vm == NULL ) ) {
     FD_LOG_WARNING(( "NULL vm" ));
     return FD_EXECUTOR_INSTR_ERR_PROGRAM_ENVIRONMENT_SETUP_FAILURE;
@@ -449,6 +449,11 @@ fd_bpf_execute( fd_exec_instr_ctx_t * instr_ctx, fd_sbpf_validated_program_t * p
   ulong pre_insn_cus = instr_ctx->txn_ctx->compute_meter;
   ulong heap_max     = instr_ctx->txn_ctx->heap_size;
 
+  /* For dumping syscalls for seed corpora */
+  int dump_syscall_to_pb = instr_ctx->txn_ctx->capture_ctx &&
+                           instr_ctx->txn_ctx->slot >= instr_ctx->txn_ctx->capture_ctx->dump_proto_start_slot &&
+                           instr_ctx->txn_ctx->capture_ctx->dump_syscall_to_pb;
+
   /* TODO: (topointon): correctly set check_size in vm setup */
   vm = fd_vm_init(
     /* vm                    */ vm,
@@ -471,7 +476,8 @@ fd_bpf_execute( fd_exec_instr_ctx_t * instr_ctx, fd_sbpf_validated_program_t * p
     /* input_mem_regions_cnt */ input_mem_regions_cnt,
     /* acc_region_metas      */ acc_region_metas,
     /* is_deprecated         */ is_deprecated,
-    /* direct_mapping        */ direct_mapping );
+    /* direct_mapping        */ direct_mapping,
+    /* dump_syscall_to_pb    */ dump_syscall_to_pb );
   if( FD_UNLIKELY( !vm ) ) {
     /* We throw an error here because it could be the case that the given heap_size > HEAP_MAX.
        In this case, Agave fails the transaction but does not error out.
@@ -760,17 +766,16 @@ process_loader_upgradeable_instruction( fd_exec_instr_ctx_t * instr_ctx ) {
       /* rent is accessed directly from the epoch bank and the clock from the
         slot context. However, a check must be done to make sure that the
         sysvars are correctly included in the set of transaction accounts. */
-      err = fd_check_sysvar_account( instr_ctx, 4UL, &fd_sysvar_rent_id );
+      err = fd_sysvar_instr_acct_check( instr_ctx, 4UL, &fd_sysvar_rent_id );
       if( FD_UNLIKELY( err ) ) {
         return err;
       }
-      err = fd_check_sysvar_account( instr_ctx, 5UL, &fd_sysvar_clock_id );
+      err = fd_sysvar_instr_acct_check( instr_ctx, 5UL, &fd_sysvar_clock_id );
       if( FD_UNLIKELY( err ) ) {
         return err;
       }
 
-      fd_sol_sysvar_clock_t const * clock = fd_sysvar_cache_clock( instr_ctx->txn_ctx->sysvar_cache,
-                                                                   instr_ctx->txn_ctx->runtime_pub_wksp );
+      fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( instr_ctx->txn_ctx->funk, instr_ctx->txn_ctx->funk_txn, instr_ctx->txn_ctx->spad );
       if( FD_UNLIKELY( !clock ) ) {
         return FD_EXECUTOR_INSTR_ERR_GENERIC_ERR;
       }
@@ -1097,11 +1102,11 @@ process_loader_upgradeable_instruction( fd_exec_instr_ctx_t * instr_ctx ) {
       /* rent is accessed directly from the epoch bank and the clock from the
         slot context. However, a check must be done to make sure that the
         sysvars are correctly included in the set of transaction accounts. */
-      err = fd_check_sysvar_account( instr_ctx, 4UL, &fd_sysvar_rent_id );
+      err = fd_sysvar_instr_acct_check( instr_ctx, 4UL, &fd_sysvar_rent_id );
       if( FD_UNLIKELY( err ) ) {
         return err;
       }
-      err = fd_check_sysvar_account( instr_ctx, 5UL, &fd_sysvar_clock_id );
+      err = fd_sysvar_instr_acct_check( instr_ctx, 5UL, &fd_sysvar_clock_id );
       if( FD_UNLIKELY( err ) ) {
         return err;
       }
@@ -1223,8 +1228,7 @@ process_loader_upgradeable_instruction( fd_exec_instr_ctx_t * instr_ctx ) {
         return err;
       }
 
-      fd_sol_sysvar_clock_t const * clock = fd_sysvar_cache_clock( instr_ctx->txn_ctx->sysvar_cache,
-                                                                   instr_ctx->txn_ctx->runtime_pub_wksp );
+      fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( instr_ctx->txn_ctx->funk, instr_ctx->txn_ctx->funk_txn, instr_ctx->txn_ctx->spad );
       if( FD_UNLIKELY( !clock ) ) {
         return FD_EXECUTOR_INSTR_ERR_GENERIC_ERR;
       }
@@ -1634,8 +1638,7 @@ process_loader_upgradeable_instruction( fd_exec_instr_ctx_t * instr_ctx ) {
           fd_log_collector_msg_literal( instr_ctx, "Program account not owned by loader" );
           return FD_EXECUTOR_INSTR_ERR_INCORRECT_PROGRAM_ID;
         }
-        fd_sol_sysvar_clock_t const * clock = fd_sysvar_cache_clock( instr_ctx->txn_ctx->sysvar_cache,
-                                                                     instr_ctx->txn_ctx->runtime_pub_wksp );
+        fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( instr_ctx->txn_ctx->funk, instr_ctx->txn_ctx->funk_txn, instr_ctx->txn_ctx->spad );
         if( FD_UNLIKELY( !clock ) ) {
           return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
         }
@@ -1755,9 +1758,7 @@ process_loader_upgradeable_instruction( fd_exec_instr_ctx_t * instr_ctx ) {
           "Extended ProgramData length of %lu bytes exceeds max account data length of %lu bytes", new_len, MAX_PERMITTED_DATA_LENGTH );
         return FD_EXECUTOR_INSTR_ERR_INVALID_REALLOC;
       }
-
-      fd_sol_sysvar_clock_t const * clock = fd_sysvar_cache_clock( instr_ctx->txn_ctx->sysvar_cache,
-                                                                   instr_ctx->txn_ctx->runtime_pub_wksp );
+      fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( instr_ctx->txn_ctx->funk, instr_ctx->txn_ctx->funk_txn, instr_ctx->txn_ctx->spad );
       if( FD_UNLIKELY( !clock ) ) {
         return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
       }
@@ -1932,8 +1933,8 @@ process_loader_upgradeable_instruction( fd_exec_instr_ctx_t * instr_ctx ) {
       }
 
       /* https://github.com/anza-xyz/agave/blob/v2.2.6/programs/bpf_loader/src/lib.rs#L1356-L1359 */
-      fd_sol_sysvar_clock_t const * clock = fd_sysvar_cache_clock( instr_ctx->txn_ctx->sysvar_cache, instr_ctx->txn_ctx->runtime_pub_wksp );
-      if( FD_UNLIKELY( clock==NULL ) ) {
+      fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( instr_ctx->txn_ctx->funk, instr_ctx->txn_ctx->funk_txn, instr_ctx->txn_ctx->spad );
+      if( FD_UNLIKELY( !clock ) ) {
         return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
       }
       ulong clock_slot = clock->slot;
@@ -2493,7 +2494,6 @@ fd_directly_invoke_loader_v3_deploy( fd_exec_slot_ctx_t * slot_ctx,
   fd_wksp_t *         funk_wksp          = fd_funk_wksp( funk );
   fd_wksp_t *         runtime_wksp       = fd_wksp_containing( slot_ctx );
   ulong               funk_txn_gaddr     = fd_wksp_gaddr( funk_wksp, slot_ctx->funk_txn );
-  ulong               sysvar_cache_gaddr = fd_wksp_gaddr( runtime_wksp, txn_ctx->sysvar_cache );
   ulong               funk_gaddr         = fd_wksp_gaddr( funk_wksp, funk->shmem );
 
   fd_exec_txn_ctx_from_exec_slot_ctx( slot_ctx,
@@ -2501,7 +2501,6 @@ fd_directly_invoke_loader_v3_deploy( fd_exec_slot_ctx_t * slot_ctx,
                                       funk_wksp,
                                       runtime_wksp,
                                       funk_txn_gaddr,
-                                      sysvar_cache_gaddr,
                                       funk_gaddr );
 
   fd_exec_txn_ctx_setup_basic( txn_ctx );

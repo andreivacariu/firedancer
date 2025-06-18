@@ -76,6 +76,7 @@
 #define FD_TXN_P_FLAGS_SANITIZE_SUCCESS   ( 8U)
 #define FD_TXN_P_FLAGS_EXECUTE_SUCCESS    (16U)
 #define FD_TXN_P_FLAGS_FEES_ONLY          (32U)
+#define FD_TXN_P_FLAGS_DURABLE_NONCE      (64U)
 
 #define FD_TXN_P_FLAGS_RESULT_MASK  (0xFF000000U)
 
@@ -83,6 +84,9 @@
    transactions (both inclusive) that executes and commits atomically.
  */
 #define FD_PACK_MAX_TXN_PER_BUNDLE      5UL
+
+/* The percentage of the transaction fees that are burned */
+#define FD_PACK_TXN_FEE_BURN_PCT        50UL
 
 
 /* The Solana network and Firedancer implementation details impose
@@ -249,19 +253,33 @@ void fd_pack_set_block_limits( fd_pack_t * pack, fd_pack_limits_t const * limits
    Transactions can be rejected through no fault of their own, so it
    doesn't necessarily imply bad behavior.
 
-   The non-negative (success) codes are essentially a bitflag of two
+   The non-negative (success) codes are essentially a bitflag of three
    bits:
-    * whether the transaction met the criteria for a simple vote or not,
-    * whether this transaction replaced a previously accepted, low
-      priority transaction, rather than being accepted in addition to all
-      the previously accepted transactions.  Since pack maintains a heap
-      with a fixed max size of pack_depth, replacing transaction is
-      necessary whenever the heap is full.
+    * (1) whether the transaction met the criteria for a simple vote or
+      not,
+    * (2) whether this transaction replaced a previously accepted, low
+      priority transaction, rather than being accepted in addition to
+      all the previously accepted transactions.
+    * (4) whether this transaction is a durable nonce transaction
+
+   Since pack maintains a heap with a fixed max size of pack_depth,
+   replacing transaction is necessary whenever the heap is full.
+   Additionally, only one transaction with a given (nonce account, nonce
+   authority, recent blockhash) value is allowed in pack's heap at a
+   time, which means if there's already a lower priority transaction
+   with the same nonce info, then this transaction will replace it.
+   When the heap is full, and a nonce transaction is inserted, these
+   return values don't allow you to disambiguate whether the replaced
+   transaction had the same nonce info or not.
+
+   Vote and durable nonce transactions are mutually exclusive.
 
    The negative (failure) codes are a normal enumeration (not a
    bitflag).
     * PRIORITY: pack's heap was full and the transaction's priority was
       lower than the worst currently accepted transaction.
+    * NONCE_PRIORITY: pack's heap had a transaction with the same
+      durable nonce info that was higher priority.
     * DUPLICATE: the transaction is a duplicate of a currently accepted
       transaction.
     * UNAFFORDABLE: the fee payer could not afford the transaction fee
@@ -284,35 +302,41 @@ void fd_pack_set_block_limits( fd_pack_t * pack, fd_pack_limits_t const * limits
       Write-locking a sysvar can cause heavy contention.  Agave
       solves this by downgrading these to read locks, but we instead
       solve it by refusing to pack such transactions.
+    * INVALID_NONCE: the transaction looks like a durable nonce
+      transaction, but the nonce authority did not sign the transaction.
     * BUNDLE_BLACKLIST: bundles are enabled and the transaction uses an
       account in the bundle blacklist.
 
     NOTE: The corresponding enum in metrics.xml must be kept in sync
     with any changes to these return values. */
-#define FD_PACK_INSERT_ACCEPT_VOTE_REPLACE     (  3)
-#define FD_PACK_INSERT_ACCEPT_NONVOTE_REPLACE  (  2)
-#define FD_PACK_INSERT_ACCEPT_VOTE_ADD         (  1)
-#define FD_PACK_INSERT_ACCEPT_NONVOTE_ADD      (  0)
-#define FD_PACK_INSERT_REJECT_PRIORITY         ( -1)
-#define FD_PACK_INSERT_REJECT_DUPLICATE        ( -2)
-#define FD_PACK_INSERT_REJECT_UNAFFORDABLE     ( -3)
-#define FD_PACK_INSERT_REJECT_ADDR_LUT         ( -4)
-#define FD_PACK_INSERT_REJECT_EXPIRED          ( -5)
-#define FD_PACK_INSERT_REJECT_TOO_LARGE        ( -6)
-#define FD_PACK_INSERT_REJECT_ACCOUNT_CNT      ( -7)
-#define FD_PACK_INSERT_REJECT_DUPLICATE_ACCT   ( -8)
-#define FD_PACK_INSERT_REJECT_ESTIMATION_FAIL  ( -9)
-#define FD_PACK_INSERT_REJECT_WRITES_SYSVAR    (-10)
-#define FD_PACK_INSERT_REJECT_BUNDLE_BLACKLIST (-11)
+#define FD_PACK_INSERT_ACCEPT_NONCE_NONVOTE_REPLACE (  6)
+#define FD_PACK_INSERT_ACCEPT_NONCE_NONVOTE_ADD     (  4)
+#define FD_PACK_INSERT_ACCEPT_VOTE_REPLACE          (  3)
+#define FD_PACK_INSERT_ACCEPT_NONVOTE_REPLACE       (  2)
+#define FD_PACK_INSERT_ACCEPT_VOTE_ADD              (  1)
+#define FD_PACK_INSERT_ACCEPT_NONVOTE_ADD           (  0)
+#define FD_PACK_INSERT_REJECT_PRIORITY              ( -1)
+#define FD_PACK_INSERT_REJECT_NONCE_PRIORITY        ( -2)
+#define FD_PACK_INSERT_REJECT_DUPLICATE             ( -3)
+#define FD_PACK_INSERT_REJECT_UNAFFORDABLE          ( -4)
+#define FD_PACK_INSERT_REJECT_ADDR_LUT              ( -5)
+#define FD_PACK_INSERT_REJECT_EXPIRED               ( -6)
+#define FD_PACK_INSERT_REJECT_TOO_LARGE             ( -7)
+#define FD_PACK_INSERT_REJECT_ACCOUNT_CNT           ( -8)
+#define FD_PACK_INSERT_REJECT_DUPLICATE_ACCT        ( -9)
+#define FD_PACK_INSERT_REJECT_ESTIMATION_FAIL       (-10)
+#define FD_PACK_INSERT_REJECT_WRITES_SYSVAR         (-11)
+#define FD_PACK_INSERT_REJECT_INVALID_NONCE         (-12)
+#define FD_PACK_INSERT_REJECT_BUNDLE_BLACKLIST      (-13)
 
 /* The FD_PACK_INSERT_{ACCEPT, REJECT}_* values defined above are in the
    range [-FD_PACK_INSERT_RETVAL_OFF,
    -FD_PACK_INSERT_RETVAL_OFF+FD_PACK_INSERT_RETVAL_CNT ) */
-#define FD_PACK_INSERT_RETVAL_OFF 11
-#define FD_PACK_INSERT_RETVAL_CNT 15
+#define FD_PACK_INSERT_RETVAL_OFF 13
+#define FD_PACK_INSERT_RETVAL_CNT 20
 
 FD_STATIC_ASSERT( FD_PACK_INSERT_REJECT_BUNDLE_BLACKLIST>=-FD_PACK_INSERT_RETVAL_OFF, pack_retval );
-FD_STATIC_ASSERT( FD_PACK_INSERT_ACCEPT_VOTE_REPLACE<FD_PACK_INSERT_RETVAL_CNT-FD_PACK_INSERT_RETVAL_OFF, pack_retval );
+FD_STATIC_ASSERT( FD_PACK_INSERT_ACCEPT_NONCE_NONVOTE_REPLACE<FD_PACK_INSERT_RETVAL_CNT-FD_PACK_INSERT_RETVAL_OFF, pack_retval );
 
 /* fd_pack_insert_txn_{init,fini,cancel} execute the process of
    inserting a new transaction into the pool of available transactions
@@ -640,8 +664,10 @@ int fd_pack_microblock_complete( fd_pack_t * pack, ulong bank_tile );
 ulong fd_pack_expire_before( fd_pack_t * pack, ulong expire_before );
 
 /* fd_pack_delete_txn removes a transaction (identified by its first
-   signature) from the pool of available transactions.  Returns 1 if the
-   transaction was found (and then removed) and 0 if not. */
+   signature) from the pool of available transactions.  Returns a
+   nonzero count of the number of transactions deleted, if the
+   transaction was found (and then removed) and 0 if not.  The count
+   might be >1 if a bundle was caused to be deleted. */
 int fd_pack_delete_transaction( fd_pack_t * pack, fd_ed25519_sig_t const * sig0 );
 
 /* fd_pack_end_block resets some state to prepare for the next block.

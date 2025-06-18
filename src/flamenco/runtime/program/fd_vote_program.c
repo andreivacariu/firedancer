@@ -5,6 +5,8 @@
 #include "../fd_pubkey_utils.h"
 #include "../sysvar/fd_sysvar_epoch_schedule.h"
 #include "../sysvar/fd_sysvar_rent.h"
+#include "../sysvar/fd_sysvar_clock.h"
+#include "../sysvar/fd_sysvar_slot_hashes.h"
 
 #include <limits.h>
 #include <math.h>
@@ -2198,8 +2200,7 @@ fd_vote_acc_credits( fd_exec_instr_ctx_t const * ctx,
                      ulong *                     result ) {
   int rc;
 
-  fd_sol_sysvar_clock_t const * clock = fd_sysvar_cache_clock( ctx->txn_ctx->sysvar_cache,
-                                                               ctx->txn_ctx->runtime_pub_wksp );
+  fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
   if( FD_UNLIKELY( !clock ) ) return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
   /* Read vote account */
@@ -2299,8 +2300,10 @@ process_authorize_with_seed_instruction(
   int rc = 0;
 
   // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L31
-  fd_sol_sysvar_clock_t const * clock = (fd_sol_sysvar_clock_t const *)fd_sysvar_from_instr_acct_clock( ctx, 1, &rc );
-  if( FD_UNLIKELY( !clock ) ) return rc;
+  rc = fd_sysvar_instr_acct_check( ctx, 1, &fd_sysvar_clock_id );
+  if( FD_UNLIKELY( rc ) ) return rc;
+  fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
+  if( FD_UNLIKELY( !clock ) ) return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
   fd_pubkey_t * expected_authority_keys[FD_TXN_SIG_MAX] = { 0 };
   fd_pubkey_t   single_signer                        = { 0 };
@@ -2334,27 +2337,6 @@ process_authorize_with_seed_instruction(
                     (fd_pubkey_t const **)expected_authority_keys,
                     clock,
                     ctx );
-}
-
-// https://github.com/anza-xyz/agave/blob/v2.0.1/sdk/program/src/vote/state/vote_state_versions.rs#L90
-static uint
-vote_state_versions_is_correct_and_initialized( fd_txn_account_t * vote_account ) {
-  // https://github.com/anza-xyz/agave/blob/v2.0.1/sdk/program/src/vote/state/mod.rs#L885
-  uint data_len_check = vote_account->vt->get_data_len( vote_account ) == FD_VOTE_STATE_V3_SZ;
-  uchar test_data[DEFAULT_PRIOR_VOTERS_OFFSET] = {0};
-  uint data_check = memcmp((
-    vote_account->vt->get_data( vote_account ) + VERSION_OFFSET), test_data, DEFAULT_PRIOR_VOTERS_OFFSET) != 0;
-  if (data_check && data_len_check) {
-    return 1;
-  }
-
-  // VoteState1_14_11::is_correct_size_and_initialized
-  // https://github.com/anza-xyz/agave/blob/v2.0.1/sdk/program/src/vote/state/vote_state_1_14_11.rs#L58
-  data_len_check = vote_account->vt->get_data_len( vote_account ) == FD_VOTE_STATE_V2_SZ;
-  uchar test_data_1_14_11[DEFAULT_PRIOR_VOTERS_OFFSET_1_14_11] = {0};
-  data_check = memcmp(
-    (vote_account->vt->get_data( vote_account ) + VERSION_OFFSET), test_data_1_14_11, DEFAULT_PRIOR_VOTERS_OFFSET_1_14_11) != 0;
-  return data_check && data_len_check;
 }
 
 /**********************************************************************/
@@ -2438,16 +2420,20 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
    */
   case fd_vote_instruction_enum_initialize_account: {
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L72
-    fd_rent_t const * rent = (fd_rent_t const *)fd_sysvar_from_instr_acct_rent( ctx, 1UL, &rc );
-    if( FD_UNLIKELY( !rent ) ) return rc;
+    rc = fd_sysvar_instr_acct_check( ctx, 1, &fd_sysvar_rent_id );
+    if( FD_UNLIKELY( rc ) ) return rc;
+    fd_rent_t const * rent = fd_sysvar_rent_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
+    if( FD_UNLIKELY( !rent ) ) return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
     if( FD_UNLIKELY( fd_borrowed_account_get_lamports( &me ) <
                      fd_rent_exempt_minimum_balance( rent, fd_borrowed_account_get_data_len( &me ) ) ) )
       return FD_EXECUTOR_INSTR_ERR_INSUFFICIENT_FUNDS;
 
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L76
-    fd_sol_sysvar_clock_t const * clock = (fd_sol_sysvar_clock_t const *)fd_sysvar_from_instr_acct_clock( ctx, 2, &rc );
-    if( !clock ) return rc;
+    rc = fd_sysvar_instr_acct_check( ctx, 2, &fd_sysvar_clock_id );
+    if( FD_UNLIKELY( rc ) ) return rc;
+    fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
+    if( FD_UNLIKELY( !clock ) ) return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L78
     rc = initialize_account( &me,
@@ -2472,8 +2458,10 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
    */
   case fd_vote_instruction_enum_authorize: {
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L87
-    fd_sol_sysvar_clock_t const * clock = (fd_sol_sysvar_clock_t const *)fd_sysvar_from_instr_acct_clock( ctx, 1, &rc );
-    if( !clock ) return rc;
+    rc = fd_sysvar_instr_acct_check( ctx, 1, &fd_sysvar_clock_id );
+    if( FD_UNLIKELY( rc ) ) return rc;
+    fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
+    if( FD_UNLIKELY( !clock ) ) return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L89
     fd_pubkey_t const * voter_pubkey   = &instruction->inner.authorize.pubkey;
@@ -2585,11 +2573,11 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
   case fd_vote_instruction_enum_update_commission: {
 
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L149
-    fd_epoch_schedule_t const * epoch_schedule = fd_sysvar_cache_epoch_schedule( ctx->txn_ctx->sysvar_cache, ctx->txn_ctx->runtime_pub_wksp );
+    fd_epoch_schedule_t const * epoch_schedule = fd_sysvar_epoch_schedule_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
     if( FD_UNLIKELY( !epoch_schedule ) )
       return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L150
-    fd_sol_sysvar_clock_t const * clock = fd_sysvar_cache_clock( ctx->txn_ctx->sysvar_cache, ctx->txn_ctx->runtime_pub_wksp );
+    fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
     if( FD_UNLIKELY( !clock ) )
       return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
@@ -2639,17 +2627,22 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
 
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L155
     int err;
-    fd_slot_hashes_global_t const * slot_hashes_global = fd_sysvar_from_instr_acct_slot_hashes( ctx, 1, &err );
+    err = fd_sysvar_instr_acct_check( ctx, 1, &fd_sysvar_slot_hashes_id );
+    if( FD_UNLIKELY( err ) ) return err;
+
+    fd_slot_hashes_global_t const * slot_hashes_global = fd_sysvar_slot_hashes_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
     fd_slot_hashes_t slot_hashes[1];
     if( FD_LIKELY( slot_hashes_global ) ) {
       slot_hashes->hashes = deq_fd_slot_hash_t_join( (uchar*)slot_hashes_global + slot_hashes_global->hashes_offset );
     } else {
-      return err;
+      return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
     }
 
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L157
-    fd_sol_sysvar_clock_t const * clock = (fd_sol_sysvar_clock_t const *)fd_sysvar_from_instr_acct_clock( ctx, 2, &err );
-    if( FD_UNLIKELY( !clock ) ) return err;
+    err = fd_sysvar_instr_acct_check( ctx, 2, &fd_sysvar_clock_id );
+    if( FD_UNLIKELY( err ) ) return err;
+    fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
+    if( FD_UNLIKELY( !clock ) ) return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
     rc = process_vote_with_account( &me, slot_hashes, clock, vote, signers, ctx );
 
@@ -2693,7 +2686,7 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
     }
 
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L171
-    fd_slot_hashes_global_t const * slot_hashes_global = fd_sysvar_cache_slot_hashes( ctx->txn_ctx->sysvar_cache, ctx->txn_ctx->runtime_pub_wksp );
+    fd_slot_hashes_global_t const * slot_hashes_global = fd_sysvar_slot_hashes_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
     fd_slot_hashes_t slot_hashes[1];
     if( FD_LIKELY( slot_hashes_global ) ) {
       slot_hashes->hashes = deq_fd_slot_hash_t_join( (uchar*)slot_hashes_global + slot_hashes_global->hashes_offset );
@@ -2702,7 +2695,7 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
     }
 
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L172
-    fd_sol_sysvar_clock_t const * clock = fd_sysvar_cache_clock( ctx->txn_ctx->sysvar_cache, ctx->txn_ctx->runtime_pub_wksp );
+    fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
     if( FD_UNLIKELY( !clock ) )
       return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
@@ -2758,7 +2751,7 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
       return FD_EXECUTOR_INSTR_ERR_INVALID_INSTR_DATA;
 
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L185
-    fd_slot_hashes_global_t const * slot_hashes_global = fd_sysvar_cache_slot_hashes( ctx->txn_ctx->sysvar_cache, ctx->txn_ctx->runtime_pub_wksp );
+    fd_slot_hashes_global_t const * slot_hashes_global = fd_sysvar_slot_hashes_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
     fd_slot_hashes_t slot_hashes[1];
     if( FD_LIKELY( slot_hashes_global ) ) {
       slot_hashes->hashes = deq_fd_slot_hash_t_join( (uchar*)slot_hashes_global + slot_hashes_global->hashes_offset );
@@ -2766,7 +2759,7 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
       return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
     }
 
-    fd_sol_sysvar_clock_t const * clock = fd_sysvar_cache_clock( ctx->txn_ctx->sysvar_cache, ctx->txn_ctx->runtime_pub_wksp );
+    fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
     if( FD_UNLIKELY( !clock ) )
       return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
@@ -2795,13 +2788,13 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
         ? &instruction->inner.tower_sync
         : &instruction->inner.tower_sync_switch.tower_sync;
 
-    fd_slot_hashes_global_t const * slot_hashes_global = fd_sysvar_cache_slot_hashes( ctx->txn_ctx->sysvar_cache, ctx->txn_ctx->runtime_pub_wksp );
+    fd_slot_hashes_global_t const * slot_hashes_global = fd_sysvar_slot_hashes_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
     fd_slot_hashes_t slot_hashes[1];
     if( FD_LIKELY( slot_hashes_global ) ) {
       slot_hashes->hashes = deq_fd_slot_hash_t_join( (uchar*)slot_hashes_global + slot_hashes_global->hashes_offset );
     }
 
-    fd_sol_sysvar_clock_t const * clock = fd_sysvar_cache_clock( ctx->txn_ctx->sysvar_cache, ctx->txn_ctx->runtime_pub_wksp );
+    fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
     if( FD_UNLIKELY( !slot_hashes_global || !clock ) ) {
       return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
     }
@@ -2823,10 +2816,10 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
       rc = FD_EXECUTOR_INSTR_ERR_NOT_ENOUGH_ACC_KEYS;
       break;
     }
-    fd_rent_t const * rent_sysvar = fd_sysvar_cache_rent( ctx->txn_ctx->sysvar_cache, ctx->txn_ctx->runtime_pub_wksp );
+    fd_rent_t const * rent_sysvar = fd_sysvar_rent_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
     if( FD_UNLIKELY( !rent_sysvar ) )
       return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
-    fd_sol_sysvar_clock_t const * clock_sysvar = fd_sysvar_cache_clock( ctx->txn_ctx->sysvar_cache, ctx->txn_ctx->runtime_pub_wksp );
+    fd_sol_sysvar_clock_t const * clock_sysvar = fd_sysvar_clock_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
     if( FD_UNLIKELY( !clock_sysvar ) )
       return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
@@ -2871,8 +2864,10 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
     }
 
     // https://github.com/anza-xyz/agave/blob/v2.0.1/programs/vote/src/vote_processor.rs#L242
-    fd_sol_sysvar_clock_t const * clock = (fd_sol_sysvar_clock_t const *)fd_sysvar_from_instr_acct_clock( ctx, 1, &rc );
-    if( FD_UNLIKELY( !clock ) ) return rc;
+    rc = fd_sysvar_instr_acct_check( ctx, 1, &fd_sysvar_clock_id );
+    if( FD_UNLIKELY( rc ) ) return rc;
+    fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
+    if( FD_UNLIKELY( !clock ) ) return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
     rc = authorize( &me,
                     voter_pubkey,
@@ -2893,6 +2888,26 @@ fd_vote_program_execute( fd_exec_instr_ctx_t * ctx ) {
 /**********************************************************************/
 /* Public API                                                         */
 /**********************************************************************/
+
+uint
+fd_vote_state_versions_is_correct_and_initialized( fd_txn_account_t * vote_account ) {
+  // https://github.com/anza-xyz/agave/blob/v2.0.1/sdk/program/src/vote/state/mod.rs#L885
+  uint data_len_check = vote_account->vt->get_data_len( vote_account ) == FD_VOTE_STATE_V3_SZ;
+  uchar test_data[DEFAULT_PRIOR_VOTERS_OFFSET] = {0};
+  uint data_check = memcmp((
+    vote_account->vt->get_data( vote_account ) + VERSION_OFFSET), test_data, DEFAULT_PRIOR_VOTERS_OFFSET) != 0;
+  if (data_check && data_len_check) {
+    return 1;
+  }
+
+  // VoteState1_14_11::is_correct_size_and_initialized
+  // https://github.com/anza-xyz/agave/blob/v2.0.1/sdk/program/src/vote/state/vote_state_1_14_11.rs#L58
+  data_len_check = vote_account->vt->get_data_len( vote_account ) == FD_VOTE_STATE_V2_SZ;
+  uchar test_data_1_14_11[DEFAULT_PRIOR_VOTERS_OFFSET_1_14_11] = {0};
+  data_check = memcmp(
+    (vote_account->vt->get_data( vote_account ) + VERSION_OFFSET), test_data_1_14_11, DEFAULT_PRIOR_VOTERS_OFFSET_1_14_11) != 0;
+  return data_check && data_len_check;
+}
 
 int
 fd_vote_get_state( fd_txn_account_t const *      self,
@@ -2947,7 +2962,7 @@ upsert_vote_account( fd_exec_slot_ctx_t * slot_ctx,
   }
 
   fd_epoch_bank_t const * epoch_bank = fd_exec_epoch_ctx_epoch_bank( slot_ctx->epoch_ctx );
-  if( vote_state_versions_is_correct_and_initialized( vote_account ) ) {
+  if( fd_vote_state_versions_is_correct_and_initialized( vote_account ) ) {
     fd_account_keys_pair_t_mapnode_t key;
     fd_memcpy( &key.elem.key, vote_account->pubkey->uc, sizeof(fd_pubkey_t) );
 

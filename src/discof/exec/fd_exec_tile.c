@@ -1,5 +1,3 @@
-#include <stdlib.h>
-#define _GNU_SOURCE
 #include "../../disco/tiles.h"
 #include "generated/fd_exec_tile_seccomp.h"
 
@@ -12,7 +10,6 @@
 #include "../../flamenco/runtime/program/fd_bpf_program_util.h"
 
 #include "../../funk/fd_funk.h"
-#include "../../funk/fd_funk_filemap.h"
 
 struct fd_exec_tile_out_ctx {
   ulong       idx;
@@ -118,9 +115,7 @@ struct fd_exec_tile_ctx {
   int                   pending_slot_pop;
   int                   pending_epoch_pop;
 
-  /* Funk-specific setup.  */
   fd_funk_t             funk[1];
-  fd_wksp_t *           funk_wksp;
 
   /* Data structures related to managing and executing the transaction.
      The fd_txn_p_t is refreshed with every transaction and is sent
@@ -198,7 +193,7 @@ prepare_new_epoch_execution( fd_exec_tile_ctx_t *            ctx,
 
   // FIXME account for this in exec spad footprint
   int err;
-  fd_stakes_t * stakes = fd_bincode_decode_spad( stakes, ctx->exec_spad, stakes_enc, epoch_msg->stakes_encoded_sz, &err );
+  fd_stakes_delegation_t * stakes = fd_bincode_decode_spad( stakes_delegation, ctx->exec_spad, stakes_enc, epoch_msg->stakes_encoded_sz, &err );
   if( FD_UNLIKELY( err ) ) {
     FD_LOG_ERR(( "Could not decode stakes" ));
   }
@@ -248,11 +243,6 @@ prepare_new_slot_execution( fd_exec_tile_ctx_t *           ctx,
   ctx->txn_ctx->prev_lamports_per_signature = slot_msg->prev_lamports_per_signature;
   ctx->txn_ctx->fee_rate_governor           = slot_msg->fee_rate_governor;
   ctx->txn_ctx->enable_exec_recording       = slot_msg->enable_exec_recording;
-
-  ctx->txn_ctx->sysvar_cache = fd_wksp_laddr_fast( ctx->runtime_public_wksp, slot_msg->sysvar_cache_gaddr );
-  if( FD_UNLIKELY( !ctx->txn_ctx->sysvar_cache ) ) {
-    FD_LOG_ERR(( "Could not find valid sysvar cache" ));
-  }
 
   uchar * block_hash_queue_enc = fd_wksp_laddr_fast( ctx->runtime_public_wksp, slot_msg->block_hash_queue_encoded_gaddr );
   if( FD_UNLIKELY( !block_hash_queue_enc ) ) {
@@ -642,19 +632,9 @@ unprivileged_init( fd_topo_t *      topo,
   /* funk-specific setup                                              */
   /********************************************************************/
 
-  /* Setting these parameters are not required because we are joining
-     the funk that was setup in the replay tile. */
-  FD_LOG_NOTICE(( "Trying to join funk at file=%s", tile->exec.funk_file ));
-  fd_funk_txn_start_write( NULL );
-  if( FD_UNLIKELY( !fd_funk_open_file(
-      ctx->funk, tile->exec.funk_file,
-      1UL, 0UL, 0UL, 0UL, 0UL, FD_FUNK_READONLY, NULL ) ) ) {
-    FD_LOG_ERR(( "fd_funk_open_file(%s) failed", tile->exec.funk_file ));
+  if( FD_UNLIKELY( !fd_funk_join( ctx->funk, fd_topo_obj_laddr( topo, tile->exec.funk_obj_id ) ) ) ) {
+    FD_LOG_ERR(( "Failed to join database cache" ));
   }
-  fd_funk_txn_end_write( NULL );
-  ctx->funk_wksp = fd_funk_wksp( ctx->funk );
-
-  FD_LOG_NOTICE(( "Just joined funk at file=%s", tile->exec.funk_file ));
 
   //FIXME
   /********************************************************************/

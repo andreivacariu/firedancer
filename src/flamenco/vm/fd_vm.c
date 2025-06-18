@@ -344,11 +344,36 @@ fd_vm_validate( fd_vm_t const * vm ) {
   if ( FD_UNLIKELY( vm->text_cnt == 0UL ) ) /* https://github.com/solana-labs/rbpf/blob/v0.8.0/src/verifier.rs#L112 */
     return FD_VM_ERR_EMPTY;
 
-  /* FIXME: CLEAN UP LONG / ULONG TYPE CONVERSION */
+  ulong function_start = 0UL;
+  ulong function_next = 0UL;
+  if( FD_VM_SBPF_STATIC_SYSCALLS(sbpf_version) ) {
+    function_next = fd_sbpf_calldests_const_iter_init( vm->calldests );
+    FD_TEST( function_next==0UL ); /* assert that the first function always starts at 0. */
+  }
+
   ulong const * text     = vm->text;
   ulong         text_cnt = vm->text_cnt;
   for( ulong i=0UL; i<text_cnt; i++ ) {
     fd_sbpf_instr_t instr = fd_sbpf_instr( text[i] );
+
+    /* Validate functions, stored in vm->calldests.
+       https://github.com/anza-xyz/sbpf/blob/v0.11.1/src/verifier.rs#L253-L263
+       At the start of a function, we check that the function ends with JA(0x05) or RETURN(0x9D).
+       As a side effect, the range of the function is [function_start, function_next-1],
+       used to validate jumps.
+       Note that the first function always starts at 0, and similarly the last function
+       always ends at text_cnt-1. */
+    if( FD_UNLIKELY( FD_VM_SBPF_STATIC_SYSCALLS(sbpf_version) && i==function_next ) ) {
+      function_start = function_next;
+      function_next = fd_sbpf_calldests_const_iter_next( vm->calldests, function_start );
+      if( fd_sbpf_calldests_const_iter_done( function_next ) ) {
+        function_next = text_cnt;
+      }
+      fd_sbpf_instr_t end_instr = fd_sbpf_instr( text[function_next-1] );
+      if( FD_UNLIKELY( end_instr.opcode.raw!=0x05 && end_instr.opcode.raw!=0x9D ) ) {
+        return FD_VM_INVALID_FUNCTION;
+      }
+    }
 
     uchar validation_code = validation_map[ instr.opcode.raw ];
     switch( validation_code ) {
@@ -371,7 +396,7 @@ fd_vm_validate( fd_vm_t const * vm ) {
 
     case FD_CHECK_JMP_V3: {
       long jmp_dst = (long)i + (long)instr.offset + 1L;
-      if( FD_UNLIKELY( (jmp_dst<0) | (jmp_dst>=(long)text_cnt) ) ) return FD_VM_ERR_JMP_OUT_OF_BOUNDS;
+      if( FD_UNLIKELY( (jmp_dst<(long)function_start) | (jmp_dst>=(long)function_next) ) ) return FD_VM_ERR_JMP_OUT_OF_BOUNDS;
       break;
     }
 
@@ -411,7 +436,7 @@ fd_vm_validate( fd_vm_t const * vm ) {
       break;
     }
 
-    /* https://github.com/solana-labs/rbpf/blob/v0.8.5/src/verifier.rs#L207 */
+    /* https://github.com/anza-xyz/sbpf/blob/v0.11.1/src/verifier.rs#L220 */
     case FD_CHECK_CALL_REG: {
       if( FD_UNLIKELY( instr.src_reg > 9 ) ) {
         return FD_VM_ERR_INVALID_REG;
@@ -425,25 +450,19 @@ fd_vm_validate( fd_vm_t const * vm ) {
       break;
     }
 
-    /* https://github.com/solana-labs/rbpf/blob/4ad935be/src/verifier.rs#L411-L418 */
+    /* https://github.com/anza-xyz/sbpf/blob/v0.11.1/src/verifier.rs#L411-L418 */
     case FD_CHECK_CALL_IMM: {
       ulong target_pc = (ulong)( fd_long_sat_add( (long)i, fd_long_sat_add( (long)(int)instr.imm, 1 ) ) );
-      if( FD_UNLIKELY( target_pc>text_cnt || !fd_sbpf_calldests_test( vm->calldests, target_pc ) ) ) {
+      if( FD_UNLIKELY( target_pc>=text_cnt || !fd_sbpf_calldests_test( vm->calldests, target_pc ) ) ) {
         return FD_VM_INVALID_FUNCTION;
       }
       break;
     }
 
-    /* https://github.com/solana-labs/rbpf/blob/4ad935be/src/verifier.rs#L423-L428 */
+    /* https://github.com/anza-xyz/sbpf/blob/v0.11.1/src/verifier.rs#L423-L428 */
     case FD_CHECK_SYSCALL: {
-      uint imm = instr.imm;
-      /* check out of bound */
-      if( FD_UNLIKELY( imm==0 || imm >= FD_VM_SBPF_STATIC_SYSCALLS_LIST_SZ ) ) {
-        return FD_VM_INVALID_SYSCALL;
-      }
-      uint syscall_key = FD_VM_SBPF_STATIC_SYSCALLS_LIST[ imm ];
       /* check active syscall */
-      fd_sbpf_syscalls_t const * syscall = fd_sbpf_syscalls_query_const( vm->syscalls, (ulong)syscall_key, NULL );
+      fd_sbpf_syscalls_t const * syscall = fd_sbpf_syscalls_query_const( vm->syscalls, (ulong)instr.imm, NULL );
       if( FD_UNLIKELY( !syscall ) ) {
         return FD_VM_INVALID_SYSCALL;
       }
@@ -590,7 +609,8 @@ fd_vm_init(
    uint mem_regions_cnt,
    fd_vm_acc_region_meta_t * acc_region_metas,
    uchar is_deprecated,
-   int direct_mapping ) {
+   int direct_mapping,
+   int dump_syscall_to_pb ) {
 
   if ( FD_UNLIKELY( vm == NULL ) ) {
     FD_LOG_WARNING(( "NULL vm" ));
@@ -610,6 +630,18 @@ fd_vm_init(
   if ( FD_UNLIKELY( heap_max > FD_VM_HEAP_MAX ) ) {
     FD_LOG_WARNING(( "heap_max > FD_VM_HEAP_MAX" ));
     return NULL;
+  }
+
+  /* We do support calldests==NULL for tests that do not require
+     program execution, e.g. just testing some interpreter functionality
+     or syscalls.
+     However in v3, if calldests is specified, it must be a valid calldests.
+     In particular, the bit 0 should be always set to 1.
+     This property is derived from:
+     https://github.com/anza-xyz/sbpf/blob/v0.11.1/src/elf.rs#L529
+     and it's used by fd_vm_validate() */
+  if( FD_LIKELY( calldests && FD_VM_SBPF_STATIC_SYSCALLS(sbpf_version) ) ) {
+    fd_sbpf_calldests_insert( calldests, 0 );
   }
 
   // Set the vm fields
@@ -635,6 +667,7 @@ fd_vm_init(
   vm->direct_mapping = direct_mapping;
   vm->stack_frame_size = FD_VM_STACK_FRAME_SZ + ( direct_mapping ? 0UL : FD_VM_STACK_GUARD_SZ );
   vm->segv_store_vaddr = ULONG_MAX;
+  vm->dump_syscall_to_pb = dump_syscall_to_pb;
 
   /* Unpack the configuration */
   int err = fd_vm_setup_state_for_execution( vm );

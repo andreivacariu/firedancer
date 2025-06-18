@@ -428,6 +428,20 @@ fd_gui_printf_tiles( fd_gui_t * gui ) {
   jsonp_close_envelope( gui );
 }
 
+void
+fd_gui_printf_schedule_strategy( fd_gui_t * gui ) {
+  jsonp_open_envelope( gui, "summary", "schedule_strategy" );
+    char mode[10];
+    switch (gui->summary.schedule_strategy) {
+      case 0: strncpy( mode, "perf", sizeof(mode) ); break;
+      case 1: strncpy( mode, "balanced", sizeof(mode) ); break;
+      case 2: strncpy( mode, "revenue", sizeof(mode) ); break;
+      default: FD_LOG_ERR(("unexpected schedule_strategy %d", gui->summary.schedule_strategy));
+    }
+    mode[ sizeof(mode) - 1] = '\0';
+    jsonp_string( gui, "value", mode );
+  jsonp_close_envelope( gui );
+}
 
 void
 fd_gui_printf_identity_balance( fd_gui_t * gui ) {
@@ -541,30 +555,31 @@ fd_gui_printf_waterfall( fd_gui_t *               gui,
     jsonp_close_object( gui );
 
     jsonp_open_object( gui, "out" );
-      jsonp_ulong( gui, "net_overrun",       cur->out.net_overrun       - prev->out.net_overrun );
-      jsonp_ulong( gui, "quic_overrun",      cur->out.quic_overrun      - prev->out.quic_overrun );
-      jsonp_ulong( gui, "quic_frag_drop",    cur->out.quic_frag_drop    - prev->out.quic_frag_drop );
-      jsonp_ulong( gui, "quic_abandoned",    cur->out.quic_abandoned    - prev->out.quic_abandoned );
-      jsonp_ulong( gui, "tpu_quic_invalid",  cur->out.tpu_quic_invalid  - prev->out.tpu_quic_invalid );
-      jsonp_ulong( gui, "tpu_udp_invalid",   cur->out.tpu_udp_invalid   - prev->out.tpu_udp_invalid );
-      jsonp_ulong( gui, "verify_overrun",    cur->out.verify_overrun    - prev->out.verify_overrun );
-      jsonp_ulong( gui, "verify_parse",      cur->out.verify_parse      - prev->out.verify_parse );
-      jsonp_ulong( gui, "verify_failed",     cur->out.verify_failed     - prev->out.verify_failed );
-      jsonp_ulong( gui, "verify_duplicate",  cur->out.verify_duplicate  - prev->out.verify_duplicate );
-      jsonp_ulong( gui, "dedup_duplicate",   cur->out.dedup_duplicate   - prev->out.dedup_duplicate );
-      jsonp_ulong( gui, "resolv_lut_failed", cur->out.resolv_lut_failed - prev->out.resolv_lut_failed );
-      jsonp_ulong( gui, "resolv_expired",    cur->out.resolv_expired    - prev->out.resolv_expired );
-      jsonp_ulong( gui, "resolv_ancient",    cur->out.resolv_ancient    - prev->out.resolv_ancient );
-      jsonp_ulong( gui, "resolv_no_ledger",  cur->out.resolv_no_ledger  - prev->out.resolv_no_ledger );
-      jsonp_ulong( gui, "resolv_retained",   cur->out.resolv_retained );
-      jsonp_ulong( gui, "pack_invalid",      cur->out.pack_invalid      - prev->out.pack_invalid );
-      jsonp_ulong( gui, "pack_expired",      cur->out.pack_expired      - prev->out.pack_expired );
-      jsonp_ulong( gui, "pack_retained",     cur->out.pack_retained );
-      jsonp_ulong( gui, "pack_wait_full",    cur->out.pack_wait_full    - prev->out.pack_wait_full );
-      jsonp_ulong( gui, "pack_leader_slow",  cur->out.pack_leader_slow  - prev->out.pack_leader_slow );
-      jsonp_ulong( gui, "bank_invalid",      cur->out.bank_invalid      - prev->out.bank_invalid );
-      jsonp_ulong( gui, "block_success",     cur->out.block_success     - prev->out.block_success );
-      jsonp_ulong( gui, "block_fail",        cur->out.block_fail        - prev->out.block_fail );
+      jsonp_ulong( gui, "net_overrun",         cur->out.net_overrun         - prev->out.net_overrun );
+      jsonp_ulong( gui, "quic_overrun",        cur->out.quic_overrun        - prev->out.quic_overrun );
+      jsonp_ulong( gui, "quic_frag_drop",      cur->out.quic_frag_drop      - prev->out.quic_frag_drop );
+      jsonp_ulong( gui, "quic_abandoned",      cur->out.quic_abandoned      - prev->out.quic_abandoned );
+      jsonp_ulong( gui, "tpu_quic_invalid",    cur->out.tpu_quic_invalid    - prev->out.tpu_quic_invalid );
+      jsonp_ulong( gui, "tpu_udp_invalid",     cur->out.tpu_udp_invalid     - prev->out.tpu_udp_invalid );
+      jsonp_ulong( gui, "verify_overrun",      cur->out.verify_overrun      - prev->out.verify_overrun );
+      jsonp_ulong( gui, "verify_parse",        cur->out.verify_parse        - prev->out.verify_parse );
+      jsonp_ulong( gui, "verify_failed",       cur->out.verify_failed       - prev->out.verify_failed );
+      jsonp_ulong( gui, "verify_duplicate",    cur->out.verify_duplicate    - prev->out.verify_duplicate );
+      jsonp_ulong( gui, "dedup_duplicate",     cur->out.dedup_duplicate     - prev->out.dedup_duplicate );
+      jsonp_ulong( gui, "resolv_lut_failed",   cur->out.resolv_lut_failed   - prev->out.resolv_lut_failed );
+      jsonp_ulong( gui, "resolv_expired",      cur->out.resolv_expired      - prev->out.resolv_expired );
+      jsonp_ulong( gui, "resolv_ancient",      cur->out.resolv_ancient      - prev->out.resolv_ancient );
+      jsonp_ulong( gui, "resolv_no_ledger",    cur->out.resolv_no_ledger    - prev->out.resolv_no_ledger );
+      jsonp_ulong( gui, "resolv_retained",     cur->out.resolv_retained );
+      jsonp_ulong( gui, "pack_invalid",        cur->out.pack_invalid        - prev->out.pack_invalid );
+      jsonp_ulong( gui, "pack_invalid_bundle", cur->out.pack_invalid_bundle - prev->out.pack_invalid_bundle );
+      jsonp_ulong( gui, "pack_expired",        cur->out.pack_expired        - prev->out.pack_expired );
+      jsonp_ulong( gui, "pack_retained",       cur->out.pack_retained );
+      jsonp_ulong( gui, "pack_wait_full",      cur->out.pack_wait_full      - prev->out.pack_wait_full );
+      jsonp_ulong( gui, "pack_leader_slow",    cur->out.pack_leader_slow    - prev->out.pack_leader_slow );
+      jsonp_ulong( gui, "bank_invalid",        cur->out.bank_invalid        - prev->out.bank_invalid );
+      jsonp_ulong( gui, "block_success",       cur->out.block_success       - prev->out.block_success );
+      jsonp_ulong( gui, "block_fail",          cur->out.block_fail          - prev->out.block_fail );
     jsonp_close_object( gui );
   jsonp_close_object( gui );
 }
@@ -1211,17 +1226,17 @@ fd_gui_printf_slot_transactions_request( fd_gui_t * gui,
                                                                                      (long)gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->timestamp_delta_start_nanos + 1L ) );
             }
           jsonp_close_array( gui );
-          jsonp_open_array( gui, "txn_max_compute_units" );
-            for( ulong i=0UL; i<txn_cnt; i++) jsonp_ulong( gui, NULL, gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->compute_units_estimated );
-          jsonp_close_array( gui );
           jsonp_open_array( gui, "txn_compute_units_requested" );
             for( ulong i=0UL; i<txn_cnt; i++) jsonp_ulong( gui, NULL, gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->compute_units_requested );
           jsonp_close_array( gui );
           jsonp_open_array( gui, "txn_compute_units_consumed" );
-            for( ulong i=0UL; i<txn_cnt; i++) jsonp_ulong( gui, NULL, gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->actual_consumed_cus );
+            for( ulong i=0UL; i<txn_cnt; i++) jsonp_ulong( gui, NULL, gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->compute_units_consumed );
           jsonp_close_array( gui );
           jsonp_open_array( gui, "txn_priority_fee" );
             for( ulong i=0UL; i<txn_cnt; i++) jsonp_ulong_as_str( gui, NULL, gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->priority_fee );
+          jsonp_close_array( gui );
+          jsonp_open_array( gui, "txn_transaction_fee" );
+            for( ulong i=0UL; i<txn_cnt; i++) jsonp_ulong_as_str( gui, NULL, gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->transaction_fee );
           jsonp_close_array( gui );
           jsonp_open_array( gui, "txn_error_code" );
             for( ulong i=0UL; i<txn_cnt; i++) jsonp_ulong( gui, NULL, gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->error_code );
@@ -1235,12 +1250,20 @@ fd_gui_printf_slot_transactions_request( fd_gui_t * gui,
           jsonp_open_array( gui, "txn_bank_idx" );
             for( ulong i=0UL; i<txn_cnt; i++) jsonp_ulong( gui, NULL, gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->bank_idx );
           jsonp_close_array( gui );
+          jsonp_open_array( gui, "txn_preload_end_timestamps_nanos" );
+            for( ulong i=0UL; i<txn_cnt; i++) {
+              fd_gui_txn_t * txn = gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ];
+              long microblock_duration = (long)txn->timestamp_delta_end_nanos - (long)txn->timestamp_delta_start_nanos;
+              long timestamp_delta_preload_end = (long)txn->timestamp_delta_start_nanos + (long)((double)txn->txn_preload_end_pct * (double)microblock_duration / (double)UCHAR_MAX);
+              jsonp_long_as_str( gui, NULL, slot->txs.reference_nanos + timestamp_delta_preload_end );
+            }
+          jsonp_close_array( gui );
           jsonp_open_array( gui, "txn_start_timestamps_nanos" );
             for( ulong i=0UL; i<txn_cnt; i++) {
               fd_gui_txn_t * txn = gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ];
               long microblock_duration = (long)txn->timestamp_delta_end_nanos - (long)txn->timestamp_delta_start_nanos;
-              long timestamp_delta_load_end = (long)txn->timestamp_delta_start_nanos + (long)((double)txn->txn_start_pct * (double)microblock_duration / (double)UCHAR_MAX);
-              jsonp_long_as_str( gui, NULL, slot->txs.reference_nanos + timestamp_delta_load_end );
+              long timestamp_delta_validate_end = (long)txn->timestamp_delta_start_nanos + (long)((double)txn->txn_start_pct * (double)microblock_duration / (double)UCHAR_MAX);
+              jsonp_long_as_str( gui, NULL, slot->txs.reference_nanos + timestamp_delta_validate_end );
             }
           jsonp_close_array( gui );
           jsonp_open_array( gui, "txn_load_end_timestamps_nanos" );
@@ -1255,9 +1278,12 @@ fd_gui_printf_slot_transactions_request( fd_gui_t * gui,
             for( ulong i=0UL; i<txn_cnt; i++) {
               fd_gui_txn_t * txn = gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ];
               long microblock_duration = (long)txn->timestamp_delta_end_nanos - (long)txn->timestamp_delta_start_nanos;
-              long timestamp_delta_load_end = (long)txn->timestamp_delta_start_nanos + (long)((double)txn->txn_end_pct * (double)microblock_duration / (double)UCHAR_MAX);
-              jsonp_long_as_str( gui, NULL, slot->txs.reference_nanos + timestamp_delta_load_end );
+              long timestamp_delta_exec_end = (long)txn->timestamp_delta_start_nanos + (long)((double)txn->txn_end_pct * (double)microblock_duration / (double)UCHAR_MAX);
+              jsonp_long_as_str( gui, NULL, slot->txs.reference_nanos + timestamp_delta_exec_end );
             }
+          jsonp_close_array( gui );
+          jsonp_open_array( gui, "txn_arrival_timestamps_nanos" );
+            for( ulong i=0UL; i<txn_cnt; i++) jsonp_long_as_str( gui, NULL, gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->timestamp_arrival_nanos );
           jsonp_close_array( gui );
           jsonp_open_array( gui, "txn_tips" );
             for( ulong i=0UL; i<txn_cnt; i++) jsonp_ulong_as_str( gui, NULL, gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->tips );
@@ -1267,6 +1293,12 @@ fd_gui_printf_slot_transactions_request( fd_gui_t * gui,
           jsonp_close_array( gui );
           jsonp_open_array( gui, "txn_landed" );
             for( ulong i=0UL; i<txn_cnt; i++) jsonp_bool( gui, NULL, gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->flags & FD_GUI_TXN_FLAGS_LANDED_IN_BLOCK );
+          jsonp_close_array( gui );
+          jsonp_open_array( gui, "txn_signature" );
+            for( ulong i=0UL; i<txn_cnt; i++) {
+              FD_BASE58_ENCODE_64_BYTES( gui->txs[ (slot->txs.start_offset + i)%FD_GUI_TXN_HISTORY_SZ ]->signature, encoded_signature );
+              jsonp_string( gui, NULL, encoded_signature );
+            }
           jsonp_close_array( gui );
         jsonp_close_object( gui );
       } else {

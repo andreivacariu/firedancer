@@ -27,99 +27,102 @@
 
   ulong sbpf_version = vm->sbpf_version;
 
-  /* SIMD-0173: LDDW */
-  interp_jump_table[ 0x18 ] = FD_VM_SBPF_ENABLE_LDDW(sbpf_version) ? &&interp_0x18 : &&sigill;
-  interp_jump_table[ 0xf7 ] = FD_VM_SBPF_ENABLE_LDDW(sbpf_version) ? &&sigill : &&interp_0xf7; /* HOR64 */
+  for( ulong table_sbpf_version=0UL; table_sbpf_version<FD_SBPF_VERSION_COUNT; table_sbpf_version++ ) {
+    /* SIMD-0173: LDDW */
+    interp_jump_table[ table_sbpf_version ][ 0x18 ] = FD_VM_SBPF_ENABLE_LDDW(table_sbpf_version) ? &&interp_0x18 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0xf7 ] = FD_VM_SBPF_ENABLE_LDDW(table_sbpf_version) ? &&sigill : &&interp_0xf7; /* HOR64 */
 
-  /* SIMD-0173: LE */
-  interp_jump_table[ 0xd4 ] = FD_VM_SBPF_ENABLE_LE  (sbpf_version) ? &&interp_0xd4 : &&sigill;
+    /* SIMD-0173: LE */
+    interp_jump_table[ table_sbpf_version ][ 0xd4 ] = FD_VM_SBPF_ENABLE_LE  (table_sbpf_version) ? &&interp_0xd4 : &&sigill;
 
-  /* SIMD-0173: LDXW, STW, STXW */
-  interp_jump_table[ 0x61 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x8c;
-  interp_jump_table[ 0x62 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x87;
-  interp_jump_table[ 0x63 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x8f;
-  interp_jump_table[ 0x8c ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x8c : &&sigill;
-  interp_jump_table[ 0x87 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x87 : &&interp_0x87depr;
-  interp_jump_table[ 0x8f ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x8f : &&sigill;
+    /* SIMD-0173: LDXW, STW, STXW */
+    interp_jump_table[ table_sbpf_version ][ 0x61 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x8c;
+    interp_jump_table[ table_sbpf_version ][ 0x62 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x87;
+    interp_jump_table[ table_sbpf_version ][ 0x63 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x8f;
+    interp_jump_table[ table_sbpf_version ][ 0x8c ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x8c : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x87 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x87 : &&interp_0x87depr;
+    interp_jump_table[ table_sbpf_version ][ 0x8f ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x8f : &&sigill;
 
-  /* SIMD-0173: LDXH, STH, STXH */
-  interp_jump_table[ 0x69 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x3c;
-  interp_jump_table[ 0x6a ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x37;
-  interp_jump_table[ 0x6b ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x3f;
-  interp_jump_table[ 0x3c ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x3c : &&interp_0x3cdepr;
-  interp_jump_table[ 0x37 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x37 : &&interp_0x37depr;
-  interp_jump_table[ 0x3f ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x3f : &&interp_0x3fdepr;
+    /* SIMD-0173: LDXH, STH, STXH */
+    interp_jump_table[ table_sbpf_version ][ 0x69 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x3c;
+    interp_jump_table[ table_sbpf_version ][ 0x6a ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x37;
+    interp_jump_table[ table_sbpf_version ][ 0x6b ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x3f;
+    interp_jump_table[ table_sbpf_version ][ 0x3c ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x3c : &&interp_0x3cdepr;
+    interp_jump_table[ table_sbpf_version ][ 0x37 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x37 : &&interp_0x37depr;
+    interp_jump_table[ table_sbpf_version ][ 0x3f ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x3f : &&interp_0x3fdepr;
 
-  /* SIMD-0173: LDXB, STB, STXB */
-  interp_jump_table[ 0x71 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x2c;
-  interp_jump_table[ 0x72 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x27;
-  interp_jump_table[ 0x73 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x2f;
-  interp_jump_table[ 0x2c ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x2c : &&interp_0x2cdepr;
-  interp_jump_table[ 0x27 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x27 : &&interp_0x27depr;
-  interp_jump_table[ 0x2f ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x2f : &&interp_0x2fdepr;
+    /* SIMD-0173: LDXB, STB, STXB */
+    interp_jump_table[ table_sbpf_version ][ 0x71 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x2c;
+    interp_jump_table[ table_sbpf_version ][ 0x72 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x27;
+    interp_jump_table[ table_sbpf_version ][ 0x73 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x2f;
+    interp_jump_table[ table_sbpf_version ][ 0x2c ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x2c : &&interp_0x2cdepr;
+    interp_jump_table[ table_sbpf_version ][ 0x27 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x27 : &&interp_0x27depr;
+    interp_jump_table[ table_sbpf_version ][ 0x2f ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x2f : &&interp_0x2fdepr;
 
-  /* SIMD-0173: LDXDW, STDW, STXDW */
-  interp_jump_table[ 0x79 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x9c;
-  interp_jump_table[ 0x7a ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x97;
-  interp_jump_table[ 0x7b ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&sigill : &&interp_0x9f;
-  interp_jump_table[ 0x9c ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x9c : &&interp_0x9cdepr;
-  interp_jump_table[ 0x97 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x97 : &&interp_0x97depr;
-  interp_jump_table[ 0x9f ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(sbpf_version) ? &&interp_0x9f : &&interp_0x9fdepr;
+    /* SIMD-0173: LDXDW, STDW, STXDW */
+    interp_jump_table[ table_sbpf_version ][ 0x79 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x9c;
+    interp_jump_table[ table_sbpf_version ][ 0x7a ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x97;
+    interp_jump_table[ table_sbpf_version ][ 0x7b ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&sigill : &&interp_0x9f;
+    interp_jump_table[ table_sbpf_version ][ 0x9c ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x9c : &&interp_0x9cdepr;
+    interp_jump_table[ table_sbpf_version ][ 0x97 ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x97 : &&interp_0x97depr;
+    interp_jump_table[ table_sbpf_version ][ 0x9f ] = FD_VM_SBPF_MOVE_MEMORY_IX_CLASSES(table_sbpf_version) ? &&interp_0x9f : &&interp_0x9fdepr;
 
-  /* SIMD-0173: CALLX */
-  interp_jump_table[ 0x8d ] = FD_VM_SBPF_CALLX_USES_SRC_REG(sbpf_version) ? &&interp_0x8d : &&interp_0x8ddepr;
+    /* SIMD-0174: PQR */
+    interp_jump_table[ table_sbpf_version ][ 0x36 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x36 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x3e ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x3e : &&sigill;
 
-  /* SIMD-0174: PQR */
-  interp_jump_table[ 0x36 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x36 : &&sigill;
-  interp_jump_table[ 0x3e ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x3e : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x46 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x46 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x4e ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x4e : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x56 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x56 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x5e ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x5e : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x66 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x66 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x6e ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x6e : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x76 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x76 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x7e ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x7e : &&sigill;
 
-  interp_jump_table[ 0x46 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x46 : &&sigill;
-  interp_jump_table[ 0x4e ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x4e : &&sigill;
-  interp_jump_table[ 0x56 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x56 : &&sigill;
-  interp_jump_table[ 0x5e ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x5e : &&sigill;
-  interp_jump_table[ 0x66 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x66 : &&sigill;
-  interp_jump_table[ 0x6e ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x6e : &&sigill;
-  interp_jump_table[ 0x76 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x76 : &&sigill;
-  interp_jump_table[ 0x7e ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x7e : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x86 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x86 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x8e ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x8e : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x96 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x96 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0x9e ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0x9e : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0xb6 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0xb6 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0xbe ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0xbe : &&sigill;
 
-  interp_jump_table[ 0x86 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x86 : &&sigill;
-  interp_jump_table[ 0x8e ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x8e : &&sigill;
-  interp_jump_table[ 0x96 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x96 : &&sigill;
-  interp_jump_table[ 0x9e ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0x9e : &&sigill;
-  interp_jump_table[ 0xb6 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0xb6 : &&sigill;
-  interp_jump_table[ 0xbe ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0xbe : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0xc6 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0xc6 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0xce ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0xce : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0xd6 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0xd6 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0xde ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0xde : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0xe6 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0xe6 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0xee ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0xee : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0xf6 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0xf6 : &&sigill;
+    interp_jump_table[ table_sbpf_version ][ 0xfe ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&interp_0xfe : &&sigill;
 
-  interp_jump_table[ 0xc6 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0xc6 : &&sigill;
-  interp_jump_table[ 0xce ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0xce : &&sigill;
-  interp_jump_table[ 0xd6 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0xd6 : &&sigill;
-  interp_jump_table[ 0xde ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0xde : &&sigill;
-  interp_jump_table[ 0xe6 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0xe6 : &&sigill;
-  interp_jump_table[ 0xee ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0xee : &&sigill;
-  interp_jump_table[ 0xf6 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0xf6 : &&sigill;
-  interp_jump_table[ 0xfe ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&interp_0xfe : &&sigill;
+    /* SIMD-0174: disable MUL, DIV, MOD */
+    interp_jump_table[ table_sbpf_version ][ 0x24 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&sigill : &&interp_0x24;
+    interp_jump_table[ table_sbpf_version ][ 0x34 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&sigill : &&interp_0x34;
+    interp_jump_table[ table_sbpf_version ][ 0x94 ] = FD_VM_SBPF_ENABLE_PQR (table_sbpf_version) ? &&sigill : &&interp_0x94;
 
-  /* SIMD-0174: disable MUL, DIV, MOD */
-  interp_jump_table[ 0x24 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&sigill : &&interp_0x24;
-  interp_jump_table[ 0x34 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&sigill : &&interp_0x34;
-  interp_jump_table[ 0x94 ] = FD_VM_SBPF_ENABLE_PQR (sbpf_version) ? &&sigill : &&interp_0x94;
+    /* SIMD-0174: NEG */
+    interp_jump_table[ table_sbpf_version ][ 0x84 ] = FD_VM_SBPF_ENABLE_NEG (table_sbpf_version) ? &&interp_0x84 : &&sigill;
+    /* note: 0x87 should not be overwritten because it was NEG64 and it becomes STW */
 
-  /* SIMD-0174: NEG */
-  interp_jump_table[ 0x84 ] = FD_VM_SBPF_ENABLE_NEG (sbpf_version) ? &&interp_0x84 : &&sigill;
-  /* note: 0x87 should not be overwritten because it was NEG64 and it becomes STW */
+    /* SIMD-0174: Explicit Sign Extension + Register Immediate Subtraction.
+      Note: 0x14 is affected by both. */
+    interp_jump_table[ table_sbpf_version ][ 0x04 ] = FD_VM_SBPF_EXPLICIT_SIGN_EXT        (table_sbpf_version) ? &&interp_0x04 : &&interp_0x04depr;
+    interp_jump_table[ table_sbpf_version ][ 0x0c ] = FD_VM_SBPF_EXPLICIT_SIGN_EXT        (table_sbpf_version) ? &&interp_0x0c : &&interp_0x0cdepr;
+    interp_jump_table[ table_sbpf_version ][ 0x1c ] = FD_VM_SBPF_EXPLICIT_SIGN_EXT        (table_sbpf_version) ? &&interp_0x1c : &&interp_0x1cdepr;
+    interp_jump_table[ table_sbpf_version ][ 0xbc ] = FD_VM_SBPF_EXPLICIT_SIGN_EXT        (table_sbpf_version) ? &&interp_0xbc : &&interp_0xbcdepr;
+    interp_jump_table[ table_sbpf_version ][ 0x14 ] = FD_VM_SBPF_SWAP_SUB_REG_IMM_OPERANDS(table_sbpf_version) ? &&interp_0x14 : &&interp_0x14depr;
+    interp_jump_table[ table_sbpf_version ][ 0x17 ] = FD_VM_SBPF_SWAP_SUB_REG_IMM_OPERANDS(table_sbpf_version) ? &&interp_0x17 : &&interp_0x17depr;
 
-  /* SIMD-0174: Explicit Sign Extension + Register Immediate Subtraction.
-     Note: 0x14 is affected by both. */
-  interp_jump_table[ 0x04 ] = FD_VM_SBPF_EXPLICIT_SIGN_EXT        (sbpf_version) ? &&interp_0x04 : &&interp_0x04depr;
-  interp_jump_table[ 0x0c ] = FD_VM_SBPF_EXPLICIT_SIGN_EXT        (sbpf_version) ? &&interp_0x0c : &&interp_0x0cdepr;
-  interp_jump_table[ 0x1c ] = FD_VM_SBPF_EXPLICIT_SIGN_EXT        (sbpf_version) ? &&interp_0x1c : &&interp_0x1cdepr;
-  interp_jump_table[ 0xbc ] = FD_VM_SBPF_EXPLICIT_SIGN_EXT        (sbpf_version) ? &&interp_0xbc : &&interp_0xbcdepr;
-  interp_jump_table[ 0x14 ] = FD_VM_SBPF_SWAP_SUB_REG_IMM_OPERANDS(sbpf_version) ? &&interp_0x14 : &&interp_0x14depr;
-  interp_jump_table[ 0x17 ] = FD_VM_SBPF_SWAP_SUB_REG_IMM_OPERANDS(sbpf_version) ? &&interp_0x17 : &&interp_0x17depr;
+    /* SIMD-0178: static syscalls */
+    interp_jump_table[ table_sbpf_version ][ 0x85 ] = FD_VM_SBPF_STATIC_SYSCALLS (table_sbpf_version) ? &&interp_0x85 : &&interp_0x85depr;
+    interp_jump_table[ table_sbpf_version ][ 0x95 ] = FD_VM_SBPF_STATIC_SYSCALLS (table_sbpf_version) ? &&interp_0x95 : &&interp_0x9d;
+    interp_jump_table[ table_sbpf_version ][ 0x9d ] = FD_VM_SBPF_STATIC_SYSCALLS (table_sbpf_version) ? &&interp_0x9d : &&sigill;
 
-  /* SIMD-0178: static syscalls */
-  interp_jump_table[ 0x85 ] = FD_VM_SBPF_STATIC_SYSCALLS (sbpf_version) ? &&interp_0x85 : &&interp_0x85depr;
-  interp_jump_table[ 0x95 ] = FD_VM_SBPF_STATIC_SYSCALLS (sbpf_version) ? &&interp_0x95 : &&interp_0x9d;
-  interp_jump_table[ 0x9d ] = FD_VM_SBPF_STATIC_SYSCALLS (sbpf_version) ? &&interp_0x9d : &&sigill;
+    /* SIMD-0173 + SIMD-0179: CALLX */
+    interp_jump_table[ table_sbpf_version ][ 0x8d ] = FD_VM_SBPF_STATIC_SYSCALLS (table_sbpf_version) ? &&interp_0x8d : &&interp_0x8ddepr;
+
+  }
 
   /* Unpack the VM state */
 
@@ -182,7 +185,7 @@
   imm     = fd_vm_instr_imm   ( instr ); /* in [0,2^32) even if malformed */                     \
   reg_dst = reg[ dst ];                  /* Guaranteed in-bounds */                              \
   reg_src = reg[ src ];                  /* Guaranteed in-bounds */                              \
-  goto *interp_jump_table[ opcode ]      /* Guaranteed in-bounds */
+  goto *interp_jump_table[ sbpf_version ][ opcode ]      /* Guaranteed in-bounds */
 
 /* FD_VM_INTERP_SYSCALL_EXEC
    (macro to handle the logic of 0x85 pre- and post- SIMD-0178: static syscalls)
@@ -240,6 +243,10 @@
   vm->ic        = ic;                                                         \
   vm->cu        = cu;                                                         \
   vm->frame_cnt = frame_cnt;                                                  \
+  /* Dumping for debugging purposes */                                        \
+  if( FD_UNLIKELY( vm->dump_syscall_to_pb ) ) {                               \
+    fd_dump_vm_syscall_to_protobuf( vm, syscall->name );                      \
+  }                                                                           \
   /* Execution */                                                             \
   ulong ret[1];                                                               \
   err = syscall->func( vm, reg[1], reg[2], reg[3], reg[4], reg[5], ret );     \
@@ -795,19 +802,13 @@ interp_exec:
         FD_VM_INTERP_STACK_PUSH;
         pc = entry_pc - 1;
       } else {
-
         ulong target_pc = (ulong)fd_pchash_inverse( imm );
-        if( FD_UNLIKELY( target_pc>text_cnt ) ) {
-          /* ...to match state of Agave VM when faulting
-             Note: this check MUST be BEFORE fd_sbpf_calldests_test,
-             because it prevents overflowing calldests. */
+        if( FD_UNLIKELY( target_pc>=text_cnt ) ) {
+          goto sigcall; /* different return between 0x85 and 0x8d */
+        }
+        if( FD_UNLIKELY( !fd_sbpf_calldests_test( calldests, target_pc ) ) ) {
           goto sigcall;
         }
-
-        if( FD_UNLIKELY( !fd_sbpf_calldests_valid_idx( calldests, target_pc ) || !fd_sbpf_calldests_test( calldests, target_pc ) ) ) {
-          goto sigcall;
-        }
-
         FD_VM_INTERP_STACK_PUSH;
         pc = target_pc - 1;
       }
@@ -857,29 +858,20 @@ interp_exec:
   FD_VM_INTERP_INSTR_END;
 
   FD_VM_INTERP_BRANCH_BEGIN(0x8d) { /* FD_SBPF_OP_CALL_REG */
-
     FD_VM_INTERP_STACK_PUSH;
-
-    ulong vaddr = reg_src;
-
-    /* Notes: Agave checks region and target_pc before updating the pc.
-       To match their state, we do the same, even though we could simply
-       update the pc and let BRANCH_END fail.
-       Also, Agave doesn't check alignment. */
-
-    ulong region = vaddr >> 32;
-    /* ulong align  = vaddr & 7UL; */
-    ulong target_pc = ((vaddr & FD_VM_OFFSET_MASK)/8UL) - text_word_off;
-    if( FD_UNLIKELY( (region!=1UL) | (target_pc>=text_cnt) ) ) goto sigtextbr; /* Note: untaken branches don't consume BTB */
+    ulong target_pc = (reg_src - vm->text_off) / 8UL;
+    if( FD_UNLIKELY( target_pc>=text_cnt ) ) goto sigtextbr;
+    if( FD_UNLIKELY( !fd_sbpf_calldests_test( calldests, target_pc ) ) ) {
+      goto sigcall;
+    }
     pc = target_pc - 1;
-
   } FD_VM_INTERP_BRANCH_END;
 
   FD_VM_INTERP_BRANCH_BEGIN(0x8ddepr) { /* FD_SBPF_OP_CALL_REG */
 
     FD_VM_INTERP_STACK_PUSH;
 
-    ulong vaddr = reg[ imm & 15U ];
+    ulong vaddr = FD_VM_SBPF_CALLX_USES_SRC_REG(sbpf_version) ? reg_src : reg[ imm & 15U ];
 
     /* Notes: Agave checks region and target_pc before updating the pc.
        To match their state, we do the same, even though we could simply
@@ -888,7 +880,7 @@ interp_exec:
 
     ulong region = vaddr >> 32;
     /* ulong align  = vaddr & 7UL; */
-    ulong target_pc = ((vaddr & FD_VM_OFFSET_MASK)/8UL) - text_word_off;
+    ulong target_pc = ((vaddr & FD_VM_OFFSET_MASK) - vm->text_off) / 8UL;
     if( FD_UNLIKELY( (region!=1UL) | (target_pc>=text_cnt) ) ) goto sigtextbr; /* Note: untaken branches don't consume BTB */
     pc = target_pc - 1;
 
@@ -925,9 +917,8 @@ interp_exec:
   FD_VM_INTERP_INSTR_END;
 
   FD_VM_INTERP_BRANCH_BEGIN(0x95) { /* FD_SBPF_OP_SYSCALL */
-    /* imm has already been validated to not overflow */
-    uint syscall_key = FD_VM_SBPF_STATIC_SYSCALLS_LIST[ imm ];
-    fd_sbpf_syscalls_t const * syscall = fd_sbpf_syscalls_query_const( syscalls, (ulong)syscall_key, NULL );
+    /* imm has already been validated */
+    fd_sbpf_syscalls_t const * syscall = fd_sbpf_syscalls_query_const( syscalls, (ulong)imm, NULL );
 
     /* this check is probably useless, as validation includes checking that the
        syscall is active in this epoch.

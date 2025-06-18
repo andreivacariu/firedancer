@@ -46,8 +46,8 @@
    transactions per slot is around 10_000, then an epoch will have about
    432_000*10_000*0.05 transactions (~2^28).
 
-   Unfortunately, the transaction struct is 40+ bytes.  If we sized the
-   array to 2^28 entries then the memory required would be ~8.5GB.  In
+   Unfortunately, the transaction struct is 100+ bytes.  If we sized the
+   array to 2^28 entries then the memory required would be ~26GB.  In
    order to keep memory usage to a more reasonable level, we'll
    arbitrarily use a fourth of that size. */
 #define FD_GUI_TXN_HISTORY_SZ (1UL<<26UL)
@@ -129,6 +129,7 @@ struct fd_gui_txn_waterfall {
     ulong resolv_no_ledger;
     ulong resolv_retained;
     ulong pack_invalid;
+    ulong pack_invalid_bundle;
     ulong pack_expired;
     ulong pack_retained;
     ulong pack_wait_full;
@@ -235,13 +236,17 @@ struct fd_gui_slot {
 typedef struct fd_gui_slot fd_gui_slot_t;
 
 struct __attribute__((packed)) fd_gui_txn {
-  ulong priority_fee               : 64;
-  ulong tips                       : 64;
-  uint compute_units_requested     : 21; /* <= 1.4M */
-  uint compute_units_estimated     : 21; /* <= 1.4M */
-  uint actual_consumed_cus         : 21; /* <= 1.4M */
-  uint bank_idx                    :  6; /* in [0, 64) */
-  uint error_code                  :  6; /* in [0, 64) */
+  uchar signature[ FD_SHA512_HASH_SZ ];
+  ulong transaction_fee;
+  ulong priority_fee;
+  ulong tips;
+  long timestamp_arrival_nanos;
+
+  /* compute_units_requested has both execution and non-execution cus */
+  uint compute_units_requested : 21; /* <= 1.4M */
+  uint compute_units_consumed  : 21; /* <= 1.4M */
+  uint bank_idx                :  6; /* in [0, 64) */
+  uint error_code              :  6; /* in [0, 64) */
   int timestamp_delta_start_nanos;
   int timestamp_delta_end_nanos;
 
@@ -256,6 +261,7 @@ struct __attribute__((packed)) fd_gui_txn {
   uchar txn_start_pct;
   uchar txn_load_end_pct;
   uchar txn_end_pct;
+  uchar txn_preload_end_pct;
   uchar flags; /* assigned with the FD_GUI_TXN_FLAGS_* macros */
   uint microblock_idx;
 };
@@ -311,6 +317,8 @@ struct fd_gui {
 
     ulong startup_waiting_for_supermajority_slot;
     ulong startup_waiting_for_supermajority_stake_pct;
+
+    int schedule_strategy;
 
     ulong identity_account_balance;
     ulong vote_account_balance;
@@ -413,6 +421,7 @@ fd_gui_new( void *             shmem,
             char const *       cluster,
             uchar const *      identity_key,
             int                is_voting,
+            int                schedule_strategy,
             fd_topo_t *        topo );
 
 fd_gui_t *
@@ -472,6 +481,7 @@ fd_gui_microblock_execution_end( fd_gui_t *   gui,
                                  uchar        txn_start_pct,
                                  uchar        txn_load_end_pct,
                                  uchar        txn_end_pct,
+                                 uchar        txn_preload_end_pct,
                                  ulong        tips );
 
 int

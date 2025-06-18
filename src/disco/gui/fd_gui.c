@@ -27,6 +27,7 @@ fd_gui_new( void *             shmem,
             char const *       cluster,
             uchar const *      identity_key,
             int                is_voting,
+            int                schedule_strategy,
             fd_topo_t *        topo ) {
 
   if( FD_UNLIKELY( !shmem ) ) {
@@ -50,6 +51,7 @@ fd_gui_new( void *             shmem,
   gui->topo = topo;
 
   gui->debug_in_leader_slot = ULONG_MAX;
+  gui->summary.schedule_strategy = schedule_strategy;
 
 
   gui->next_sample_400millis = fd_log_wallclock();
@@ -151,6 +153,7 @@ fd_gui_ws_open( fd_gui_t * gui,
     fd_gui_printf_skipped_history,
     fd_gui_printf_tps_history,
     fd_gui_printf_tiles,
+    fd_gui_printf_schedule_strategy,
     fd_gui_printf_identity_balance,
     fd_gui_printf_vote_balance,
     fd_gui_printf_estimated_slot_duration_nanos,
@@ -280,9 +283,10 @@ fd_gui_txn_waterfall_snap( fd_gui_t *               gui,
   fd_topo_tile_t const * pack = &topo->tiles[ fd_topo_find_tile( topo, "pack", 0UL ) ];
   volatile ulong const * pack_metrics = fd_metrics_tile( pack->metrics );
 
+  cur->out.pack_invalid_bundle = pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_DROPPED_PARTIAL_BUNDLE ) ];
   cur->out.pack_invalid =
-      pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_DROPPED_PARTIAL_BUNDLE ) ]
-    + pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_INSERTED_BUNDLE_BLACKLIST ) ]
+      pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_INSERTED_BUNDLE_BLACKLIST ) ]
+    + pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_INSERTED_INVALID_NONCE ) ]
     + pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_INSERTED_WRITE_SYSVAR ) ]
     + pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_INSERTED_ESTIMATION_FAIL ) ]
     + pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_INSERTED_DUPLICATE_ACCOUNT ) ]
@@ -293,7 +297,10 @@ fd_gui_txn_waterfall_snap( fd_gui_t *               gui,
     + pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_INSERTED_DUPLICATE ) ];
 
   cur->out.pack_expired = pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_INSERTED_EXPIRED ) ] +
-                          pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_EXPIRED ) ];
+                          pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_EXPIRED ) ] +
+                          pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_DELETED ) ] +
+                          pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_INSERTED_NONCE_PRIORITY ) ] +
+                          pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_INSERTED_NONCE_NONVOTE_REPLACE ) ];
 
   cur->out.pack_leader_slow =
       pack_metrics[ MIDX( COUNTER, PACK, TRANSACTION_INSERTED_PRIORITY ) ]
@@ -1716,17 +1723,22 @@ fd_gui_microblock_execution_begin( fd_gui_t *   gui,
     fd_txn_p_t * txn_payload = &txns[ i ];
     fd_txn_t * txn = TXN( txn_payload );
 
+    ulong sig_rewards = FD_PACK_FEE_PER_SIGNATURE * txn->signature_cnt;
     ulong priority_rewards                    = ULONG_MAX;
     ulong requested_execution_cus             = ULONG_MAX;
     ulong precompile_sigs                     = ULONG_MAX;
     ulong requested_loaded_accounts_data_cost = ULONG_MAX;
     uint _flags;
     ulong cost_estimate = fd_pack_compute_cost( txn, txn_payload->payload, &_flags, &requested_execution_cus, &priority_rewards, &precompile_sigs, &requested_loaded_accounts_data_cost );
+    sig_rewards += FD_PACK_FEE_PER_SIGNATURE * precompile_sigs;
+    sig_rewards = sig_rewards * FD_PACK_TXN_FEE_BURN_PCT / 100UL;
 
     fd_gui_txn_t * txn_entry = gui->txs[ (pack_txn_idx + i)%FD_GUI_TXN_HISTORY_SZ ];
-    txn_entry->compute_units_estimated     = cost_estimate           & 0x1FFFFFU;
-    txn_entry->compute_units_requested     = requested_execution_cus & 0x1FFFFFU;
+    fd_memcpy(txn_entry->signature, txn_payload->payload + txn->signature_off, FD_SHA512_HASH_SZ);
+    txn_entry->timestamp_arrival_nanos     = txn_payload->scheduler_arrival_time_nanos;
+    txn_entry->compute_units_requested     = cost_estimate & 0x1FFFFFU;
     txn_entry->priority_fee                = priority_rewards;
+    txn_entry->transaction_fee             = sig_rewards;
     txn_entry->timestamp_delta_start_nanos = (int)((double)(tickcount - slot->txs.reference_ticks) / fd_tempo_tick_per_ns( NULL ));
     txn_entry->microblock_idx              = microblock_idx;
     txn_entry->flags                      |= (uchar)FD_GUI_TXN_FLAGS_STARTED;
@@ -1752,6 +1764,7 @@ fd_gui_microblock_execution_end( fd_gui_t *   gui,
                                  uchar        txn_start_pct,
                                  uchar        txn_load_end_pct,
                                  uchar        txn_end_pct,
+                                 uchar        txn_preload_end_pct,
                                  ulong        tips ) {
   if( FD_UNLIKELY( 1UL!=txn_cnt ) ) FD_LOG_ERR(( "gui expects 1 txn per microblock from bank, found %lu", txn_cnt ));
 
@@ -1768,12 +1781,13 @@ fd_gui_microblock_execution_end( fd_gui_t *   gui,
 
     fd_gui_txn_t * txn_entry = gui->txs[ (pack_txn_idx + i)%FD_GUI_TXN_HISTORY_SZ ];
     txn_entry->bank_idx                  = bank_idx                           & 0x3FU;
-    txn_entry->actual_consumed_cus       = txn_p->bank_cu.actual_consumed_cus & 0x1FFFFFU;
+    txn_entry->compute_units_consumed    = txn_p->bank_cu.actual_consumed_cus & 0x1FFFFFU;
     txn_entry->error_code                = (txn_p->flags >> 24)               & 0x3FU;
     txn_entry->timestamp_delta_end_nanos = (int)((double)(tickcount - slot->txs.reference_ticks) / fd_tempo_tick_per_ns( NULL ));
     txn_entry->txn_start_pct             = txn_start_pct;
     txn_entry->txn_load_end_pct          = txn_load_end_pct;
     txn_entry->txn_end_pct               = txn_end_pct;
+    txn_entry->txn_preload_end_pct       = txn_preload_end_pct;
     txn_entry->tips                      = tips;
     txn_entry->flags                    |= (uchar)FD_GUI_TXN_FLAGS_ENDED;
     txn_entry->flags                    |= (uchar)fd_uint_if(txn_p->flags & FD_TXN_P_FLAGS_EXECUTE_SUCCESS, FD_GUI_TXN_FLAGS_LANDED_IN_BLOCK, 0U);

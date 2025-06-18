@@ -1,12 +1,15 @@
 #include "fd_dump_pb.h"
 #include "harness/generated/block.pb.h"
 #include "harness/generated/invoke.pb.h"
+#include "harness/generated/txn.pb.h"
 #include "harness/generated/vm.pb.h"
 #include "../fd_system_ids.h"
 #include "../fd_runtime.h"
 #include "../program/fd_address_lookup_table_program.h"
 #include "../../../ballet/lthash/fd_lthash.h"
 #include "../../../ballet/nanopb/pb_encode.h"
+#include "../program/fd_bpf_program_util.h"
+
 
 #include <errno.h>
 #include <stdio.h> /* fopen */
@@ -405,7 +408,7 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
     fd_solana_vote_program_id,
     fd_solana_stake_program_id,
     fd_solana_config_program_id,
-    // fd_solana_zk_token_proof_program_id,
+    fd_solana_zk_token_proof_program_id,
     fd_solana_bpf_loader_v4_program_id,
     fd_solana_address_lookup_table_program_id,
     fd_solana_bpf_loader_deprecated_program_id,
@@ -469,7 +472,6 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
   block_context->slot_ctx.block_height              = slot_ctx->slot_bank.block_height + 1UL;
   // fd_memcpy( block_context->slot_ctx.poh, &slot_ctx->slot_bank.poh, sizeof(fd_pubkey_t) ); // TODO: dump here when process epoch happens after poh verification
   fd_memcpy( block_context->slot_ctx.parent_bank_hash, &slot_ctx->slot_bank.banks_hash, sizeof(fd_pubkey_t) );
-  fd_memcpy( block_context->slot_ctx.parent_lt_hash, &slot_ctx->slot_bank.lthash.lthash, FD_LTHASH_LEN_BYTES );
   block_context->slot_ctx.prev_slot                 = slot_ctx->slot_bank.prev_slot;
   block_context->slot_ctx.prev_lps                  = slot_ctx->prev_lamports_per_signature;
   block_context->slot_ctx.prev_epoch_capitalization = slot_ctx->slot_bank.capitalization;
@@ -491,107 +493,45 @@ create_block_context_protobuf_from_block( fd_exec_test_block_context_t * block_c
   };
   block_context->epoch_ctx.genesis_creation_time      = epoch_ctx->epoch_bank.genesis_creation_time;
 
-  /* Dumping stake accounts */
+  /* Dumping stake accounts for this epoch */
 
-  // BlockContext -> EpochContext -> new_stake_accounts (stake accounts for the current running epoch)
-  block_context->epoch_ctx.new_stake_accounts_count = 0UL;
-  block_context->epoch_ctx.new_stake_accounts       = fd_spad_alloc( spad,
-                                                                     alignof(pb_bytes_array_t *),
-                                                                     new_stake_account_cnt * sizeof(pb_bytes_array_t *) );
-
-  for( fd_account_keys_pair_t_mapnode_t const * curr = fd_account_keys_pair_t_map_minimum_const(
-          slot_ctx->slot_bank.stake_account_keys.account_keys_pool,
-          slot_ctx->slot_bank.stake_account_keys.account_keys_root );
-       curr;
-       curr = fd_account_keys_pair_t_map_successor_const( slot_ctx->slot_bank.stake_account_keys.account_keys_pool, curr ) ) {
-
-    // Verify the stake state before dumping
-    FD_TXN_ACCOUNT_DECL( account );
-    int rc = fd_txn_account_init_from_funk_readonly( account, &curr->elem.key, slot_ctx->funk, slot_ctx->funk_txn );
-    if( FD_UNLIKELY( rc!=FD_ACC_MGR_SUCCESS ) ) {
-      continue;
-    }
-
-    // Dump the new stake account pubkey
-    pb_bytes_array_t * stake_out = fd_spad_alloc( spad, alignof(pb_bytes_array_t), PB_BYTES_ARRAY_T_ALLOCSIZE( sizeof(fd_pubkey_t) ) );
-    stake_out->size = sizeof(fd_pubkey_t);
-    fd_memcpy( stake_out->bytes, &curr->elem.key, sizeof(fd_pubkey_t) );
-    block_context->epoch_ctx.new_stake_accounts[block_context->epoch_ctx.new_stake_accounts_count++] = stake_out;
-
-    // Dump the account state as well
-    dump_account_if_not_already_dumped( slot_ctx, &curr->elem.key, spad, block_context->acct_states, &block_context->acct_states_count, NULL );
-  }
-
-  // BlockContext -> EpochContext -> stake_accounts (stake accounts at epoch T)
-  block_context->epoch_ctx.stake_accounts_count = 0UL;
-  block_context->epoch_ctx.stake_accounts       = fd_spad_alloc( spad,
-                                                                 alignof(fd_exec_test_stake_account_t),
-                                                                 stake_account_cnt * sizeof(fd_exec_test_stake_account_t) );
-
+  /* Dumping all existing stake accounts */
   for( fd_delegation_pair_t_mapnode_t const * curr = fd_delegation_pair_t_map_minimum_const(
           epoch_ctx->epoch_bank.stakes.stake_delegations_pool,
           epoch_ctx->epoch_bank.stakes.stake_delegations_root );
        curr;
        curr = fd_delegation_pair_t_map_successor_const( epoch_ctx->epoch_bank.stakes.stake_delegations_pool, curr ) ) {
-    FD_TXN_ACCOUNT_DECL( account );
-    if( fd_txn_account_init_from_funk_readonly( account, &curr->elem.account, slot_ctx->funk, slot_ctx->funk_txn ) ) {
-      continue;
-    }
-
-    fd_exec_test_stake_account_t * stake_out = &block_context->epoch_ctx.stake_accounts[block_context->epoch_ctx.stake_accounts_count++];
-
-    fd_memcpy( stake_out->stake_account_pubkey, &curr->elem.account, sizeof(fd_pubkey_t) );
-    fd_memcpy( stake_out->voter_pubkey, &curr->elem.delegation.voter_pubkey, sizeof(fd_pubkey_t) );
-    stake_out->stake                = curr->elem.delegation.stake;
-    stake_out->activation_epoch     = curr->elem.delegation.activation_epoch;
-    stake_out->deactivation_epoch   = curr->elem.delegation.deactivation_epoch;
-    stake_out->warmup_cooldown_rate = curr->elem.delegation.warmup_cooldown_rate;
-
-    // Dump the account state
     dump_account_if_not_already_dumped( slot_ctx, &curr->elem.account, spad, block_context->acct_states, &block_context->acct_states_count, NULL );
   }
 
-  /* Dumping vote accounts */
+  /* Dump all new stake accounts */
+  for( fd_account_keys_pair_t_mapnode_t const * curr = fd_account_keys_pair_t_map_minimum_const(
+          slot_ctx->slot_bank.stake_account_keys.account_keys_pool,
+          slot_ctx->slot_bank.stake_account_keys.account_keys_root );
+       curr;
+       curr = fd_account_keys_pair_t_map_successor_const( slot_ctx->slot_bank.stake_account_keys.account_keys_pool, curr ) ) {
+    dump_account_if_not_already_dumped( slot_ctx, &curr->elem.key, spad, block_context->acct_states, &block_context->acct_states_count, NULL );
+  }
 
-  // BlockContext -> EpochContext -> new_vote_accounts (vote accounts for the current running epoch)
-  ulong new_vote_account_cnt = fd_account_keys_pair_t_map_size( slot_ctx->slot_bank.vote_account_keys.account_keys_pool,
-                                                                slot_ctx->slot_bank.vote_account_keys.account_keys_root );
-  block_context->epoch_ctx.new_vote_accounts_count = 0UL;
-  block_context->epoch_ctx.new_vote_accounts       = fd_spad_alloc( spad,
-                                                                   alignof(fd_exec_test_vote_account_t),
-                                                                   new_vote_account_cnt * sizeof(fd_exec_test_vote_account_t) );
+  /* Dumping vote accounts for this epoch */
 
+  /* Dump all existing vote accounts */
+  for( fd_vote_accounts_pair_t_mapnode_t const * curr = fd_vote_accounts_pair_t_map_minimum_const(
+          epoch_ctx->epoch_bank.stakes.vote_accounts.vote_accounts_pool,
+          epoch_ctx->epoch_bank.stakes.vote_accounts.vote_accounts_root );
+       curr;
+       curr = fd_vote_accounts_pair_t_map_successor_const( epoch_ctx->epoch_bank.stakes.vote_accounts.vote_accounts_pool, curr ) ) {
+    dump_account_if_not_already_dumped( slot_ctx, &curr->elem.key, spad, block_context->acct_states, &block_context->acct_states_count, NULL );
+  }
+
+  /* Dump all new vote accounts */
   for( fd_account_keys_pair_t_mapnode_t const * curr = fd_account_keys_pair_t_map_minimum_const(
           slot_ctx->slot_bank.vote_account_keys.account_keys_pool,
           slot_ctx->slot_bank.vote_account_keys.account_keys_root );
        curr;
        curr = fd_account_keys_pair_t_map_successor_const( slot_ctx->slot_bank.vote_account_keys.account_keys_pool, curr ) ) {
-
-    // Verify the vote account before dumping
-    FD_TXN_ACCOUNT_DECL( account );
-    int rc = fd_txn_account_init_from_funk_readonly( account, &curr->elem.key, slot_ctx->funk, slot_ctx->funk_txn );
-    if( FD_UNLIKELY( rc!=FD_ACC_MGR_SUCCESS ) ) {
-      continue;
-    }
-
-    // Dump the new vote account pubkey
-    pb_bytes_array_t * vote_out = fd_spad_alloc( spad, alignof(pb_bytes_array_t), PB_BYTES_ARRAY_T_ALLOCSIZE( sizeof(fd_pubkey_t) ) );
-    vote_out->size = sizeof(fd_pubkey_t);
-    fd_memcpy( vote_out->bytes, &curr->elem.key, sizeof(fd_pubkey_t) );
-    block_context->epoch_ctx.new_vote_accounts[block_context->epoch_ctx.new_vote_accounts_count++] = vote_out;
-
-    // Dump the account state as well
     dump_account_if_not_already_dumped( slot_ctx, &curr->elem.key, spad, block_context->acct_states, &block_context->acct_states_count, NULL );
   }
-
-  // BlockContext -> EpochContext -> vote_accounts_t (vote accounts at epoch T)
-  dump_vote_accounts( slot_ctx,
-                      &epoch_ctx->epoch_bank.stakes.vote_accounts,
-                      spad,
-                      &block_context->epoch_ctx.vote_accounts_t,
-                      &block_context->epoch_ctx.vote_accounts_t_count,
-                      block_context->acct_states,
-                      &block_context->acct_states_count );
 
   // BlockContext -> EpochContext -> vote_accounts_t_1 (vote accounts at epoch T-1)
   dump_vote_accounts( slot_ctx,
@@ -617,12 +557,10 @@ create_block_context_protobuf_from_block_tx_only( fd_exec_test_block_context_t *
                                                   fd_runtime_block_info_t const * block_info,
                                                   fd_exec_slot_ctx_t const *      slot_ctx,
                                                   fd_spad_t *                     spad ) {
-  /* BlockContext -> microblocks */
-  block_context->microblocks_count = 0U;
-  block_context->microblocks       = fd_spad_alloc( spad, alignof(fd_exec_test_microblock_t), block_info->microblock_cnt *
-                                                                                              block_info->microblock_batch_cnt *
-                                                                                              sizeof(fd_exec_test_microblock_t) );
-  fd_memset( block_context->microblocks, 0, block_info->microblock_cnt * block_info->microblock_batch_cnt * sizeof(fd_exec_test_microblock_t) );
+  /* BlockContext -> txns */
+  block_context->txns_count = 0U;
+  block_context->txns       = fd_spad_alloc( spad, alignof(fd_exec_test_sanitized_transaction_t), block_info->txn_cnt * sizeof(fd_exec_test_sanitized_transaction_t) );
+  fd_memset( block_context->txns, 0, block_info->txn_cnt * sizeof(fd_exec_test_sanitized_transaction_t) );
 
   /* BlockContext -> acct_states
      Allocate additional space for the remaining accounts */
@@ -646,17 +584,11 @@ create_block_context_protobuf_from_block_tx_only( fd_exec_test_block_context_t *
       ulong                        txn_cnt         = microblock_info->microblock.hdr->txn_cnt;
       if (txn_cnt==0UL) continue;
 
-      fd_exec_test_microblock_t * out_block = &block_context->microblocks[block_context->microblocks_count++];
-
-      out_block->txns_count = (pb_size_t)txn_cnt;
-      out_block->txns       = fd_spad_alloc( spad, alignof(fd_exec_test_sanitized_transaction_t), txn_cnt * sizeof(fd_exec_test_sanitized_transaction_t) );
-      memset( out_block->txns, 0, txn_cnt * sizeof(fd_exec_test_sanitized_transaction_t) );
-
-      /* BlockContext -> microblocks -> txns */
+      /* BlockContext -> txns */
       for( ulong k=0UL; k<txn_cnt; k++ ) {
         fd_txn_p_t const * txn_ptr      = &microblock_info->txns[k];
         fd_txn_t const * txn_descriptor = TXN( txn_ptr );
-        dump_sanitized_transaction( slot_ctx->funk, slot_ctx->funk_txn, txn_descriptor, txn_ptr->payload, spad, &out_block->txns[k] );
+        dump_sanitized_transaction( slot_ctx->funk, slot_ctx->funk_txn, txn_descriptor, txn_ptr->payload, spad, &block_context->txns[block_context->txns_count++] );
 
         /* BlockContext -> acct_states */
         /* Dump account + alut + programdata accounts (if applicable). There's a lot more brute force work since none of the borrowed accounts are set up yet. We have to:
@@ -978,7 +910,7 @@ fd_dump_instr_to_protobuf( fd_exec_txn_ctx_t * txn_ctx,
       position = fd_cstr_append_cstr(position, encoded_signature);
       position = fd_cstr_append_cstr(position, "-");
       position = fd_cstr_append_ushort_as_text(position, '0', 0, instruction_idx, 3); // Assume max 3 digits
-      position = fd_cstr_append_cstr(position, ".bin");
+      position = fd_cstr_append_cstr(position, ".instrctx");
       fd_cstr_fini(position);
 
       FILE * file = fopen(output_filepath, "wb");
@@ -1020,7 +952,7 @@ fd_dump_txn_to_protobuf( fd_exec_txn_ctx_t * txn_ctx, fd_spad_t * spad ) {
       position = fd_cstr_append_cstr( position, txn_ctx->capture_ctx->dump_proto_output_dir );
       position = fd_cstr_append_cstr( position, "/txn-" );
       position = fd_cstr_append_cstr( position, encoded_signature );
-      position = fd_cstr_append_cstr(position, ".bin");
+      position = fd_cstr_append_cstr(position, ".txnctx");
       fd_cstr_fini(position);
 
       FILE * file = fopen(output_filepath, "wb");
@@ -1071,7 +1003,7 @@ fd_dump_block_to_protobuf_tx_only( fd_runtime_block_info_t const * block_info,
     if( pb_encode( &stream, FD_EXEC_TEST_BLOCK_CONTEXT_FIELDS, block_context_msg ) ) {
       char output_filepath[256]; fd_memset( output_filepath, 0, sizeof(output_filepath) );
       char * position = fd_cstr_init( output_filepath );
-      position = fd_cstr_append_printf( position, "%s/block-%lu.bin", capture_ctx->dump_proto_output_dir, slot_ctx->slot_bank.slot );
+      position = fd_cstr_append_printf( position, "%s/block-%lu.blockctx", capture_ctx->dump_proto_output_dir, slot_ctx->slot_bank.slot );
       fd_cstr_fini( position );
 
       FILE * file = fopen(output_filepath, "wb");
@@ -1084,99 +1016,178 @@ fd_dump_block_to_protobuf_tx_only( fd_runtime_block_info_t const * block_info,
 }
 
 void
-fd_dump_vm_cpi_state( fd_vm_t *    vm,
-                      char const * fn_name,
-                      ulong        instruction_va,
-                      ulong        acct_infos_va,
-                      ulong        acct_info_cnt,
-                      ulong        signers_seeds_va,
-                      ulong        signers_seeds_cnt ) {
-  char filename[100];
-  fd_instr_info_t const *instr = vm->instr_ctx->instr;
-  sprintf( filename,
-          "vm_cpi_state/%lu_%lu%lu_%hu.sysctx",
-          fd_tile_id(),
-          vm->instr_ctx->txn_ctx->account_keys[ instr->program_id ].ul[0],
-          vm->instr_ctx->txn_ctx->account_keys[ instr->program_id ].ul[1],
-          instr->data_sz );
+fd_dump_vm_syscall_to_protobuf( fd_vm_t const * vm,
+                                char const *    fn_name ) {
+FD_SPAD_FRAME_BEGIN( vm->instr_ctx->txn_ctx->spad ) {
 
-  // Check if file exists
-  if( access (filename, F_OK) != -1 ) {
+  fd_ed25519_sig_t signature;
+  memcpy( signature, (uchar const *)vm->instr_ctx->txn_ctx->_txn_raw->raw + vm->instr_ctx->txn_ctx->txn_descriptor->signature_off, sizeof(fd_ed25519_sig_t) );
+  char encoded_signature[FD_BASE58_ENCODED_64_SZ];
+  fd_base58_encode_64( signature, NULL, encoded_signature );
+
+  char filename[256];
+  sprintf( filename,
+          "%s/syscall-%s-%s-%d-%hhu-%lu.sysctx",
+          vm->instr_ctx->txn_ctx->capture_ctx->dump_proto_output_dir,
+          fn_name,
+          encoded_signature,
+          vm->instr_ctx->txn_ctx->current_instr_idx,
+          vm->instr_ctx->txn_ctx->instr_stack_sz,
+          vm->cu );
+
+  /* The generated filename should be unique for every call. Silently return otherwise. */
+  if( FD_UNLIKELY( access( filename, F_OK )!=-1 ) ) {
     return;
   }
 
   fd_exec_test_syscall_context_t sys_ctx = FD_EXEC_TEST_SYSCALL_CONTEXT_INIT_ZERO;
-  sys_ctx.has_instr_ctx = 1;
+
+  /* SyscallContext -> vm_ctx */
   sys_ctx.has_vm_ctx = 1;
+
+  /* SyscallContext -> vm_ctx -> heap_max */
+  sys_ctx.vm_ctx.heap_max = vm->heap_max; /* should be equiv. to txn_ctx->heap_sz */
+
+  /* SyscallContext -> vm_ctx -> rodata */
+  sys_ctx.vm_ctx.rodata = fd_spad_alloc( vm->instr_ctx->txn_ctx->spad, alignof(pb_bytes_array_t), PB_BYTES_ARRAY_T_ALLOCSIZE( vm->rodata_sz ) );
+  sys_ctx.vm_ctx.rodata->size = (pb_size_t) vm->rodata_sz;
+  fd_memcpy( sys_ctx.vm_ctx.rodata->bytes, vm->rodata, vm->rodata_sz );
+
+  /* SyscallContext -> vm_ctx -> rodata_text_section_offset */
+  sys_ctx.vm_ctx.rodata_text_section_offset = vm->text_off;
+
+  /* SyscallContext -> vm_ctx -> rodata_text_section_length */
+  sys_ctx.vm_ctx.rodata_text_section_length = vm->text_sz;
+
+  /* SyscallContext -> vm_ctx -> r0-11 */
+  sys_ctx.vm_ctx.r0  = vm->reg[0];
+  sys_ctx.vm_ctx.r1  = vm->reg[1];
+  sys_ctx.vm_ctx.r2  = vm->reg[2];
+  sys_ctx.vm_ctx.r3  = vm->reg[3];
+  sys_ctx.vm_ctx.r4  = vm->reg[4];
+  sys_ctx.vm_ctx.r5  = vm->reg[5];
+  sys_ctx.vm_ctx.r6  = vm->reg[6];
+  sys_ctx.vm_ctx.r7  = vm->reg[7];
+  sys_ctx.vm_ctx.r8  = vm->reg[8];
+  sys_ctx.vm_ctx.r9  = vm->reg[9];
+  sys_ctx.vm_ctx.r10 = vm->reg[10];
+  sys_ctx.vm_ctx.r11 = vm->reg[11];
+
+  /* SyscallContext -> vm_ctx -> entry_pc */
+  sys_ctx.vm_ctx.entry_pc = vm->entry_pc;
+
+  /* SyscallContext -> vm_ctx -> return_data */
+  sys_ctx.vm_ctx.has_return_data = 1;
+
+  /* SyscallContext -> vm_ctx -> return_data -> data */
+  sys_ctx.vm_ctx.return_data.data = fd_spad_alloc( vm->instr_ctx->txn_ctx->spad, alignof(pb_bytes_array_t), PB_BYTES_ARRAY_T_ALLOCSIZE( vm->instr_ctx->txn_ctx->return_data.len ) );
+  sys_ctx.vm_ctx.return_data.data->size = (pb_size_t)vm->instr_ctx->txn_ctx->return_data.len;
+  fd_memcpy( sys_ctx.vm_ctx.return_data.data->bytes, vm->instr_ctx->txn_ctx->return_data.data, vm->instr_ctx->txn_ctx->return_data.len );
+
+  /* SyscallContext -> vm_ctx -> return_data -> program_id */
+  sys_ctx.vm_ctx.return_data.program_id = fd_spad_alloc( vm->instr_ctx->txn_ctx->spad, alignof(pb_bytes_array_t), sizeof(fd_pubkey_t) );
+  sys_ctx.vm_ctx.return_data.program_id->size = sizeof(fd_pubkey_t);
+  fd_memcpy( sys_ctx.vm_ctx.return_data.program_id->bytes, vm->instr_ctx->txn_ctx->return_data.program_id.key, sizeof(fd_pubkey_t) );
+
+  /* SyscallContext -> vm_ctx -> sbpf_version */
+  sys_ctx.vm_ctx.sbpf_version = (uint)vm->sbpf_version;
+
+  /* SyscallContext -> instr_ctx */
+  sys_ctx.has_instr_ctx = 1;
+  create_instr_context_protobuf_from_instructions( &sys_ctx.instr_ctx,
+                                                    vm->instr_ctx->txn_ctx,
+                                                    vm->instr_ctx->instr );
+
+  /* SyscallContext -> syscall_invocation */
   sys_ctx.has_syscall_invocation = 1;
 
-  // Copy function name
+  /* SyscallContext -> syscall_invocation -> function_name */
   sys_ctx.syscall_invocation.function_name.size = fd_uint_min( (uint) strlen(fn_name), sizeof(sys_ctx.syscall_invocation.function_name.bytes) );
   fd_memcpy( sys_ctx.syscall_invocation.function_name.bytes,
              fn_name,
              sys_ctx.syscall_invocation.function_name.size );
 
-  // VM Ctx integral fields
-  sys_ctx.vm_ctx.r1 = instruction_va;
-  sys_ctx.vm_ctx.r2 = acct_infos_va;
-  sys_ctx.vm_ctx.r3 = acct_info_cnt;
-  sys_ctx.vm_ctx.r4 = signers_seeds_va;
-  sys_ctx.vm_ctx.r5 = signers_seeds_cnt;
+  /* SyscallContext -> syscall_invocation -> heap_prefix */
+  sys_ctx.syscall_invocation.heap_prefix = fd_spad_alloc( vm->instr_ctx->txn_ctx->spad, 8UL, PB_BYTES_ARRAY_T_ALLOCSIZE( vm->heap_max ) );
+  sys_ctx.syscall_invocation.heap_prefix->size = (pb_size_t) vm->instr_ctx->txn_ctx->heap_size;
+  fd_memcpy( sys_ctx.syscall_invocation.heap_prefix->bytes, vm->heap, vm->instr_ctx->txn_ctx->heap_size );
 
-  sys_ctx.vm_ctx.rodata_text_section_length = vm->text_sz;
-  sys_ctx.vm_ctx.rodata_text_section_offset = vm->text_off;
+  /* SyscallContext -> syscall_invocation -> stack_prefix */
+  pb_size_t stack_sz = (pb_size_t)FD_VM_STACK_MAX;
+  sys_ctx.syscall_invocation.stack_prefix = fd_spad_alloc( vm->instr_ctx->txn_ctx->spad, 8UL, PB_BYTES_ARRAY_T_ALLOCSIZE( stack_sz ) );
+  sys_ctx.syscall_invocation.stack_prefix->size = stack_sz;
+  fd_memcpy( sys_ctx.syscall_invocation.stack_prefix->bytes, vm->stack, stack_sz );
 
-  sys_ctx.vm_ctx.heap_max = vm->heap_max; /* should be equiv. to txn_ctx->heap_sz */
-
-  FD_SPAD_FRAME_BEGIN( vm->instr_ctx->txn_ctx->spad ) {
-    sys_ctx.vm_ctx.rodata = fd_spad_alloc( vm->instr_ctx->txn_ctx->spad, 8UL, PB_BYTES_ARRAY_T_ALLOCSIZE( vm->rodata_sz ) );
-    sys_ctx.vm_ctx.rodata->size = (pb_size_t) vm->rodata_sz;
-    fd_memcpy( sys_ctx.vm_ctx.rodata->bytes, vm->rodata, vm->rodata_sz );
-
-    pb_size_t stack_sz = (pb_size_t) ( (vm->frame_cnt + 1)*FD_VM_STACK_GUARD_SZ*2 );
-    sys_ctx.syscall_invocation.stack_prefix = fd_spad_alloc( vm->instr_ctx->txn_ctx->spad, 8UL, PB_BYTES_ARRAY_T_ALLOCSIZE( stack_sz ) );
-    sys_ctx.syscall_invocation.stack_prefix->size = stack_sz;
-    fd_memcpy( sys_ctx.syscall_invocation.stack_prefix->bytes, vm->stack, stack_sz );
-
-    sys_ctx.syscall_invocation.heap_prefix = fd_spad_alloc( vm->instr_ctx->txn_ctx->spad, 8UL, PB_BYTES_ARRAY_T_ALLOCSIZE( vm->heap_max ) );
-    sys_ctx.syscall_invocation.heap_prefix->size = (pb_size_t) vm->instr_ctx->txn_ctx->heap_size;
-    fd_memcpy( sys_ctx.syscall_invocation.heap_prefix->bytes, vm->heap, vm->instr_ctx->txn_ctx->heap_size );
-
-    create_instr_context_protobuf_from_instructions( &sys_ctx.instr_ctx,
-                                                        vm->instr_ctx->txn_ctx,
-                                                        vm->instr_ctx->instr );
-
-    // Serialize the protobuf to file (using mmap)
-    size_t pb_alloc_size = 100 * 1024 * 1024; // 100MB (largest so far is 19MB)
-    FILE *f = fopen(filename, "wb+");
-    if( ftruncate(fileno(f), (off_t) pb_alloc_size) != 0 ) {
-      FD_LOG_WARNING(("Failed to resize file %s", filename));
-      fclose(f);
-      return;
+  /* Output to file */
+  ulong out_buf_size = 1UL<<29UL; /* 128 MB */
+  uint8_t * out = fd_spad_alloc( vm->instr_ctx->txn_ctx->spad, alignof(uint8_t), out_buf_size );
+  pb_ostream_t stream = pb_ostream_from_buffer( out, out_buf_size );
+  if( pb_encode( &stream, FD_EXEC_TEST_SYSCALL_CONTEXT_FIELDS, &sys_ctx ) ) {
+    FILE * file = fopen(filename, "wb");
+    if( file ) {
+      fwrite( out, 1, stream.bytes_written, file );
+      fclose( file );
     }
+  }
+} FD_SPAD_FRAME_END;
+}
 
-    uchar *pb_alloc = mmap( NULL,
-                            pb_alloc_size,
-                            PROT_READ | PROT_WRITE,
-                            MAP_SHARED,
-                            fileno(f),
-                            0 /* offset */);
-    if( pb_alloc == MAP_FAILED ) {
-      FD_LOG_WARNING(( "Failed to mmap file %d", errno ));
-      fclose(f);
-      return;
+void
+fd_dump_elf_to_protobuf( fd_exec_txn_ctx_t * txn_ctx,
+                         fd_pubkey_t const * program_id ) {
+FD_SPAD_FRAME_BEGIN( txn_ctx->spad ) {
+
+  /* Query the BPF program cache for the account pubkey */
+  fd_sbpf_validated_program_t * prog = NULL;
+  if( fd_bpf_load_cache_entry( txn_ctx->funk, txn_ctx->funk_txn, program_id, &prog ) != 0 ) {
+    return;
+  }
+
+  /* Serialize the ELF to protobuf */
+  fd_ed25519_sig_t signature;
+  memcpy( signature, (uchar const *)txn_ctx->_txn_raw->raw + txn_ctx->txn_descriptor->signature_off, sizeof(fd_ed25519_sig_t) );
+  char encoded_signature[FD_BASE58_ENCODED_64_SZ];
+  fd_base58_encode_64( signature, NULL, encoded_signature );
+
+  char filename[256];
+  sprintf( filename,
+          "%s/elf-%s-%s-%lu.elfctx",
+          txn_ctx->capture_ctx->dump_proto_output_dir,
+          encoded_signature,
+          FD_BASE58_ENC_32_ALLOCA( program_id ),
+          txn_ctx->slot );
+
+  /* The generated filename should be unique for every call. Silently return otherwise. */
+  if( FD_UNLIKELY( access( filename, F_OK )!=-1 ) ) {
+    return;
+  }
+
+  fd_exec_test_elf_loader_ctx_t elf_ctx = FD_EXEC_TEST_ELF_LOADER_CTX_INIT_ZERO;
+
+  /* ElfLoaderCtx -> elf */
+  elf_ctx.has_elf = true;
+  elf_ctx.elf.data = fd_spad_alloc( txn_ctx->spad, alignof(pb_bytes_array_t), PB_BYTES_ARRAY_T_ALLOCSIZE( prog->rodata_sz ) );
+  elf_ctx.elf.data->size = (pb_size_t)prog->rodata_sz;
+  fd_memcpy( elf_ctx.elf.data->bytes, prog->rodata, prog->rodata_sz );
+
+  /* ElfLoaderCtx -> features */
+  elf_ctx.has_features = true;
+  dump_sorted_features( &txn_ctx->features, &elf_ctx.features, txn_ctx->spad );
+
+  /* ElfLoaderCtx -> deploy_checks
+     We hardcode this to true and rely the fuzzer to toggle this as it pleases */
+  elf_ctx.deploy_checks = true;
+
+  /* Output to file */
+  ulong out_buf_size = 1UL<<29UL; /* 128 MB */
+  uint8_t * out = fd_spad_alloc( txn_ctx->spad, alignof(uint8_t), out_buf_size );
+  pb_ostream_t stream = pb_ostream_from_buffer( out, out_buf_size );
+  if( pb_encode( &stream, FD_EXEC_TEST_ELF_LOADER_CTX_FIELDS, &elf_ctx ) ) {
+    FILE * file = fopen(filename, "wb");
+    if( file ) {
+      fwrite( out, 1, stream.bytes_written, file );
+      fclose( file );
     }
-
-    pb_ostream_t stream = pb_ostream_from_buffer(pb_alloc, pb_alloc_size);
-    if( !pb_encode( &stream, FD_EXEC_TEST_SYSCALL_CONTEXT_FIELDS, &sys_ctx ) ) {
-      FD_LOG_WARNING(( "Failed to encode instruction context" ));
-    }
-    // resize file to actual size
-    if( ftruncate( fileno(f), (off_t) stream.bytes_written ) != 0 ) {
-      FD_LOG_WARNING(( "Failed to resize file %s", filename ));
-    }
-
-    fclose(f);
-
-  } FD_SPAD_FRAME_END;
+  }
+} FD_SPAD_FRAME_END;
 }

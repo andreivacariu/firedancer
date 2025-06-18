@@ -2,21 +2,12 @@
 #define HEADER_fd_src_discof_replay_fd_exec_h
 
 #include "../../flamenco/fd_flamenco_base.h"
+#include "../../flamenco/leaders/fd_leaders_base.h"
 #include "../../flamenco/runtime/context/fd_exec_epoch_ctx.h"
 #include "../../flamenco/runtime/context/fd_exec_slot_ctx.h"
 #include "../../flamenco/runtime/fd_runtime_public.h"
 #include "../../flamenco/stakes/fd_stakes.h"
 #include "../../flamenco/runtime/sysvar/fd_sysvar_epoch_schedule.h"
-
-/* Follows message structure in fd_stake_ci_stake_msg_init */
-struct fd_stake_weight_msg_t {
-  ulong epoch;               /* Epoch for which the stake weights are valid */
-  ulong staked_cnt;          /* Number of staked nodes */
-  ulong start_slot;          /* Start slot of the epoch */
-  ulong slot_cnt;            /* Number of slots in the epoch */
-  ulong excluded_stake;      /* Total stake that is excluded from leader selection */
-};
-typedef struct fd_stake_weight_msg_t fd_stake_weight_msg_t;
 
 /* Replay tile msg link formatting. The following take a pointer into
    a dcache region and formats it as a specific message type. */
@@ -28,10 +19,9 @@ generate_stake_weight_msg( fd_exec_slot_ctx_t * slot_ctx,
                            ulong              * stake_weight_msg_out ) {
   fd_epoch_bank_t * epoch_bank = fd_exec_epoch_ctx_epoch_bank( slot_ctx->epoch_ctx );
 
-  fd_stake_weight_msg_t * stake_weight_msg = (fd_stake_weight_msg_t *)fd_type_pun( stake_weight_msg_out );
-  fd_stake_weight_t     * stake_weights    = (fd_stake_weight_t *)&stake_weight_msg_out[5];
+  fd_stake_weight_msg_t * stake_weight_msg = fd_type_pun( stake_weight_msg_out );
   ulong                   stake_weight_idx = fd_stake_weights_by_node( &slot_ctx->slot_bank.epoch_stakes,
-                                                                       stake_weights,
+                                                                       stake_weight_msg->weights,
                                                                        runtime_spad );
 
   stake_weight_msg->epoch          = epoch;
@@ -64,16 +54,16 @@ generate_replay_exec_epoch_msg( fd_exec_slot_ctx_t * slot_ctx,
     FD_LOG_ERR(( "Failed to get gaddr for bank hash cmp" ));
   }
 
-  ulong   stakes_encode_sz  = fd_stakes_size( &slot_ctx->epoch_ctx->epoch_bank.stakes ) + 128UL;
+  ulong   stakes_encode_sz  = fd_stakes_delegation_size( &slot_ctx->epoch_ctx->epoch_bank.stakes ) + 128UL;
   uchar * stakes_encode_mem = fd_spad_alloc( runtime_spad,
-                                             fd_stakes_align(),
+                                             fd_stakes_delegation_align(),
                                              stakes_encode_sz );
 
   fd_bincode_encode_ctx_t encode = {
     .data    = stakes_encode_mem,
     .dataend = stakes_encode_mem + stakes_encode_sz
   };
-  int err = fd_stakes_encode( &slot_ctx->epoch_ctx->epoch_bank.stakes, &encode );
+  int err = fd_stakes_delegation_encode( &slot_ctx->epoch_ctx->epoch_bank.stakes, &encode );
   if( FD_UNLIKELY( err ) ) {
     FD_LOG_ERR(( "Failed to encode stakes" ));
   }
@@ -95,9 +85,6 @@ generate_replay_exec_slot_msg( fd_exec_slot_ctx_t * slot_ctx,
   slot_msg_out->prev_lamports_per_signature = slot_ctx->prev_lamports_per_signature;
   slot_msg_out->fee_rate_governor           = slot_ctx->slot_bank.fee_rate_governor;
   slot_msg_out->enable_exec_recording       = slot_ctx->enable_exec_recording;
-
-  /* Save the gaddr of the sysvar cache */
-  slot_msg_out->sysvar_cache_gaddr = fd_wksp_gaddr_fast( runtime_public_wksp, slot_ctx->sysvar_cache );
 
   /* Now encode the bhq */
   ulong   bhq_encode_sz  = fd_block_hash_queue_size( &slot_ctx->slot_bank.block_hash_queue ) + 128UL;
@@ -144,7 +131,7 @@ generate_bpf_scan_msg( ulong start_idx,
 /* Execution tracking helpers */
 
 struct fd_slice_exec {
-  uchar * mbatch;    /* Pointer to the memory region sized for max sz of a block. */
+  uchar * buf;    /* Pointer to the memory region sized for max sz of a block. */
   ulong   wmark;     /* Offset into slice where previous bytes have been executed, and following bytes have not. Will be on a transaction or microblock boundary. */
   ulong   sz;        /* Total bytes this slice occupies in mbatch memory. New slices are placed at this offset */
   ulong   mblks_rem; /* Number of microblocks remaining in the current batch iteration. */

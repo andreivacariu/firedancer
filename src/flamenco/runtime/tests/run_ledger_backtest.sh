@@ -15,7 +15,6 @@ LEDGER=""
 SNAPSHOT=""
 RESTORE_ARCHIVE=""
 END_SLOT="1010"
-PAGES="30"
 FUNK_PAGES="16"
 INDEX_MAX="5000000"
 TRASH_HASH=""
@@ -55,11 +54,6 @@ while [[ $# -gt 0 ]]; do
        ;;
     -e|--end_slot)
        END_SLOT="$2"
-       shift
-       shift
-       ;;
-    -p|--pages)
-       PAGES="$2"
        shift
        shift
        ;;
@@ -157,12 +151,8 @@ echo "
          archiver_path = \"$DUMP/$LEDGER/rocksdb\"
      [tiles.replay]
          snapshot = \"$SNAPSHOT\"
-         funk_sz_gb = $FUNK_PAGES
-         funk_txn_max = 1024
-         funk_rec_max = $INDEX_MAX
          cluster_version = \"$CLUSTER_VERSION\"
          enable_features = [ \"$ONE_OFFS\" ]
-         funk_file = \"$DUMP/$LEDGER/backtest.funk\"
      [tiles.gui]
          enabled = false
  [blockstore]
@@ -171,6 +161,10 @@ echo "
      txn_max = 1048576
      alloc_max = 10737418240
      file = \"$DUMP/$LEDGER/backtest.blockstore\"
+ [funk]
+     heap_size_gib = $FUNK_PAGES
+     max_account_records = $INDEX_MAX
+     max_database_transactions = 64
  [consensus]
      vote = false
  [development]
@@ -200,9 +194,10 @@ sudo rm -rf $DUMP/$LEDGER/backtest.blockstore $DUMP/$LEDGER/backtest.funk &> /de
 set -x
   sudo $OBJDIR/bin/firedancer-dev backtest --config ${DUMP_DIR}/${LEDGER}_backtest.toml &> /dev/null
 
+{ set +x; } &> /dev/null
+
 sudo rm -rf $DUMP/$LEDGER/backtest.blockstore $DUMP/$LEDGER/backtest.funk &> /dev/null
 
-{ set +x; } &> /dev/null
 echo_notice "Finished on-demand ingest and replay\n"
 
 echo "Log for ledger $LEDGER at $LOG"
