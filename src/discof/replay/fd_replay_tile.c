@@ -981,9 +981,15 @@ publish_slot_notifications( fd_replay_tile_ctx_t * ctx,
     msg->slot_exec.parent = ctx->parent_slot;
     msg->slot_exec.root = fd_fseq_query( ctx->published_wmark );
     msg->slot_exec.height = block_entry_block_height;
+    msg->slot_exec.transaction_count = fd_bank_txn_count_get( ctx->slot_ctx->bank );
     msg->slot_exec.shred_cnt = ctx->slot_ctx->shred_cnt;
-    fd_hash_t const * bank_hash = fd_bank_bank_hash_query( ctx->slot_ctx->bank );
-    memcpy( &msg->slot_exec.bank_hash, bank_hash, sizeof( fd_hash_t ) );
+
+    msg->slot_exec.bank_hash = fd_bank_bank_hash_get( ctx->slot_ctx->bank );
+
+    fd_block_hash_queue_global_t const * block_hash_queue = fd_bank_block_hash_queue_query( ctx->slot_ctx->bank );
+    fd_hash_t * last_hash = fd_block_hash_queue_last_hash_join( block_hash_queue );
+    msg->slot_exec.block_hash = *last_hash;
+
     memcpy( &msg->slot_exec.identity, ctx->validator_identity_pubkey, sizeof( fd_pubkey_t ) );
     msg->slot_exec.ts = tsorig;
     NOTIFY_END;

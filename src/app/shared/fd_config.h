@@ -35,6 +35,7 @@ struct fd_configh {
     char  account_index_exclude_keys[ 32 ][ FD_BASE58_ENCODED_32_SZ ];
     char  accounts_index_path[ PATH_MAX ];
     char  accounts_hash_cache_path[ PATH_MAX ];
+    int   enable_accounts_disk_index;
     int   require_tower;
     char  snapshot_archive_format[ 10 ];
   } ledger;
@@ -339,6 +340,7 @@ struct fd_config {
       char tip_distribution_authority[ FD_BASE58_ENCODED_32_SZ ];
       uint commission_bps;
       ulong keepalive_interval_millis;
+      int   tls_cert_verify;
     } bundle;
 
     struct {

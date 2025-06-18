@@ -249,6 +249,13 @@ dynamic_port_range = "8900-9000"
     # `--accounts-hash-cache-path` argument.
     accounts_hash_cache_path = ""
 
+    # If account indexes are enabled, they are flushed to disk
+    # periodically.  Otherwise, the entire index is kept in memory.
+    # Setting this to false may reduce disk I/O strain.  This option is
+    # passed to the Agave client inverted with the
+    # `--disable-accounts-disk-index` argument.
+    enable_accounts_disk_index = true
+
     # Whether to use compression when storing snapshots.  This option is
     # passed to the Agave client with the
     # `--snapshot-archive-format` argument.
@@ -1169,6 +1176,12 @@ dynamic_port_range = "8900-9000"
         # to reduce burst loads on the network.  Must be within range
         # [3e3,3600e3]
         keepalive_interval_millis = 5000
+
+        # By default, the TLS certificate of the bundle server is
+        # verified against the CA certs in /etc/ssl/certs, if the URL
+        # specifies https.  To disable certificate verification, set
+        # this option to 'false'.
+        tls_cert_verify = true
 
     # The pack tile takes incoming transactions that have been verified
     # by the verify tile and then deduplicated, and attempts to order
