@@ -67,10 +67,6 @@ struct fd_exec_txn_ctx {
 
   uint flags;
 
-  /* FIXME: Kind of a gross hack. */
-  uchar                       bank_mgr_mem[48]__attribute__((aligned(8UL)));
-  fd_bank_mgr_t *             bank_mgr;
-
   fd_bank_t * bank;
 
   /* All pointers starting here are valid local joins in txn execution. */

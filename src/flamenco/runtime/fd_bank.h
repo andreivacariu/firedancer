@@ -397,4 +397,4 @@ fd_banks_publish( fd_banks_t * banks, ulong slot );
 
 FD_PROTOTYPES_END
 
-#endif /* HEADER_fd_src_flamenco_runtime_fd_bank_mgr_h */
+#endif /* HEADER_fd_src_flamenco_runtime_fd_bank_h */

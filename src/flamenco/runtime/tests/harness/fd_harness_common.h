@@ -4,7 +4,6 @@
 #include <assert.h>
 
 #include "../../fd_runtime.h"
-#include "../../fd_bank_mgr.h"
 #include "generated/context.pb.h"
 
 /* fd_runtime_fuzz_runner_t provides a funk instance and spad, generic
@@ -14,6 +13,7 @@ struct fd_runtime_fuzz_runner {
   fd_funk_t   funk[1];
   fd_wksp_t * wksp;
   fd_spad_t * spad;
+  fd_bank_t * bank;
 };
 typedef struct fd_runtime_fuzz_runner fd_runtime_fuzz_runner_t;
 

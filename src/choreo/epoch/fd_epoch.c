@@ -1,5 +1,4 @@
 #include "fd_epoch.h"
-#include "../../flamenco/runtime/fd_bank_mgr.h"
 void *
 fd_epoch_new( void * shmem, ulong voter_max ) {
   if( FD_UNLIKELY( !shmem ) ) {

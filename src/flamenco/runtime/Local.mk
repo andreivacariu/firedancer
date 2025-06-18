@@ -30,9 +30,6 @@ $(call add-objs,fd_cost_tracker,fd_flamenco)
 $(call add-hdrs,fd_runtime_public.h)
 $(call add-objs,fd_runtime_public,fd_flamenco)
 
-$(call add-hdrs,fd_bank_mgr.h)
-$(call add-objs,fd_bank_mgr,fd_flamenco)
-
 $(call add-hdrs,fd_bank.h)
 $(call add-objs,fd_bank,fd_flamenco)
 

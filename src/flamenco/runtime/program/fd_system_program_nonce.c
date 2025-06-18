@@ -7,7 +7,6 @@
 #include "../sysvar/fd_sysvar_rent.h"
 #include "../sysvar/fd_sysvar_recent_hashes.h"
 #include "../fd_executor.h"
-#include "../fd_bank_mgr.h"
 
 static int
 require_acct( fd_exec_instr_ctx_t * ctx,

@@ -7,7 +7,6 @@
 #include "../sysvar/fd_sysvar_rent.h"
 #include "../sysvar/fd_sysvar_clock.h"
 #include "../sysvar/fd_sysvar_slot_hashes.h"
-#include "../fd_bank_mgr.h"
 
 #include <limits.h>
 #include <math.h>
@@ -2941,10 +2940,7 @@ fd_vote_convert_to_current( fd_vote_state_versioned_t * self,
 
 static void
 remove_vote_account( fd_txn_account_t *   vote_account,
-                     fd_bank_mgr_t *      bank_mgr,
                      fd_bank_t *          bank ) {
-
-  (void)bank_mgr;
 
   fd_stakes_global_t * stakes = fd_bank_stakes_modify( bank );
   fd_vote_accounts_global_t * epoch_vote_accounts = &stakes->vote_accounts;
@@ -2993,7 +2989,6 @@ remove_vote_account( fd_txn_account_t *   vote_account,
 
 static void
 upsert_vote_account( fd_txn_account_t *   vote_account,
-                     fd_bank_mgr_t *      bank_mgr,
                      fd_bank_t *          bank ) {
 
   fd_stakes_global_t const * stakes = fd_bank_stakes_query( bank );
@@ -3036,13 +3031,12 @@ upsert_vote_account( fd_txn_account_t *   vote_account,
     fd_bank_vote_account_keys_end_modify( bank );
   } else {
     fd_bank_vote_account_keys_end_modify( bank );
-    remove_vote_account( vote_account, bank_mgr, bank );
+    remove_vote_account( vote_account, bank );
   }
 }
 
 void
 fd_vote_store_account( fd_txn_account_t *   vote_account,
-                       fd_bank_mgr_t *      bank_mgr,
                        fd_bank_t *          bank ) {
   fd_pubkey_t const * owner = vote_account->vt->get_owner( vote_account );
 
@@ -3051,8 +3045,8 @@ fd_vote_store_account( fd_txn_account_t *   vote_account,
   }
 
   if( vote_account->vt->get_lamports( vote_account ) == 0 ) {
-    remove_vote_account( vote_account, bank_mgr, bank );
+    remove_vote_account( vote_account, bank );
   } else {
-    upsert_vote_account( vote_account, bank_mgr, bank );
+    upsert_vote_account( vote_account, bank );
   }
 }

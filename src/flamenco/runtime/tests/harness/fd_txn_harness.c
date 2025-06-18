@@ -39,13 +39,7 @@ fd_runtime_fuzz_txn_ctx_create( fd_runtime_fuzz_runner_t *         runner,
   slot_ctx->funk         = funk;
   slot_ctx->runtime_wksp = runner->wksp;
 
-  slot_ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( slot_ctx->bank_mgr_mem ), slot_ctx->funk, slot_ctx->funk_txn );
-
-  uchar * banks_mem = fd_spad_alloc( runner->spad, fd_banks_align(), fd_banks_footprint( 1UL ) );
-  slot_ctx->banks = fd_banks_join( fd_banks_new( banks_mem, 1UL ) );
-  FD_TEST( slot_ctx->banks );
-  slot_ctx->bank = fd_banks_init_bank( slot_ctx->banks, 0UL );
-  FD_TEST( slot_ctx->bank );
+  slot_ctx->bank = runner->bank;
 
   /* Restore feature flags */
 

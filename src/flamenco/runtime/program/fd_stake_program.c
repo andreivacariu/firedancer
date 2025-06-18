@@ -6,7 +6,6 @@
 #include "../fd_executor.h"
 #include "../fd_pubkey_utils.h"
 #include "../fd_system_ids.h"
-#include "../fd_bank_mgr.h"
 #include "fd_stake_program.h"
 #include "fd_vote_program.h"
 #include "../sysvar/fd_sysvar_epoch_schedule.h"
@@ -3308,10 +3307,8 @@ fd_stakes_remove_stake_delegation( fd_txn_account_t *   stake_account,
 /* Updates stake delegation in epoch stakes */
 static void
 fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
-                                   fd_bank_mgr_t *      bank_mgr,
                                    fd_bank_t *          bank ) {
   FD_TEST( stake_account->vt->get_lamports( stake_account )!=0 );
-  (void)bank_mgr;
 
   fd_stakes_global_t const * stakes = fd_bank_stakes_query( bank );
   fd_delegation_pair_t_mapnode_t * stake_delegations_pool = fd_stakes_stake_delegations_pool_join( stakes );
@@ -3376,7 +3373,6 @@ fd_stakes_upsert_stake_delegation( fd_txn_account_t *   stake_account,
 
 void
 fd_store_stake_delegation( fd_txn_account_t *   stake_account,
-                           fd_bank_mgr_t *      bank_mgr,
                            fd_bank_t *          bank ) {
   fd_pubkey_t const * owner = stake_account->vt->get_owner( stake_account );
 
@@ -3394,6 +3390,6 @@ fd_store_stake_delegation( fd_txn_account_t *   stake_account,
   if( is_empty || is_uninit ) {
     fd_stakes_remove_stake_delegation( stake_account, bank );
   } else {
-    fd_stakes_upsert_stake_delegation( stake_account, bank_mgr, bank );
+    fd_stakes_upsert_stake_delegation( stake_account, bank );
   }
 }

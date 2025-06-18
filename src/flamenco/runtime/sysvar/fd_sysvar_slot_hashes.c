@@ -4,7 +4,6 @@
 #include "../fd_borrowed_account.h"
 #include "../fd_system_ids.h"
 #include "../context/fd_exec_slot_ctx.h"
-#include "../fd_bank_mgr.h"
 /* FIXME These constants should be header defines */
 
 /* https://github.com/solana-labs/solana/blob/8f2c8b8388a495d2728909e30460aa40dcc5d733/sdk/program/src/slot_hashes.rs#L11 */

@@ -64,17 +64,17 @@ sol_compat_init( int log_level ) {
   sol_compat_wksp_init( FD_SHMEM_NORMAL_PAGE_SZ );
 }
 
-void
+fd_wksp_t *
 sol_compat_wksp_init( ulong wksp_page_sz ) {
   ulong cpu_idx = fd_tile_cpu_id( fd_tile_idx() );
   if( cpu_idx>=fd_shmem_cpu_cnt() ) cpu_idx = 0UL;
   switch( wksp_page_sz )
   {
   case FD_SHMEM_GIGANTIC_PAGE_SZ:
-    wksp = fd_wksp_new_anonymous( FD_SHMEM_GIGANTIC_PAGE_SZ, 5UL, fd_shmem_cpu_idx( fd_shmem_numa_idx( cpu_idx ) ), "wksp", 0UL );
+    wksp = fd_wksp_new_anonymous( FD_SHMEM_GIGANTIC_PAGE_SZ, 10UL, fd_shmem_cpu_idx( fd_shmem_numa_idx( cpu_idx ) ), "wksp", 0UL );
     break;
   case FD_SHMEM_NORMAL_PAGE_SZ:
-    wksp = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 512UL * 512UL * 5UL, fd_shmem_cpu_idx( fd_shmem_numa_idx( cpu_idx ) ), "wksp", 0UL );
+    wksp = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 512UL * 512UL * 10UL, fd_shmem_cpu_idx( fd_shmem_numa_idx( cpu_idx ) ), "wksp", 0UL );
     break;
   default:
     FD_LOG_ERR(( "Unsupported page size %lu", wksp_page_sz ));
@@ -103,6 +103,8 @@ sol_compat_wksp_init( ulong wksp_page_sz ) {
       memcpy( &features.supported_features[features.supported_feature_cnt++], &current_feature->id, sizeof(ulong) );
     }
   }
+
+  return wksp;
 }
 
 void

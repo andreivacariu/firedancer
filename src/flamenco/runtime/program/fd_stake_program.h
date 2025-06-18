@@ -50,7 +50,6 @@ fd_stake_activating_and_deactivating( fd_delegation_t const *    self,
 
 void
 fd_store_stake_delegation( fd_txn_account_t *   stake_account,
-                           fd_bank_mgr_t *      bank_mgr,
                            fd_bank_t *          bank );
 
 FD_PROTOTYPES_END

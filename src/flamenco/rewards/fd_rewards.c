@@ -5,7 +5,6 @@
 #include "../runtime/fd_executor_err.h"
 #include "../runtime/fd_system_ids.h"
 #include "../runtime/fd_runtime.h"
-#include "../runtime/fd_bank_mgr.h"
 #include "../runtime/context/fd_exec_slot_ctx.h"
 #include "../runtime/program/fd_program_util.h"
 #include "../runtime/sysvar/fd_sysvar_stake_history.h"

@@ -13,7 +13,6 @@
 #include "fd_bpf_loader_serialization.h"
 #include "fd_native_cpi.h"
 #include "../fd_borrowed_account.h"
-#include "../fd_bank_mgr.h"
 
 #include <stdlib.h>
 

@@ -6,7 +6,7 @@
 #include "../../flamenco/runtime/fd_runtime.h"
 #include "../../flamenco/runtime/program/fd_program_util.h"
 #include "../../flamenco/runtime/program/fd_vote_program.h"
-#include "../../flamenco/runtime/fd_bank_mgr.h"
+
 void *
 fd_forks_new( void * shmem, ulong max, ulong seed ) {
 

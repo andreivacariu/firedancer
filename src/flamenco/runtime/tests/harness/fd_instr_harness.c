@@ -51,14 +51,16 @@ fd_runtime_fuzz_instr_ctx_create( fd_runtime_fuzz_runner_t *           runner,
 
   /* Bank manager */
 
-  uchar * banks_mem = fd_spad_alloc( runner->spad, fd_banks_align(), fd_banks_footprint( 1UL ) );
-  slot_ctx->banks = fd_banks_join( fd_banks_new( banks_mem, 1UL ) );
-  FD_TEST( slot_ctx->banks );
+  // uchar * banks_mem = fd_spad_alloc( runner->spad, fd_banks_align(), fd_banks_footprint( 1UL ) );
+  // slot_ctx->banks = fd_banks_join( fd_banks_new( banks_mem, 1UL ) );
+  // FD_TEST( slot_ctx->banks );
 
-  slot_ctx->bank = fd_banks_init_bank( slot_ctx->banks, 0UL );
-  FD_TEST( slot_ctx->bank );
+  // slot_ctx->bank = fd_banks_init_bank( slot_ctx->banks, 0UL );
+  // FD_TEST( slot_ctx->bank );
 
-  slot_ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( slot_ctx->banks ), slot_ctx->funk, funk_txn );
+  slot_ctx->bank = runner->bank;
+  memcpy( (uchar *)slot_ctx->bank + FD_BANK_HEADER_SIZE, (uchar *)runner->bank + FD_BANK_HEADER_SIZE, sizeof(fd_bank_t) - FD_BANK_HEADER_SIZE );
+
 
   fd_features_t * features = fd_bank_features_modify( slot_ctx->bank );
   fd_exec_test_feature_set_t const * feature_set = &test_ctx->epoch_context.features;

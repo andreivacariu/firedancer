@@ -27,10 +27,6 @@ struct fd_exec_slot_ctx {
 
   fd_bank_hash_cmp_t *        bank_hash_cmp;
 
-  /* FIXME: Kind of a gross hack. */
-  ulong                       bank_mgr_mem[6];
-  fd_bank_mgr_t *             bank_mgr;
-
   /* External joins, pointers to be set by caller */
 
   fd_funk_t *                 funk;

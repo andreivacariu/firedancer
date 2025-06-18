@@ -6,7 +6,6 @@
 #include "../../flamenco/runtime/fd_runtime_public.h"
 #include "../../flamenco/stakes/fd_stakes.h"
 #include "../../flamenco/runtime/sysvar/fd_sysvar_epoch_schedule.h"
-#include "../../flamenco/runtime/fd_bank_mgr.h"
 
 /* Replay tile msg link formatting. The following take a pointer into
    a dcache region and formats it as a specific message type. */

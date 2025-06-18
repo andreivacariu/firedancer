@@ -9,7 +9,6 @@
 #include "../../runtime/context/fd_exec_txn_ctx.h"
 #include "../../runtime/context/fd_exec_instr_ctx.h"
 #include "../../runtime/fd_system_ids.h"
-#include "../../runtime/fd_bank_mgr.h"
 
 int
 fd_vm_syscall_sol_get_clock_sysvar( /**/            void *  _vm,

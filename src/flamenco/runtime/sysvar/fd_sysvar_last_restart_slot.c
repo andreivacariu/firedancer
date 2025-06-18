@@ -3,7 +3,7 @@
 #include "fd_sysvar.h"
 #include "../fd_system_ids.h"
 #include "../fd_runtime.h"
-#include "../fd_bank_mgr.h"
+
 void
 fd_sysvar_last_restart_slot_init( fd_exec_slot_ctx_t * slot_ctx ) {
 

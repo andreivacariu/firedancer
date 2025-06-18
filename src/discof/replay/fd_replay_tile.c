@@ -18,7 +18,6 @@
 #include "../../flamenco/stakes/fd_stakes.h"
 #include "../../flamenco/runtime/fd_runtime.h"
 #include "../../flamenco/runtime/fd_runtime_public.h"
-#include "../../flamenco/runtime/fd_bank_mgr.h"
 #include "../../flamenco/rewards/fd_rewards.h"
 #include "../../disco/metrics/fd_metrics.h"
 #include "../../choreo/fd_choreo.h"
@@ -782,8 +781,6 @@ funk_publish( fd_replay_tile_ctx_t * ctx,
 
   fd_funk_txn_pool_t * txn_pool = fd_funk_txn_pool( ctx->funk );
 
-  FD_BANK_MGR_DECL( bank_mgr, ctx->funk, to_root_txn );
-
   /* Try to publish into Funk */
   if( is_constipated ) {
     FD_LOG_NOTICE(( "Publishing slot=%lu while constipated", wmk ));
@@ -1254,8 +1251,6 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
   fd_funk_txn_start_write( ctx->funk );
   ctx->slot_ctx->funk_txn = fd_funk_txn_prepare(ctx->funk, ctx->slot_ctx->funk_txn, &xid, 1 );
 
-  ctx->slot_ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( ctx->slot_ctx->bank_mgr_mem ), ctx->slot_ctx->funk, ctx->slot_ctx->funk_txn );
-
   fd_funk_txn_end_write( ctx->funk );
 
   int is_epoch_boundary = 0;
@@ -1306,7 +1301,6 @@ init_poh( fd_replay_tile_ctx_t * ctx ) {
   FD_LOG_INFO(( "sending init msg" ));
   fd_replay_out_link_t * bank_out = &ctx->bank_out[ 0UL ];
   fd_poh_init_msg_t * msg = fd_chunk_to_laddr( bank_out->mem, bank_out->chunk );
-  FD_TEST( ctx->slot_ctx->bank_mgr && ctx->slot_ctx->bank_mgr->funk && ctx->slot_ctx->bank_mgr->funk_txn );
   msg->hashcnt_per_tick = fd_bank_hashes_per_tick_get( ctx->slot_ctx->bank );
   msg->ticks_per_slot   = fd_bank_ticks_per_slot_get( ctx->slot_ctx->bank );
   msg->tick_duration_ns = (ulong)(fd_bank_ns_per_slot_get( ctx->slot_ctx->bank )) / fd_bank_ticks_per_slot_get( ctx->slot_ctx->bank );
@@ -1896,8 +1890,6 @@ init_snapshot( fd_replay_tile_ctx_t * ctx,
   ctx->slot_ctx               = fd_exec_slot_ctx_join( fd_exec_slot_ctx_new( slot_ctx_mem ) );
   ctx->slot_ctx->banks        = ctx->banks;
   ctx->slot_ctx->bank         = fd_banks_get_bank( ctx->banks, 0UL );
-
-  ctx->slot_ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( ctx->slot_ctx->bank_mgr_mem ), ctx->funk, NULL );
 
   ctx->slot_ctx->funk         = ctx->funk;
   ctx->slot_ctx->blockstore   = ctx->blockstore;
@@ -2634,8 +2626,6 @@ unprivileged_init( fd_topo_t *      topo,
 
   uchar * bank_hash_cmp_shmem = fd_spad_alloc_check( ctx->runtime_spad, fd_bank_hash_cmp_align(), fd_bank_hash_cmp_footprint() );
   ctx->bank_hash_cmp = fd_bank_hash_cmp_join( fd_bank_hash_cmp_new( bank_hash_cmp_shmem ) );
-
-  FD_BANK_MGR_DECL(bank_mgr, ctx->funk, NULL)
 
   fd_cluster_version_t * cluster_version = fd_bank_cluster_version_modify( bank );
 

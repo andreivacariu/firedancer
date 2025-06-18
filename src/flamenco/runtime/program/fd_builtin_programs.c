@@ -4,7 +4,6 @@
 #include "../fd_acc_mgr.h"
 #include "../fd_system_ids.h"
 #include "../fd_system_ids_pp.h"
-#include "../fd_bank_mgr.h"
 
 #define BUILTIN_PROGRAM(program_id, name, feature_offset, migration_config) \
     {                                                                       \

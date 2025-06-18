@@ -2,7 +2,6 @@
 #include "fd_sysvar_epoch_schedule.h"
 #include "fd_sysvar_rent.h"
 #include "../fd_executor.h"
-#include "../fd_bank_mgr.h"
 #include "../fd_acc_mgr.h"
 #include "../fd_system_ids.h"
 #include "../context/fd_exec_slot_ctx.h"

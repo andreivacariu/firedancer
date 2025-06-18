@@ -4,7 +4,6 @@
 #include "../types/fd_types.h"
 #include "context/fd_exec_slot_ctx.h"
 #include "../../ballet/lthash/fd_lthash.h"
-#include "fd_bank_mgr.h"
 #include "fd_system_ids.h"
 
 /* fd_feature_restore loads a feature from the accounts database and

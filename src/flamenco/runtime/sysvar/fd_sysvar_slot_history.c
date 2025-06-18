@@ -3,7 +3,7 @@
 #include "fd_sysvar_rent.h"
 #include "../fd_executor_err.h"
 #include "../fd_system_ids.h"
-#include "../fd_bank_mgr.h"
+
 /* FIXME These constants should be header defines */
 
 static const ulong slot_history_min_account_size = 131097;

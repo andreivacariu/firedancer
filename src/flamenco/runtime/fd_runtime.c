@@ -5,7 +5,6 @@
 #include "fd_runtime_err.h"
 #include "fd_runtime_init.h"
 #include "fd_pubkey_utils.h"
-#include "fd_bank_mgr.h"
 
 #include "fd_executor.h"
 #include "fd_cost_tracker.h"
@@ -95,9 +94,7 @@ fd_runtime_compute_max_tick_height( ulong   ticks_per_slot,
 
 void
 fd_runtime_register_new_fresh_account( fd_pubkey_t const  * pubkey,
-                                       fd_bank_mgr_t *      bank_mgr,
                                        fd_bank_t *          bank ) {
-  (void)bank_mgr;
 
   fd_rent_fresh_accounts_global_t * rent_fresh_accounts = fd_bank_rent_fresh_accounts_modify( bank );
 
@@ -1894,7 +1891,6 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
                          fd_capture_ctx_t *           capture_ctx,
                          fd_execute_txn_task_info_t * task_info,
                          fd_spad_t *                  finalize_spad,
-                         fd_bank_mgr_t *              bank_mgr,
                          fd_bank_t *                  bank ) {
 
   /* for all accounts, if account->is_verified==true, propagate update
@@ -1971,7 +1967,7 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
       fd_txn_account_t * acc_rec = &txn_ctx->accounts[i];
 
       if( dirty_vote_acc && 0==memcmp( acc_rec->vt->get_owner( acc_rec ), &fd_solana_vote_program_id, sizeof(fd_pubkey_t) ) ) {
-        fd_vote_store_account( acc_rec, bank_mgr, bank );
+        fd_vote_store_account( acc_rec, bank );
         FD_SPAD_FRAME_BEGIN( finalize_spad ) {
           int err;
           fd_vote_state_versioned_t * vsv = fd_bincode_decode_spad(
@@ -2008,14 +2004,14 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
 
       if( dirty_stake_acc && 0==memcmp( acc_rec->vt->get_owner( acc_rec ), &fd_solana_stake_program_id, sizeof(fd_pubkey_t) ) ) {
         // TODO: does this correctly handle stake account close?
-        fd_store_stake_delegation( acc_rec, bank_mgr, bank );
+        fd_store_stake_delegation( acc_rec, bank );
       }
 
       fd_txn_account_save( &txn_ctx->accounts[i], slot_ctx->funk, slot_ctx->funk_txn, txn_ctx->spad_wksp );
       int fresh_account = acc_rec->vt->is_mutable( acc_rec ) &&
          acc_rec->vt->get_lamports( acc_rec ) && acc_rec->vt->get_rent_epoch( acc_rec ) != FD_RENT_EXEMPT_RENT_EPOCH;
       if( FD_UNLIKELY( fresh_account ) ) {
-        fd_runtime_register_new_fresh_account( txn_ctx->accounts[0].pubkey, bank_mgr, bank );
+        fd_runtime_register_new_fresh_account( txn_ctx->accounts[0].pubkey, bank );
       }
     }
   }
@@ -2130,7 +2126,7 @@ fd_runtime_prepare_execute_finalize_txn_task( void * tpool,
     return;
   }
 
-  fd_runtime_finalize_txn( slot_ctx, capture_ctx, task_info, task_info->txn_ctx->spad, task_info->txn_ctx->bank_mgr, slot_ctx->bank );
+  fd_runtime_finalize_txn( slot_ctx, capture_ctx, task_info, task_info->txn_ctx->spad, slot_ctx->bank );
 }
 
 /* fd_executor_txn_verify and fd_runtime_pre_execute_check are responisble
@@ -2212,9 +2208,6 @@ fd_runtime_process_txns_in_microblock_stream( fd_exec_slot_ctx_t * slot_ctx,
       if( FD_UNLIKELY( !task_infos[ curr_exec_idx ].txn_ctx ) ) {
         FD_LOG_ERR(( "failed to allocate txn ctx" ));
       }
-
-      FD_BANK_MGR_DECL( bank_mgr, slot_ctx->funk, slot_ctx->funk_txn );
-      task_infos[ curr_exec_idx ].txn_ctx->bank_mgr = bank_mgr;
 
       fd_tpool_exec( tpool, worker_idx, fd_runtime_prepare_execute_finalize_txn_task,
                      slot_ctx, (ulong)capture_ctx, (ulong)task_infos[curr_exec_idx].txn,
@@ -3748,7 +3741,7 @@ fd_runtime_process_genesis_block( fd_exec_slot_ctx_t * slot_ctx,
       }
 
       fd_funk_rec_key_t const * pubkey = rec->pair.key;
-      fd_runtime_register_new_fresh_account( (fd_pubkey_t * const ) fd_type_pun_const(&pubkey->uc[0]), slot_ctx->bank_mgr, slot_ctx->bank );
+      fd_runtime_register_new_fresh_account( (fd_pubkey_t * const ) fd_type_pun_const(&pubkey->uc[0]), slot_ctx->bank );
     }
   }
 
@@ -3780,11 +3773,6 @@ fd_runtime_read_genesis( fd_exec_slot_ctx_t * slot_ctx,
 
   if( strlen( genesis_filepath ) == 0 ) {
     return;
-  }
-
-  slot_ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( slot_ctx->bank_mgr_mem ), slot_ctx->funk, slot_ctx->funk_txn );
-  if( FD_UNLIKELY( !slot_ctx->bank_mgr ) ) {
-    FD_LOG_CRIT(( "failed to join bank mgr" ));
   }
 
   struct stat sbuf;
@@ -4323,8 +4311,6 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
     fd_funk_txn_start_write( funk );
     slot_ctx->funk_txn = fd_funk_txn_prepare( funk, slot_ctx->funk_txn, &xid, 1 );
     fd_funk_txn_end_write( funk );
-
-    slot_ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( &slot_ctx->bank_mgr_mem ), funk, slot_ctx->funk_txn );
 
     slot_ctx->slot = slot;
 

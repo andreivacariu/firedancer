@@ -1,5 +1,4 @@
 #include "fd_exec_slot_ctx.h"
-#include "../fd_bank_mgr.h"
 #include "../sysvar/fd_sysvar_epoch_schedule.h"
 #include "../program/fd_vote_program.h"
 #include "../../../ballet/lthash/fd_lthash.h"
@@ -220,8 +219,6 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   bhq->max_age = oldbank->blockhash_queue.max_age;
 
-
-  //fd_bank_mgr_block_hash_queue_save( slot_ctx->bank_mgr );
 
   /* Bank Hash */
 

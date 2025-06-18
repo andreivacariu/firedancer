@@ -2,7 +2,6 @@
 #include "fd_bpf_loader_program.h"
 #include "fd_loader_v4_program.h"
 #include "../fd_acc_mgr.h"
-#include "../fd_bank_mgr.h"
 #include "../context/fd_exec_slot_ctx.h"
 #include "../../vm/syscall/fd_vm_syscall.h"
 
@@ -267,7 +266,7 @@ fd_bpf_create_bpf_program_cache_entry( fd_exec_slot_ctx_t *    slot_ctx,
     fd_exec_txn_ctx_t   dummy_txn_ctx   = {0};
     dummy_txn_ctx.slot = slot_ctx->slot;
 
-    if( FD_UNLIKELY( !slot_ctx->bank_mgr ) ) {
+    if( FD_UNLIKELY( !slot_ctx->bank ) ) {
       /* We only handle this case for some unit tests. */
       dummy_txn_ctx.features = (fd_features_t){0};
     } else {

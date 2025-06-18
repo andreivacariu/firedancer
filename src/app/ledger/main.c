@@ -6,7 +6,6 @@
 #include "../../flamenco/runtime/fd_runtime_public.h"
 #include "../../flamenco/runtime/fd_rocksdb.h"
 #include "../../flamenco/runtime/fd_txncache.h"
-#include "../../flamenco/runtime/fd_bank_mgr.h"
 #include "../../flamenco/rewards/fd_rewards.h"
 #include "../../ballet/base58/fd_base58.h"
 #include "../../flamenco/runtime/context/fd_capture_ctx.h"
@@ -1113,8 +1112,6 @@ replay( fd_ledger_args_t * args ) {
   args->slot_ctx->funk       = funk;
   args->slot_ctx->blockstore = args->blockstore;
 
-  FD_TEST( args->slot_ctx->bank_mgr_mem );
-  args->slot_ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( args->slot_ctx->bank_mgr_mem ), funk, NULL );
   args->slot_ctx->banks    = banks;
   FD_TEST( args->slot_ctx->banks );
 

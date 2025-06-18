@@ -5,7 +5,6 @@
 #include "../sysvar/fd_sysvar_slot_hashes.h"
 #include "../sysvar/fd_sysvar_clock.h"
 #include "../../vm/syscall/fd_vm_syscall.h"
-#include "../fd_bank_mgr.h"
 #include "fd_native_cpi.h"
 
 #include <string.h>

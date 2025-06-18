@@ -3,7 +3,6 @@
 #include "fd_hashes.h"
 #include "fd_runtime.h"
 #include "fd_runtime_err.h"
-#include "fd_bank_mgr.h"
 
 #include "context/fd_exec_slot_ctx.h"
 #include "context/fd_exec_txn_ctx.h"
@@ -1285,9 +1284,8 @@ fd_exec_txn_ctx_from_exec_slot_ctx( fd_exec_slot_ctx_t const * slot_ctx,
 
   ctx->bank_hash_cmp = slot_ctx->bank_hash_cmp;
 
-  ctx->enable_exec_recording       = slot_ctx->enable_exec_recording;
+  ctx->enable_exec_recording = slot_ctx->enable_exec_recording;
 
-  ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( ctx->bank_mgr_mem ), slot_ctx->funk, slot_ctx->funk_txn );
   ctx->bank = slot_ctx->bank;
   FD_TEST( ctx->bank );
 
