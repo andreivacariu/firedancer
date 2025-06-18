@@ -1133,10 +1133,6 @@ replay( fd_ledger_args_t * args ) {
 
   fd_bank_features_end_modify( args->slot_ctx->bank );
 
-  ulong * slot_bm = fd_bank_mgr_slot_modify( args->slot_ctx->bank_mgr );
-  *slot_bm = 0UL;
-  fd_bank_mgr_slot_save( args->slot_ctx->bank_mgr );
-
   // void * status_cache_mem = fd_spad_alloc_check( spad,
   //     FD_TXNCACHE_ALIGN,
   //     fd_txncache_footprint( FD_TXNCACHE_DEFAULT_MAX_ROOTED_SLOTS,

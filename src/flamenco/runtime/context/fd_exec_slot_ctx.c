@@ -229,9 +229,6 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
 
   /* Slot */
 
-  ulong * slot_ptr = fd_bank_mgr_slot_modify( slot_ctx->bank_mgr );
-  *slot_ptr = oldbank->slot;
-  fd_bank_mgr_slot_save( slot_ctx->bank_mgr );
   slot_ctx->slot = oldbank->slot;
 
   /* Fee Rate Governor */

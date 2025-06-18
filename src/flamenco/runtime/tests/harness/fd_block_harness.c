@@ -251,8 +251,6 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   /* TODO: Do we need any more of these? */
 
   /* All bank mgr stuff here. */
-  fd_bank_mgr_t   bank_mgr_obj;
-  fd_bank_mgr_t * bank_mgr = fd_bank_mgr_join( &bank_mgr_obj, slot_ctx->funk, slot_ctx->funk_txn );
 
   void * banks_mem = fd_spad_alloc( runner->spad, fd_banks_align(), fd_banks_footprint( 1UL ) );
   fd_banks_t * banks = fd_banks_join( fd_banks_new( banks_mem, 1UL ) );
@@ -355,9 +353,7 @@ fd_runtime_fuzz_block_ctx_create( fd_runtime_fuzz_runner_t *           runner,
   /* Update leader schedule */
   fd_runtime_update_leaders( slot_ctx, slot_ctx->slot, runner->spad );
 
-  ulong * slot_bm = fd_bank_mgr_slot_modify( bank_mgr );
-  *slot_bm = slot_ctx->slot;
-  fd_bank_mgr_slot_save( bank_mgr );
+  slot_ctx->bank->slot = slot;
 
   fd_fee_rate_governor_t * fee_rate_governor = fd_bank_fee_rate_governor_modify( slot_ctx->bank );
 

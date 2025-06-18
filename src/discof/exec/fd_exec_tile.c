@@ -258,7 +258,7 @@ execute_txn( fd_exec_tile_ctx_t * ctx ) {
 
   ctx->txn_ctx->bank     = ctx->bank;
   ctx->txn_ctx->bank_mgr = ctx->bank_mgr;
-  ctx->txn_ctx->slot     = *(fd_bank_mgr_slot_query( ctx->bank_mgr ));
+  ctx->txn_ctx->slot     = ctx->bank->slot;
   ctx->txn_ctx->features = fd_bank_features_get( ctx->bank );
 
   fd_execute_txn_task_info_t task_info = {
@@ -332,7 +332,7 @@ hash_accounts( fd_exec_tile_ctx_t *                ctx,
   }
   ctx->txn_ctx->bank_mgr = ctx->bank_mgr;
   ctx->txn_ctx->bank     = ctx->bank;
-  ctx->txn_ctx->slot     = *(fd_bank_mgr_slot_query( ctx->bank_mgr ));
+  ctx->txn_ctx->slot     = ctx->bank->slot;
 
   ulong start_idx = msg->start_idx;
   ulong end_idx   = msg->end_idx;

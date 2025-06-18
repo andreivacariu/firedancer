@@ -1286,10 +1286,6 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
 
   fork->slot_ctx->bank_mgr = fd_bank_mgr_join( fd_bank_mgr_new( fork->slot_ctx->bank_mgr_mem ), fork->slot_ctx->funk, fork->slot_ctx->funk_txn );
 
-  ulong * slot_ptr = fd_bank_mgr_slot_modify( fork->slot_ctx->bank_mgr );
-  *slot_ptr = fork->slot_ctx->slot;
-  fd_bank_mgr_slot_save( fork->slot_ctx->bank_mgr );
-
   fd_funk_txn_end_write( ctx->funk );
 
   int is_epoch_boundary = 0;
@@ -2339,10 +2335,6 @@ after_credit( fd_replay_tile_ctx_t * ctx,
 
     fd_fork_t * child = fd_fork_frontier_ele_query( ctx->forks->frontier, &curr_slot, NULL, ctx->forks->pool );
     ulong prev_slot = child->slot_ctx->slot;
-
-    ulong * slot = fd_bank_mgr_slot_modify( fork->slot_ctx->bank_mgr );
-    *slot = curr_slot;
-    fd_bank_mgr_slot_save( fork->slot_ctx->bank_mgr );
 
     fd_bank_execution_fees_set( fork->slot_ctx->bank, 0UL );
 
