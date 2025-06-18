@@ -102,26 +102,18 @@ fd_forks_delete( void * forks ) {
 }
 
 fd_fork_t *
-fd_forks_init( fd_forks_t * forks, fd_exec_slot_ctx_t * slot_ctx ) {
+fd_forks_init( fd_forks_t * forks, ulong slot ) {
 
   if( FD_UNLIKELY( !forks ) ) {
     FD_LOG_WARNING( ( "NULL forks" ) );
     return NULL;
   }
 
-  if( FD_UNLIKELY( !slot_ctx ) ) {
-    FD_LOG_WARNING( ( "NULL slot_ctx" ) );
-    return NULL;
-  }
-
   fd_fork_t * fork = fd_fork_pool_ele_acquire( forks->pool );
-  fork->slot       = slot_ctx->slot;
+  fork->slot       = slot;
   fork->prev       = fd_fork_pool_idx_null( forks->pool );
   fork->lock       = 0;
   fork->end_idx    = UINT_MAX;
-  fork->slot_ctx   = slot_ctx; /* this shallow copy is only safe if
-                                   the lifetimes of slot_ctx's pointers
-                                   are as long as fork */
   if( FD_UNLIKELY( !fd_fork_frontier_ele_insert( forks->frontier, fork, forks->pool ) ) ) {
     FD_LOG_WARNING( ( "Failed to insert fork into frontier" ) );
   }
@@ -185,7 +177,7 @@ fd_forks_query_const( fd_forks_t const * forks, ulong slot ) {
 //   }
 // }
 
-static void
+static void FD_FN_UNUSED
 slot_ctx_restore( ulong                 slot,
                   fd_funk_t *           funk,
                   fd_blockstore_t *     blockstore,
@@ -276,18 +268,11 @@ fd_forks_prepare( fd_forks_t const *    forks,
     fork->lock = 1;
     fork->end_idx = UINT_MAX;
 
-    /* Format and join the slot_ctx */
-
-    uchar * slot_ctx_mem = fd_spad_alloc( runtime_spad, FD_EXEC_SLOT_CTX_ALIGN, FD_EXEC_SLOT_CTX_FOOTPRINT );
-    fd_exec_slot_ctx_t * slot_ctx = fd_exec_slot_ctx_join( fd_exec_slot_ctx_new( slot_ctx_mem ) );
-    fork->slot_ctx = slot_ctx;
-    if( FD_UNLIKELY( !slot_ctx ) ) {
-      FD_LOG_ERR( ( "failed to new and join slot_ctx" ) );
-    }
-
     /* Restore and decode w/ funk */
 
-    slot_ctx_restore( fork->slot, funk, blockstore, runtime_spad, slot_ctx );
+    (void)runtime_spad;
+    (void)funk;
+    // slot_ctx_restore( fork->slot, funk, blockstore, runtime_spad, slot_ctx );
 
 
     /* Add to frontier */
@@ -324,13 +309,6 @@ fd_forks_publish( fd_forks_t * forks, ulong slot ) {
   }
 
   while( FD_UNLIKELY( tail ) ) {
-    fd_fork_t * fork = fd_fork_frontier_ele_query( forks->frontier,
-                                                   &tail->slot,
-                                                   NULL,
-                                                   forks->pool );
-    if( FD_UNLIKELY( !fd_exec_slot_ctx_delete( fd_exec_slot_ctx_leave( fork->slot_ctx ) ) ) ) {
-      FD_LOG_ERR( ( "could not delete fork slot ctx" ) );
-    }
     ulong remove = fd_fork_frontier_idx_remove( forks->frontier,
                                                 &tail->slot,
                                                 fd_fork_pool_idx_null( forks->pool ),

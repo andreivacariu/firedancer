@@ -193,9 +193,7 @@ prepare_new_epoch_execution( fd_exec_tile_ctx_t *            ctx,
   fd_spad_push( ctx->exec_spad );
   ctx->pending_epoch_pop = 1;
 
-  /* TODO: The bank hash cmp obj can likely be shared once at boot and
-      there is no need to pass it forward every epoch. The proper
-      solution here is probably to create a new message type. */
+  /* TODO: The bank hash cmp obj needs to be a topo obj.. */
   fd_bank_hash_cmp_t * bank_hash_cmp_local = fd_bank_hash_cmp_join( fd_wksp_laddr_fast( ctx->runtime_public_wksp, epoch_msg->bank_hash_cmp_gaddr ) );
   if( FD_UNLIKELY( !bank_hash_cmp_local ) ) {
     FD_LOG_ERR(( "Could not get laddr for bank hash cmp" ));
@@ -206,6 +204,8 @@ prepare_new_epoch_execution( fd_exec_tile_ctx_t *            ctx,
 static void
 prepare_new_slot_execution( fd_exec_tile_ctx_t *           ctx,
                             fd_runtime_public_slot_msg_t * slot_msg ) {
+
+  FD_LOG_WARNING(("PREPARE NEW SLOT EXECUTION %lu", slot_msg->slot));
 
   /* If we need to refresh slot-level information, we need to pop off
      the transaction-level and slot-level frame. */
@@ -330,6 +330,12 @@ hash_accounts( fd_exec_tile_ctx_t *                ctx,
   if( FD_UNLIKELY( !ctx->bank_mgr ) ) {
     FD_LOG_ERR(( "Could not join bank mgr for slot %lu", ctx->slot ));
   }
+
+  ctx->bank = fd_banks_get_bank( ctx->banks, ctx->slot );
+  if( FD_UNLIKELY( !ctx->bank ) ) {
+    FD_LOG_ERR(( "Could not get bank for slot %lu", ctx->slot ));
+  }
+
   ctx->txn_ctx->bank_mgr = ctx->bank_mgr;
   ctx->txn_ctx->bank     = ctx->bank;
   ctx->txn_ctx->slot     = ctx->bank->slot;

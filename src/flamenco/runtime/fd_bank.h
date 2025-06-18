@@ -102,7 +102,12 @@ FD_PROTOTYPES_BEGIN
   X(fd_epoch_reward_status_global_t,   epoch_reward_status,         160000000UL,                               128UL,                                      1,   1    )  /* Epoch reward status */ \
   X(fd_epoch_leaders_t,                epoch_leaders,               1000000UL,                                 128UL,                                      1,   1    )  /* Epoch leaders */ \
   X(fd_stakes_global_t,                stakes,                      400000000UL,                               128UL,                                      1,   1    )  /* Stakes */ \
-  X(fd_features_t,                     features,                    sizeof(fd_features_t),                     alignof(fd_features_t),                     0,   0    )  /* Features */
+  X(fd_features_t,                     features,                    sizeof(fd_features_t),                     alignof(fd_features_t),                     0,   0    )  /* Features */ \
+  X(ulong,                             txn_count,                   sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Transaction count */ \
+  X(ulong,                             nonvote_txn_count,           sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Nonvote transaction count */ \
+  X(ulong,                             failed_txn_count,            sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Failed transaction count */ \
+  X(ulong,                             nonvote_failed_txn_count,    sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Nonvote failed transaction count */ \
+  X(ulong,                             total_compute_units_used,    sizeof(ulong),                             alignof(ulong),                             0,   0    )  /* Total compute units used */
 
 /* If a member of the bank is CoW then it needs a corresponding pool
    which is defined here. If a type if not a CoW then it does not need
