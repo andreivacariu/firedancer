@@ -1081,9 +1081,9 @@ replay( fd_ledger_args_t * args ) {
   init_tpool( args ); /* Sets up tpool */
   init_exec_spads( args, 1 ); /* Sets up spad */
 
-  FD_LOG_WARNING(("BANKS FOOTPRINT %lu", fd_banks_footprint( 32UL )));
-  uchar *      banks_mem = fd_wksp_alloc_laddr( args->wksp, fd_banks_align(), fd_banks_footprint( 32UL ), 0xABCABC123 );
-  fd_banks_t * banks     = fd_banks_join( fd_banks_new( banks_mem, 32UL ) );
+  FD_LOG_WARNING(("BANKS FOOTPRINT %lu", fd_banks_footprint( 8UL )));
+  uchar *      banks_mem = fd_wksp_alloc_laddr( args->wksp, fd_banks_align(), fd_banks_footprint( 8UL ), 0xABCABC123 );
+  fd_banks_t * banks     = fd_banks_join( fd_banks_new( banks_mem, 8UL ) );
   FD_TEST( banks );
 
   void * runtime_public_mem = fd_wksp_alloc_laddr( args->wksp,

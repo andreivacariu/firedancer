@@ -4136,7 +4136,7 @@ fd_runtime_publish_old_txns( fd_exec_slot_ctx_t * slot_ctx,
 
   uint depth = 0;
   for( fd_funk_txn_t * txn = slot_ctx->funk_txn; txn; txn = fd_funk_txn_parent(txn, txnpool) ) {
-    if( ++depth == (FD_RUNTIME_NUM_ROOT_BLOCKS - 1 ) ) {
+    if( ++depth == (FD_RUNTIME_OFFLINE_NUM_ROOT_BLOCKS - 1 ) ) {
       FD_LOG_DEBUG(("publishing %s (slot %lu)", FD_BASE58_ENC_32_ALLOCA( &txn->xid ), txn->xid.ul[0]));
 
       if( FD_UNLIKELY( !fd_funk_txn_publish( funk, txn, 1 ) ) ) {
