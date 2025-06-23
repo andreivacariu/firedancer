@@ -256,7 +256,7 @@ FD_FN_PURE static inline ulong
 scratch_footprint( fd_topo_tile_t const * tile ) {
   ulong l = FD_LAYOUT_INIT;
   l = FD_LAYOUT_APPEND( l, alignof(fd_net_ctx_t), sizeof(fd_net_ctx_t)                      );
-  l = FD_LAYOUT_APPEND( l, alignof(ulong),        tile->net.free_ring_depth * sizeof(ulong) );
+  l = FD_LAYOUT_APPEND( l, alignof(ulong),        tile->xdp.free_ring_depth * sizeof(ulong) );
   return FD_LAYOUT_FINI( l, scratch_align() );
 }
 
@@ -688,11 +688,10 @@ after_frag( fd_net_ctx_t *      ctx,
    Attempts to copy out the frame to a downstream tile. */
 
 static void
-net_rx_packet( fd_net_ctx_t *      ctx,
-               fd_stem_context_t * stem,
-               ulong               umem_off,
-               ulong               sz,
-               uint *              freed_chunk ) {
+net_rx_packet( fd_net_ctx_t * ctx,
+               ulong          umem_off,
+               ulong          sz,
+               uint *         freed_chunk ) {
 
   ulong umem_lowbits = umem_off & 0x3fUL;
 
@@ -779,7 +778,6 @@ net_rx_packet( fd_net_ctx_t *      ctx,
   fd_mcache_publish( out->mcache, out->depth, out->seq, sig, chunk, sz, umem_lowbits, 0, tspub );
 
   /* Wind up for the next iteration */
-  *stem->cr_avail -= stem->cr_decrement_amount;
   out->seq = fd_seq_inc( out->seq, 1UL );
 
   ctx->metrics.rx_pkt_cnt++;
@@ -829,17 +827,9 @@ net_comp_event( fd_net_ctx_t * ctx,
    ring.  */
 
 static void
-net_rx_event( fd_net_ctx_t *      ctx,
-              fd_stem_context_t * stem,
-              fd_xsk_t *          xsk,
-              uint                rx_seq ) {
-
-  // FIXME(topointon): Temporarily disabling backpressure feature because it triggers even with FD_TOPOB_UNRELIABLE
-  //if( FD_UNLIKELY( *stem->cr_avail < stem->cr_decrement_amount ) ) {
-  //  ctx->metrics.rx_backp_cnt++;
-  //  return;
-  //}
-
+net_rx_event( fd_net_ctx_t * ctx,
+              fd_xsk_t *     xsk,
+              uint           rx_seq ) {
   /* Locate the incoming frame */
 
   fd_xdp_ring_t * rx_ring = &xsk->ring_rx;
@@ -866,7 +856,7 @@ net_rx_event( fd_net_ctx_t *      ctx,
   /* Pass it to the receive handler */
 
   uint freed_chunk = UINT_MAX;
-  net_rx_packet( ctx, stem, frame.addr, frame.len, &freed_chunk );
+  net_rx_packet( ctx, frame.addr, frame.len, &freed_chunk );
 
   FD_COMPILER_MFENCE();
   FD_VOLATILE( *rx_ring->cons ) = rx_ring->cached_cons = rx_seq+1U;
@@ -893,6 +883,7 @@ static void
 before_credit( fd_net_ctx_t *      ctx,
                fd_stem_context_t * stem,
                int *               charge_busy ) {
+  (void)stem;
   /* A previous send attempt was overrun.  A corrupt copy of the packet was
      placed into an XDP frame, but the frame was not yet submitted to the
      TX ring.  Return the tx buffer to the free list. */
@@ -919,7 +910,7 @@ before_credit( fd_net_ctx_t *      ctx,
   if( rx_cons!=rx_prod ) {
     *charge_busy = 1;
     rr_xsk->ring_rx.cached_prod = rx_prod;
-    net_rx_event( ctx, stem, rr_xsk, rx_cons );
+    net_rx_event( ctx, rr_xsk, rx_cons );
   } else {
     net_rx_wakeup( ctx, rr_xsk, charge_busy );
     ctx->rr_idx++;
@@ -1008,14 +999,14 @@ privileged_init( fd_topo_t *      topo,
 
   FD_SCRATCH_ALLOC_INIT( l, scratch );
   fd_net_ctx_t * ctx     = FD_SCRATCH_ALLOC_APPEND( l, alignof(fd_net_ctx_t), sizeof(fd_net_ctx_t) );
-  ulong *        free_tx = FD_SCRATCH_ALLOC_APPEND( l, alignof(ulong), tile->net.free_ring_depth * sizeof(ulong) );;
+  ulong *        free_tx = FD_SCRATCH_ALLOC_APPEND( l, alignof(ulong), tile->xdp.free_ring_depth * sizeof(ulong) );;
 
   fd_memset( ctx, 0, sizeof(fd_net_ctx_t) );
 
-  uint if_idx = if_nametoindex( tile->net.interface );
-  if( FD_UNLIKELY( !if_idx ) ) FD_LOG_ERR(( "if_nametoindex(%s) failed", tile->net.interface ));
+  uint if_idx = if_nametoindex( tile->xdp.interface );
+  if( FD_UNLIKELY( !if_idx ) ) FD_LOG_ERR(( "if_nametoindex(%s) failed", tile->xdp.interface ));
 
-  interface_addrs( tile->net.interface, ctx->src_mac_addr, &ctx->default_address );
+  interface_addrs( tile->xdp.interface, ctx->src_mac_addr, &ctx->default_address );
 
   /* Load up dcache containing UMEM */
 
@@ -1048,7 +1039,7 @@ privileged_init( fd_topo_t *      topo,
   ctx->umem_wmark  = (uint)umem_wmark;
 
   ctx->free_tx.queue = free_tx;
-  ctx->free_tx.depth = tile->net.xdp_tx_queue_size;
+  ctx->free_tx.depth = tile->xdp.xdp_tx_queue_size;
 
   /* Create and install XSKs */
 
@@ -1059,12 +1050,12 @@ privileged_init( fd_topo_t *      topo,
     /* Some kernels produce EOPNOTSUP errors on sendto calls when
        starting up without either XDP_ZEROCOPY or XDP_COPY
        (e.g. 5.14.0-503.23.1.el9_5 with i40e) */
-    .bind_flags  = tile->net.zero_copy ? XDP_ZEROCOPY : XDP_COPY,
+    .bind_flags  = tile->xdp.zero_copy ? XDP_ZEROCOPY : XDP_COPY,
 
-    .fr_depth  = tile->net.xdp_rx_queue_size*2,
-    .rx_depth  = tile->net.xdp_rx_queue_size,
-    .cr_depth  = tile->net.xdp_tx_queue_size,
-    .tx_depth  = tile->net.xdp_tx_queue_size,
+    .fr_depth  = tile->xdp.xdp_rx_queue_size*2,
+    .rx_depth  = tile->xdp.xdp_rx_queue_size,
+    .cr_depth  = tile->xdp.xdp_tx_queue_size,
+    .tx_depth  = tile->xdp.xdp_tx_queue_size,
 
     .umem_addr = umem_frame0,
     .frame_sz  = umem_frame_sz,
@@ -1087,16 +1078,16 @@ privileged_init( fd_topo_t *      topo,
 
   /* Networking tile at index 0 also binds to loopback (only queue 0 available on lo) */
 
-  if( FD_UNLIKELY( strcmp( tile->net.interface, "lo" ) && !tile->kind_id ) ) {
+  if( FD_UNLIKELY( strcmp( tile->xdp.interface, "lo" ) && !tile->kind_id ) ) {
     ctx->xsk_cnt = 2;
 
     ushort udp_port_candidates[] = {
-      (ushort)tile->net.legacy_transaction_listen_port,
-      (ushort)tile->net.quic_transaction_listen_port,
-      (ushort)tile->net.shred_listen_port,
-      (ushort)tile->net.gossip_listen_port,
-      (ushort)tile->net.repair_intake_listen_port,
-      (ushort)tile->net.repair_serve_listen_port,
+      (ushort)tile->xdp.net.legacy_transaction_listen_port,
+      (ushort)tile->xdp.net.quic_transaction_listen_port,
+      (ushort)tile->xdp.net.shred_listen_port,
+      (ushort)tile->xdp.net.gossip_listen_port,
+      (ushort)tile->xdp.net.repair_intake_listen_port,
+      (ushort)tile->xdp.net.repair_serve_listen_port,
     };
 
     uint lo_idx = if_nametoindex( "lo" );
@@ -1216,19 +1207,19 @@ unprivileged_init( fd_topo_t *      topo,
   }
 
   for( uint j=0U; j<2U; j++ ) {
-    ctx->tx_flusher[ j ].pending_wmark         = (ulong)( (double)tile->net.xdp_tx_queue_size * 0.7 );
-    ctx->tx_flusher[ j ].tail_flush_backoff    = (long)( (double)tile->net.tx_flush_timeout_ns * fd_tempo_tick_per_ns( NULL ) );
+    ctx->tx_flusher[ j ].pending_wmark         = (ulong)( (double)tile->xdp.xdp_tx_queue_size * 0.7 );
+    ctx->tx_flusher[ j ].tail_flush_backoff    = (long)( (double)tile->xdp.tx_flush_timeout_ns * fd_tempo_tick_per_ns( NULL ) );
     ctx->tx_flusher[ j ].next_tail_flush_ticks = LONG_MAX;
   }
 
   /* Join netbase objects */
-  ctx->fib_local = fd_fib4_join( fd_topo_obj_laddr( topo, tile->net.fib4_local_obj_id ) );
-  ctx->fib_main  = fd_fib4_join( fd_topo_obj_laddr( topo, tile->net.fib4_main_obj_id  ) );
+  ctx->fib_local = fd_fib4_join( fd_topo_obj_laddr( topo, tile->xdp.fib4_local_obj_id ) );
+  ctx->fib_main  = fd_fib4_join( fd_topo_obj_laddr( topo, tile->xdp.fib4_main_obj_id  ) );
   if( FD_UNLIKELY( !ctx->fib_local || !ctx->fib_main ) ) FD_LOG_ERR(( "fd_fib4_join failed" ));
   if( FD_UNLIKELY( !fd_neigh4_hmap_join(
       ctx->neigh4,
-      fd_topo_obj_laddr( topo, tile->net.neigh4_obj_id ),
-      fd_topo_obj_laddr( topo, tile->net.neigh4_ele_obj_id ) ) ) ) {
+      fd_topo_obj_laddr( topo, tile->xdp.neigh4_obj_id ),
+      fd_topo_obj_laddr( topo, tile->xdp.neigh4_ele_obj_id ) ) ) ) {
     FD_LOG_ERR(( "fd_neigh4_hmap_join failed" ));
   }
 
@@ -1324,6 +1315,7 @@ populate_allowed_fds( fd_topo_t const *      topo,
 
 #include "../../stem/fd_stem.c"
 
+#ifndef FD_TILE_TEST
 fd_topo_run_tile_t fd_tile_net = {
   .name                     = "net",
   .populate_allowed_seccomp = populate_allowed_seccomp,
@@ -1334,3 +1326,4 @@ fd_topo_run_tile_t fd_tile_net = {
   .unprivileged_init        = unprivileged_init,
   .run                      = stem_run,
 };
+#endif
