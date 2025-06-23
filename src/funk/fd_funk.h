@@ -330,6 +330,16 @@ fd_funk_t *
 fd_funk_join( fd_funk_t * ljoin,
               void *      shfunk );
 
+/* fd_funk_purify attempts to clean up a possibly corrupt funk
+   instance. The shfunk argument is what would normally be passed to
+   join, and purify should be used BEFORE calling join. As a side
+   effect, all pending transactions are aborted. Important note:
+   purify is very expensive. Do not use this API indiscriminately. It
+   is meant to be used after a process crash. An error is returned if
+   purify fails. */
+int
+fd_funk_purify( void * shfunk );
+
 /* fd_funk_leave leaves a funk join.  Returns the memory region used for
    join on success (caller has ownership on return and the caller is no
    longer joined) and NULL on failure (logs details).  Sets *opt_shfunk

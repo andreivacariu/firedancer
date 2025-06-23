@@ -198,6 +198,20 @@ fd_funk_join( fd_funk_t * ljoin,
   return funk;
 }
 
+int
+fd_funk_purify( void * shfunk ) {
+  /* Join should work even if there was a crash */
+  fd_funk_t ljoin[1];
+  fd_funk_t * funk = fd_funk_join( ljoin, shfunk );
+  if( funk == NULL ) return FD_FUNK_ERR_PURIFY;
+
+  /* Reset the txn map */
+  fd_funk_txn_map_reset( funk->txn_map );
+  fd_funk_txn_pool_reset( funk->txn_pool, 0 );
+
+  return FD_FUNK_SUCCESS;
+}
+
 void *
 fd_funk_leave( fd_funk_t * funk,
                void **     opt_shfunk ) {
