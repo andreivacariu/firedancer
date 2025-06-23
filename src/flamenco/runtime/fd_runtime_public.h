@@ -12,7 +12,6 @@
 #define FD_RUNTIME_PUBLIC_MAGIC (0xF17EDA2C9A7B1C21UL)
 
 #define EXEC_NEW_SLOT_SIG              (0xABC123UL)
-#define EXEC_NEW_EPOCH_SIG             (0xDEF456UL)
 #define EXEC_NEW_TXN_SIG               (0x777777UL)
 #define EXEC_HASH_ACCS_SIG             (0x888888UL)
 #define EXEC_BPF_SCAN_SIG              (0x999991UL)
@@ -25,7 +24,6 @@
 
 #define FD_EXEC_STATE_NOT_BOOTED       (0xFFFFFFFFUL)
 #define FD_EXEC_STATE_BOOTED           (1<<1UL      )
-#define FD_EXEC_STATE_EPOCH_DONE       (1<<2UL      )
 #define FD_EXEC_STATE_SLOT_DONE        (1<<3UL      )
 #define FD_EXEC_STATE_HASH_DONE        (1<<6UL      )
 #define FD_EXEC_STATE_BPF_SCAN_DONE    (1<<7UL      )
@@ -111,11 +109,6 @@ fd_exec_fseq_set_booted( uint offset ) {
 static uint FD_FN_UNUSED
 fd_exec_fseq_get_booted_offset( ulong fseq ) {
   return (uint)(fseq >> 32UL);
-}
-
-static ulong FD_FN_UNUSED
-fd_exec_fseq_set_epoch_done( void ) {
-  return FD_EXEC_STATE_EPOCH_DONE;
 }
 
 static ulong FD_FN_UNUSED

@@ -42,81 +42,8 @@ struct fd_exec_tile_ctx {
   /* Shared bank hash cmp object. */
   fd_bank_hash_cmp_t * bank_hash_cmp;
 
-  /* Management around exec spad and frame lifetimes.
-
-     We will always have at least 1 frame pushed onto the exec spad.
-     This frame will contain the txn_ctx. The replay tile will propogate
-     new slot and new epoch messages to the exec tile at the start of a
-     new epoch or at the start of a new slot. These messages will live
-     in their own frames so that they have distinct lifetimes. We expect
-     to recieve an update for a new epoch first: this will live inside
-     of the second spad frame. Then all allocations made at the start of
-     a new slot will live in the third spad frame. The following
-     frame(s) will be used for the execution of the current transaction.
-     The pending_{n}_pop variables are used to manage lifetimes for
-     txn/slot/epoch updates. We need frames for the epoch and slot to
-     store information that is copied into the exec tile at every
-     epoch/slot.
-
-     Examples:
-
-     Start of a new transaction:
-       * If pending_txn_pop==1:
-         State before new transaction message received:
-         | txn_ctx frame | epoch frame | slot frame | prev txn frame |
-         State after new transaction message received:
-         * The prev txn's frame is popped off because pending_txn_pop==1.
-         | txn_ctx frame | epoch frame | slot frame |
-         * A new frame is pushed onto the exec spad for the new transaction.
-         | txn_ctx frame | epoch frame | slot frame | new txn frame |
-         * pending_txn_pop is set to 1 to indicate that we need to pop
-           the txn frame at the start of the next transaction.
-      * If pending_txn_pop==0:
-         State before new transaction message received:
-         * Because there is no pending_txn_pop we know that there is no
-           frame for a previous transaction; this implies that this is
-           the first transaction in the slot
-         | txn_ctx frame | epoch frame | slot frame |
-         State after new transaction message received:
-         * A new frame is pushed onto the exec spad for the new transaction.
-         | txn_ctx frame | epoch frame | slot frame | new txn frame |
-         * pending_txn_pop is set to 1 to indicate that we need to pop
-           the txn frame at the start of the next transaction.
-
-      Start of a new slot:
-      * If pending_slot_pop==1:
-        State before new slot message received (assuming the previous slot had txns):
-        | txn_ctx frame | epoch frame | prev slot frame | prev txn frame |
-        State after new slot message received:
-        * The prev txn's frame is popped off because pending_txn_pop==1. (see above)
-        * The prev slot's frame is also popped off because pending_slot_pop==1.
-        | txn_ctx frame | epoch frame |
-        * A new frame is pushed onto the exec spad for the new slot.
-        | txn_ctx frame | epoch frame | slot frame |
-        * pending_slot_pop is set to 1 to indicate that we need to pop
-          the slot frame at the start of the next slot.
-      * If pending_slot_pop==0:
-        State before new slot message received:
-        * Because there is no pending_slot_pop we know that there is no
-          slot frame for a previous slot; this implies that this is the
-          first slot in the current epoch. This also implies that there
-          can be no pending txn frame that needs to get popped on.
-        | txn_ctx frame | epoch frame |
-        State after new slot message received:
-        * A new frame is pushed onto the exec spad for the new slot.
-        | txn_ctx frame | epoch frame | slot frame |
-        * pending_slot_pop is set to 1 to indicate that we need to pop
-          the slot frame at the start of the next slot.
-
-      ... This same principle extends to dealing with new epoch scoped
-      spad frames.
-
-   */
   fd_spad_t *           exec_spad;
   fd_wksp_t *           exec_spad_wksp;
-  int                   pending_txn_pop;
-  int                   pending_slot_pop;
-  int                   pending_epoch_pop;
 
   fd_funk_t             funk[1];
 
@@ -168,61 +95,18 @@ scratch_footprint( fd_topo_tile_t const * tile FD_PARAM_UNUSED ) {
 }
 
 static void
-prepare_new_epoch_execution( fd_exec_tile_ctx_t *            ctx,
-                             fd_runtime_public_epoch_msg_t * epoch_msg ) {
-
-  (void)epoch_msg;
-  /* If we need to refresh epoch-level information, we need to pop off
-     the transaction-level, slot-level, and epoch-level frames.
-
-     TODO: Epoch-level information should probably live in its own spad. */
-  if( FD_LIKELY( ctx->pending_txn_pop ) ) {
-    fd_spad_pop( ctx->exec_spad );
-    ctx->pending_txn_pop = 0;
-  }
-  if( FD_LIKELY( ctx->pending_slot_pop ) ) {
-    fd_spad_pop( ctx->exec_spad );
-    ctx->pending_slot_pop = 0;
-  }
-  if( FD_LIKELY( ctx->pending_epoch_pop ) ) {
-    fd_spad_pop( ctx->exec_spad );
-    ctx->pending_epoch_pop = 0;
-  }
-  fd_spad_push( ctx->exec_spad );
-  ctx->pending_epoch_pop = 1;
-
-}
-
-static void
 prepare_new_slot_execution( fd_exec_tile_ctx_t *           ctx,
                             fd_runtime_public_slot_msg_t * slot_msg ) {
 
   FD_LOG_WARNING(("PREPARE NEW SLOT EXECUTION %lu", slot_msg->slot));
-
-  /* If we need to refresh slot-level information, we need to pop off
-     the transaction-level and slot-level frame. */
-  if( FD_LIKELY( ctx->pending_txn_pop ) ) {
-    fd_spad_pop( ctx->exec_spad );
-    ctx->pending_txn_pop = 0;
-  }
-  if( FD_LIKELY( ctx->pending_slot_pop ) ) {
-    fd_spad_pop( ctx->exec_spad );
-    ctx->pending_slot_pop = 0;
-  }
-  fd_spad_push( ctx->exec_spad );
-  ctx->pending_slot_pop = 1;
-
+  (void)ctx;
   (void)slot_msg;
 }
 
 static void
 execute_txn( fd_exec_tile_ctx_t * ctx ) {
-  if( FD_LIKELY( ctx->pending_txn_pop ) ) {
-    fd_spad_pop( ctx->exec_spad );
-    ctx->pending_txn_pop = 0;
-  }
-  fd_spad_push( ctx->exec_spad );
-  ctx->pending_txn_pop = 1;
+
+  FD_SPAD_FRAME_BEGIN( ctx->exec_spad ) {
 
   fd_funk_txn_map_t * txn_map = fd_funk_txn_map( ctx->funk );
   if( FD_UNLIKELY( !txn_map->map ) ) {
@@ -288,6 +172,8 @@ execute_txn( fd_exec_tile_ctx_t * ctx ) {
   if( FD_LIKELY( ctx->exec_res==FD_EXECUTOR_INSTR_SUCCESS ) ) {
     fd_txn_reclaim_accounts( task_info.txn_ctx );
   }
+
+  } FD_SPAD_FRAME_END;
 }
 
 // TODO: hashing can be moved into the writer tile
@@ -423,11 +309,6 @@ during_frag( fd_exec_tile_ctx_t * ctx,
       FD_LOG_DEBUG(( "new slot=%lu msg recvd", msg->slot ));
       prepare_new_slot_execution( ctx, msg );
       return;
-    } else if( sig==EXEC_NEW_EPOCH_SIG ) {
-      fd_runtime_public_epoch_msg_t * msg = fd_chunk_to_laddr( ctx->replay_in_mem, chunk );
-      FD_LOG_DEBUG(( "new epoch msg recvd" ));
-      prepare_new_epoch_execution( ctx, msg );
-      return;
     } else if( sig==EXEC_HASH_ACCS_SIG ) {
       fd_runtime_public_hash_bank_msg_t * msg = fd_chunk_to_laddr( ctx->replay_in_mem, chunk );
       FD_LOG_DEBUG(( "hash accs=%lu msg recvd", msg->end_idx - msg->start_idx ));
@@ -464,10 +345,6 @@ after_frag( fd_exec_tile_ctx_t * ctx,
   if( sig==EXEC_NEW_SLOT_SIG ) {
     FD_LOG_DEBUG(( "Sending ack for new slot msg" ));
     fd_fseq_update( ctx->exec_fseq, fd_exec_fseq_set_slot_done() );
-  } else if( sig==EXEC_NEW_EPOCH_SIG ) {
-    FD_LOG_DEBUG(( "Sending ack for new epoch msg" ));
-    fd_fseq_update( ctx->exec_fseq, fd_exec_fseq_set_epoch_done() );
-
   } else if( sig==EXEC_NEW_TXN_SIG ) {
     FD_LOG_DEBUG(( "Sending ack for new txn msg" ));
     /* At this point we can assume that the transaction is done
@@ -636,10 +513,6 @@ unprivileged_init( fd_topo_t *      topo,
     FD_LOG_ERR(( "Failed to join exec spad" ));
   }
   ctx->exec_spad_wksp = fd_wksp_containing( ctx->exec_spad );
-
-  ctx->pending_txn_pop   = 0;
-  ctx->pending_slot_pop  = 0;
-  ctx->pending_epoch_pop = 0;
 
   /********************************************************************/
   /* bank hash cmp                                                    */
