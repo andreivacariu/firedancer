@@ -63,10 +63,22 @@ while IFS= read -r line; do
   INPUT_LEDGER_LOCATION=${INPUT_LEDGERS_LOCATION}/${entry[l]}
   OUTPUT_LEDGER_LOCATION=${OUTPUT_LEDGERS_LOCATION}/${entry[l]}
   END_SLOT=${entry[e]}
+  START_SLOT=$(echo "${entry[s]}" | cut -d'-' -f2)
   cp -r ${INPUT_LEDGER_LOCATION} ${OUTPUT_LEDGERS_LOCATION}
+
+  CREATE_SNAPSHOT_CMD="$AGAVE_REPO_DIR/target/release/agave-ledger-tool create-snapshot ${START_SLOT} -l ${OUTPUT_LEDGER_LOCATION} --enable-capitalization-change"
+  echo "$CREATE_SNAPSHOT_CMD"
+  $CREATE_SNAPSHOT_CMD &> /dev/null
+
+  SNAPSHOT_COUNT=$(ls $OUTPUT_LEDGER_LOCATION/snapshot*tar.zst 2>/dev/null | wc -l)
+  echo "OUTPUT_LEDGER_LOCATION: $OUTPUT_LEDGER_LOCATION"
+  if [ "$SNAPSHOT_COUNT" -gt 1 ]; then
+    rm "${OUTPUT_LEDGER_LOCATION}/${entry[s]}"
+  fi
 
   REWRITE_CMD="$AGAVE_REPO_DIR/target/release/agave-ledger-tool verify -l ${OUTPUT_LEDGER_LOCATION} --halt-at-slot ${END_SLOT} --use-snapshot-archives-at-startup when-newest --no-accounts-db-experimental-accumulator-hash --force-update-to-open"
   echo "$REWRITE_CMD"
   $REWRITE_CMD &> /dev/null
 
+  rm -rf ${OUTPUT_LEDGER_LOCATION}/ledger_tool
 done < "$INPUT_LEDGER_LIST"
