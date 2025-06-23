@@ -74,6 +74,7 @@ while IFS= read -r line; do
   echo "OUTPUT_LEDGER_LOCATION: $OUTPUT_LEDGER_LOCATION"
   if [ "$SNAPSHOT_COUNT" -gt 1 ]; then
     rm "${OUTPUT_LEDGER_LOCATION}/${entry[s]}"
+    echo "Removed ${entry[s]} from ledger ${entry[l]} due to getting overwritten by newer snapshot"
   fi
 
   REWRITE_CMD="$AGAVE_REPO_DIR/target/release/agave-ledger-tool verify -l ${OUTPUT_LEDGER_LOCATION} --halt-at-slot ${END_SLOT} --use-snapshot-archives-at-startup when-newest --no-accounts-db-experimental-accumulator-hash --force-update-to-open"
@@ -81,4 +82,6 @@ while IFS= read -r line; do
   $REWRITE_CMD &> /dev/null
 
   rm -rf ${OUTPUT_LEDGER_LOCATION}/ledger_tool
+  rm -rf ${OUTPUT_LEDGER_LOCATION}/snapshot
+  rm -rf ${OUTPUT_LEDGER_LOCATION}/accounts
 done < "$INPUT_LEDGER_LIST"
