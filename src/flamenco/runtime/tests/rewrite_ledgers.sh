@@ -71,7 +71,6 @@ while IFS= read -r line; do
   $CREATE_SNAPSHOT_CMD &> /dev/null
 
   SNAPSHOT_COUNT=$(ls $OUTPUT_LEDGER_LOCATION/snapshot*tar.zst 2>/dev/null | wc -l)
-  echo "OUTPUT_LEDGER_LOCATION: $OUTPUT_LEDGER_LOCATION"
   if [ "$SNAPSHOT_COUNT" -gt 1 ]; then
     rm "${OUTPUT_LEDGER_LOCATION}/${entry[s]}"
     echo "Removed ${entry[s]} from ledger ${entry[l]} due to getting overwritten by newer snapshot"
