@@ -1267,7 +1267,8 @@ fd_exec_txn_ctx_from_exec_slot_ctx( fd_exec_slot_ctx_t const * slot_ctx,
                                     fd_wksp_t const *          funk_wksp,
                                     fd_wksp_t const *          runtime_pub_wksp,
                                     ulong                      funk_txn_gaddr,
-                                    ulong                      funk_gaddr ) {
+                                    ulong                      funk_gaddr,
+                                    fd_bank_hash_cmp_t *       bank_hash_cmp ) {
 
   ctx->runtime_pub_wksp = (fd_wksp_t *)runtime_pub_wksp;
 
@@ -1282,7 +1283,7 @@ fd_exec_txn_ctx_from_exec_slot_ctx( fd_exec_slot_ctx_t const * slot_ctx,
 
   ctx->status_cache = slot_ctx->status_cache;
 
-  ctx->bank_hash_cmp = slot_ctx->bank_hash_cmp;
+  ctx->bank_hash_cmp = bank_hash_cmp;
 
   ctx->enable_exec_recording = fd_bank_enable_exec_recording_get( slot_ctx->bank );
 
@@ -1414,7 +1415,8 @@ fd_execute_txn_prepare_start( fd_exec_slot_ctx_t const * slot_ctx,
                                       funk_wksp,
                                       runtime_pub_wksp,
                                       funk_txn_gaddr,
-                                      funk_gaddr );
+                                      funk_gaddr,
+                                      NULL );
   fd_exec_txn_ctx_setup( txn_ctx, txn_descriptor, txn_raw );
 
   /* Unroll accounts from aluts and place into correct spots */

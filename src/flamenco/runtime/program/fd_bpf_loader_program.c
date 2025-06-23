@@ -2502,7 +2502,8 @@ fd_directly_invoke_loader_v3_deploy( fd_exec_slot_ctx_t * slot_ctx,
                                       funk_wksp,
                                       runtime_wksp,
                                       funk_txn_gaddr,
-                                      funk_gaddr );
+                                      funk_gaddr,
+                                      NULL );
 
   fd_exec_txn_ctx_setup_basic( txn_ctx );
   txn_ctx->instr_stack_sz = 1;

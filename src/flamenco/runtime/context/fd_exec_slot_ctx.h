@@ -15,6 +15,10 @@
 /* fd_exec_slot_ctx_t is the context that stays constant during all
    transactions in a block. */
 
+/* TODO: The slot ctx should be removed entirely. Pointers to
+   different txn metas and the status cache should be passed in
+   seperately.*/
+
 struct fd_exec_slot_ctx {
   ulong                       magic; /* ==FD_EXEC_SLOT_CTX_MAGIC */
 
@@ -22,8 +26,6 @@ struct fd_exec_slot_ctx {
 
   fd_banks_t *                banks;
   fd_bank_t *                 bank;
-
-  fd_bank_hash_cmp_t *        bank_hash_cmp;
 
   /* External joins, pointers to be set by caller */
 

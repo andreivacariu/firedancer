@@ -64,14 +64,14 @@ fd_topo_obj_callbacks_t fd_obj_cb_banks = {
 
 static ulong
 bh_cmp_footprint( fd_topo_t const *     topo,
-                         fd_topo_obj_t const * obj ) {
+                  fd_topo_obj_t const * obj ) {
   (void)topo; (void)obj;
   return fd_bank_hash_cmp_footprint();
 }
 
 static ulong
 bh_cmp_align( fd_topo_t const *     topo,
-                     fd_topo_obj_t const * obj ) {
+              fd_topo_obj_t const * obj ) {
   (void)topo; (void)obj;
   return fd_bank_hash_cmp_align();
 }

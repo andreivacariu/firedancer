@@ -97,9 +97,9 @@ fd_epoch_delete( void * epoch );
    epoch. */
 
 void
-fd_epoch_init( fd_epoch_t *               epoch,
-               ulong                      eah_start_slot,
-               ulong                      eah_stop_slot,
+fd_epoch_init( fd_epoch_t *                      epoch,
+               ulong                             eah_start_slot,
+               ulong                             eah_stop_slot,
                fd_vote_accounts_global_t const * vote_accounts );
 
 /* fd_epoch_fini finishes an epoch.  Assumes epoch is a valid local join

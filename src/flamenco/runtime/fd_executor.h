@@ -144,7 +144,8 @@ fd_exec_txn_ctx_from_exec_slot_ctx( fd_exec_slot_ctx_t const * slot_ctx,
                                     fd_wksp_t const *          funk_wksp,
                                     fd_wksp_t const *          runtime_pub_wksp,
                                     ulong                      funk_txn_gaddr,
-                                    ulong                      funk_gaddr );
+                                    ulong                      funk_gaddr,
+                                    fd_bank_hash_cmp_t *       bank_hash_cmp );
 
 FD_PROTOTYPES_END
 
