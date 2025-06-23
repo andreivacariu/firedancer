@@ -104,7 +104,6 @@ extern fd_topo_run_tile_t fd_tile_archiver_playback;
 extern fd_topo_run_tile_t fd_tile_snapshot_restore_SnapRd;
 extern fd_topo_run_tile_t fd_tile_snapshot_restore_SnapDc;
 extern fd_topo_run_tile_t fd_tile_snapshot_restore_SnapIn;
-extern fd_topo_run_tile_t fd_tile_snapshot_restore_HttpDl;
 
 fd_topo_run_tile_t * TILES[] = {
   &fd_tile_net,
@@ -148,7 +147,6 @@ fd_topo_run_tile_t * TILES[] = {
   &fd_tile_snapshot_restore_SnapRd,
   &fd_tile_snapshot_restore_SnapDc,
   &fd_tile_snapshot_restore_SnapIn,
-  &fd_tile_snapshot_restore_HttpDl,
   NULL,
 };
 

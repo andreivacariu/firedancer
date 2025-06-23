@@ -34,10 +34,22 @@ fd_snapshot_archive_parse_full_snapshot_file( char const *                  snap
                                               fd_snapshot_archive_entry_t * archive_entry ) {
   ulong slot;
   char hash[ FD_BASE58_ENCODED_32_SZ ];
+
+  if( snapshot_filename[0] == '/' ) {
+    /* skip the starting slash */
+    snapshot_filename++;
+  }
+
+  if( strstr( snapshot_filename, "partial" ) ) {
+    /* skip partial files */
+    return -1;
+  }
+
   int res = sscanf( snapshot_filename,
                     "%*[^-]-%lu-%[^.].*",
                     &slot,
                     hash );
+  
 
   if( res == 2UL ) {
     fd_snapshot_archive_set_full_path( snapshot_archive_path, snapshot_filename, archive_entry->filename );
@@ -60,6 +72,11 @@ fd_snapshot_archive_parse_incremental_snapshot_file( char const *               
   if( snapshot_filename[0] == '/' ) {
     /* skip the starting slash */
     snapshot_filename++;
+  }
+
+  if( strstr( snapshot_filename, "partial" ) ) {
+    /* skip partial files */
+    return -1;
   }
 
   int res = sscanf( snapshot_filename,

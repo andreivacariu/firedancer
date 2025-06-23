@@ -14,7 +14,8 @@ fd_snapshot_reader_new( void *                                    mem,
                         ulong                                     peers_cnt,
                         fd_snapshot_archive_entry_t *             full_snapshot_entry,
                         fd_incremental_snapshot_archive_entry_t * incremental_snapshot_entry,
-                        int                                       incremental_snapshot_fetch ) {
+                        int                                       incremental_snapshot_fetch,
+                        ulong                                     minimum_download_speed_mib ) {
   if( FD_UNLIKELY( !mem ) ) {
     FD_LOG_WARNING(( "NULL mem" ));
     return NULL;
@@ -40,7 +41,8 @@ fd_snapshot_reader_new( void *                                    mem,
                                               peers,
                                               snapshot_archive_path,
                                               full_snapshot_entry,
-                                              incremental_snapshot_entry );
+                                              incremental_snapshot_entry,
+                                              minimum_download_speed_mib );
     if( should_download_full ) {
       fd_snapshot_httpdl_set_source_full( self->http );
       self->full_src = fd_snapshot_istream_httpdl( self->http );

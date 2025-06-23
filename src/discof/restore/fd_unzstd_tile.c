@@ -130,6 +130,15 @@ fd_snapdc_shutdown( void ) {
 }
 
 static void
+fd_snapdc_reset( fd_snapdc_tile_t *   ctx,
+                 fd_stream_reader_t * reader ) {
+  fd_zstd_dstream_reset( ctx->dstream );
+  fd_stream_writer_reset_stream( ctx->writer );
+  fd_stream_reader_reset_stream( reader );
+  ctx->in_state.in_skip = 0UL;
+}
+
+static void
 fd_snapdc_on_file_complete( fd_snapdc_tile_t *   ctx,
                             fd_stream_reader_t * reader,
                             fd_stream_frag_meta_t const * frag ) {
@@ -141,11 +150,8 @@ fd_snapdc_on_file_complete( fd_snapdc_tile_t *   ctx,
     /* notify downstream consumer */
     fd_stream_writer_notify( ctx->writer,
                              fd_frag_meta_ctl( 1UL, 0, 1, 0 ) );
-
     /* reset */
-    fd_zstd_dstream_reset( ctx->dstream );
-    fd_stream_writer_reset_stream( ctx->writer );
-    fd_stream_reader_reset_stream( reader );
+    fd_snapdc_reset( ctx, reader );
 
   } else if( ctx->metrics.status == STATUS_INC ||
              !fd_frag_meta_ctl_orig( frag->ctl ) ) {
@@ -159,6 +165,23 @@ fd_snapdc_on_file_complete( fd_snapdc_tile_t *   ctx,
   }
 }
 
+static void
+fd_snapdc_on_notification( fd_snapdc_tile_t *            ctx,
+                           fd_stream_reader_t *          reader,
+                           fd_stream_frag_meta_t const * frag ) {
+  if( FD_UNLIKELY( fd_frag_meta_ctl_eom( frag->ctl ) ) ) {
+    /* file complete notification */
+    fd_snapdc_on_file_complete( ctx, reader, frag );
+  } else if( FD_UNLIKELY( fd_frag_meta_ctl_err( frag->ctl ) ) ) {
+    /* retry notification */
+    fd_stream_writer_notify( ctx->writer,
+                             fd_frag_meta_ctl( 0UL, 0, 0, 1 ) );
+    fd_snapdc_reset( ctx, reader );
+  } else {
+    FD_LOG_ERR(( "snapdc: unknown notification ctl %u", frag->ctl ));
+  }
+}
+
 static int
 on_stream_frag( void *                        _ctx,
                 fd_stream_reader_t *          reader,
@@ -166,10 +189,9 @@ on_stream_frag( void *                        _ctx,
                 ulong *                       sz ) {
   fd_snapdc_tile_t * ctx = fd_type_pun(_ctx);
 
-  /* TODO: poll file complete or retry notification */
-  if( FD_UNLIKELY( fd_frag_meta_ctl_eom( frag->ctl ) ) ) {
-    fd_snapdc_on_file_complete( ctx, reader, frag );
-    *sz = frag->sz;
+  /* Poll notifications */
+  if( FD_UNLIKELY( frag->sz==0 ) ) {
+    fd_snapdc_on_notification( ctx, reader, frag );
     return 1;
   }
 

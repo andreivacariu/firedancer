@@ -10,10 +10,11 @@
 #include <sys/stat.h>
 
 #define NAME "SnapRd"
-#define FILE_READ_MAX 8UL<<20
+#define SNAP_READ_MAX 8UL<<20
 
+
+/* TODO: these should be received from gossip */
 #define CLUSTER_SNAPSHOT_SLOT 326672166UL
-
 fd_ip4_port_t const peers[ 16UL ] = {
   { .addr = FD_IP4_ADDR( 145, 40, 95, 69 ), .port = 8899 },
   { .addr = FD_IP4_ADDR( 145, 40, 95, 69 ), .port = 8899 },
@@ -33,7 +34,7 @@ struct fd_snaprd_tile {
   fd_incremental_snapshot_archive_entry_t incremental_snapshot_entry;
 
   fd_snapshot_reader_t * snapshot_reader;
-  uint                   num_aborts;
+  uint                   num_retries;
 
   struct {
     char path[ PATH_MAX ];
@@ -129,12 +130,12 @@ fd_snaprd_on_file_complete( fd_snaprd_tile_t * ctx ) {
 
 static void
 fd_snaprd_on_retry( fd_snaprd_tile_t * ctx ) {
-  ctx->num_aborts++;
+  ctx->num_retries++;
   fd_stream_writer_notify( ctx->writer,
                            fd_frag_meta_ctl( 0UL, 0, 0, 1 ) );
   fd_stream_writer_reset_stream( ctx->writer );
 
-  if( FD_UNLIKELY( ctx->num_aborts > ctx->config.maximum_download_retry_abort ) ) {
+  if( FD_UNLIKELY( ctx->num_retries > ctx->config.maximum_download_retry_abort ) ) {
     /* TODO: should we shutdown or just error out here? */
     fd_snaprd_set_status( ctx, STATUS_FAILED );
     FD_LOG_ERR(( "Hit the maximum number of download retries, aborting." ));
@@ -196,7 +197,7 @@ fd_snaprd_should_download( fd_snaprd_tile_t * ctx ) {
                                                              &ctx->incremental_snapshot_entry );
     if( FD_UNLIKELY( res ) ) {
       /* there is no incremental snapshot entry */
-      FD_LOG_INFO(( "There are no valid local incremental snapshots"
+      FD_LOG_INFO(( "There are no valid local incremental snapshots "
                     "in the snapshots path %s. Downloading from peers.", ctx->config.path ));
       return ( fd_snaprd_should_download_t ){ .full = 0,
                                               .incremental = 1 };
@@ -204,7 +205,7 @@ fd_snaprd_should_download( fd_snaprd_tile_t * ctx ) {
 
     /* Validate the incremental snapshot builds off the full snapshot */
     if( ctx->incremental_snapshot_entry.base_slot != ctx->full_snapshot_entry.slot ) {
-      FD_LOG_INFO(( "Local incremental snapshot at slot %lu does not build off the full snapshot at slot %lu."
+      FD_LOG_INFO(( "Local incremental snapshot at slot %lu does not build off the full snapshot at slot %lu. "
                     "Downloading from peers.", 
                     ctx->incremental_snapshot_entry.inner.slot, 
                     ctx->full_snapshot_entry.slot ));
@@ -246,10 +247,11 @@ fd_snaprd_init( fd_snaprd_tile_t * ctx,
                                                  download_pair.incremental,
                                                  ctx->config.path,
                                                  peers,
-                                                 16UL,
+                                                 3UL,
                                                  &ctx->full_snapshot_entry,
                                                  &ctx->incremental_snapshot_entry,
-                                                 ctx->config.incremental_snapshot_fetch );
+                                                 ctx->config.incremental_snapshot_fetch,
+                                                 ctx->config.minimum_download_speed_mib );
 
 }
 
@@ -287,7 +289,7 @@ fd_snaprd_init_from_stream_ctx( void *            _ctx,
   fd_snaprd_tile_t * ctx = _ctx;
   ctx->writer = fd_stream_writer_join( stream_ctx->writers[0] );
   FD_TEST( ctx->writer );
-  fd_stream_writer_set_frag_sz_max( ctx->writer, FILE_READ_MAX );
+  fd_stream_writer_set_frag_sz_max( ctx->writer, SNAP_READ_MAX );
 }
 
 static void
@@ -304,6 +306,9 @@ after_credit( void *            _ctx,
   fd_snapshot_reader_metrics_t metrics =
     fd_snapshot_reader_read( ctx->snapshot_reader, out, out_max, &sz );
 
+  fd_stream_writer_publish( ctx->writer, sz, 0UL );
+  fd_snaprd_accumulate_metrics( ctx, &metrics );
+
   if( metrics.status == FD_SNAPSHOT_READER_DONE ) {
     fd_snaprd_on_file_complete( ctx );
   } else if( metrics.status == FD_SNAPSHOT_READER_RETRY ) {
@@ -312,9 +317,6 @@ after_credit( void *            _ctx,
     /* aborts app */
     FD_LOG_ERR(( "Failed to read snapshot: %d", metrics.err ));
   }
-
-  fd_stream_writer_publish( ctx->writer, sz, 0UL );
-  fd_snaprd_accumulate_metrics( ctx, &metrics );
 }
 
 __attribute__((noinline)) static void

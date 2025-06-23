@@ -53,7 +53,8 @@ fd_snapshot_reader_new( void *                                    mem,
                         ulong                                     peers_cnt,
                         fd_snapshot_archive_entry_t *             full_snapshot_entry,
                         fd_incremental_snapshot_archive_entry_t * incremental_snapshot_entry,
-                        int                                       incremental_snapshot_fetch );
+                        int                                       incremental_snapshot_fetch,
+                        ulong                                     minimum_download_speed_mib );
 
 static inline fd_snapshot_reader_metrics_t
 fd_snapshot_reader_read( fd_snapshot_reader_t * self,
@@ -69,7 +70,6 @@ fd_snapshot_reader_read( fd_snapshot_reader_t * self,
 static inline void
 fd_snapshot_reader_set_source_incremental( fd_snapshot_reader_t * self ) {
   FD_TEST( self->full_src.this );
-  FD_TEST( self->incremental_src.this );
 
   /* There can be only be three different snapshot source configurations:
      - Both full and incremental snapshot files exist on disk locally
@@ -79,6 +79,7 @@ fd_snapshot_reader_set_source_incremental( fd_snapshot_reader_t * self ) {
     /* If the full snapshot was read from disk,
        set the source to the incremental snapshot source, which could be
        a file or from http */
+    FD_TEST( self->incremental_src.this );
     self->vsrc = &self->incremental_src;
   } else if( self->full_src.src_type == SRC_HTTP ) {
     /* If the full snapshot was downloaded via http, then the incremental

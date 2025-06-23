@@ -36,11 +36,13 @@
 #define FD_SNAPSHOT_HTTP_MAX_NODES (16UL)
 
 #define FD_SNAPSHOT_REQUEST_TIMEOUT (10e9) /* 10 seconds */
+#define FD_SNAPSHOT_HTTP_DL_PERIOD (10UL<<20)
 
 struct fd_snapshot_httpdl {
   /* List of RPC node addresses */
   fd_ip4_port_t peers[ 16UL ];
   ulong         peers_cnt;
+  ulong         current_peer_idx;
 
   uint   ipv4;
   ushort port;
@@ -75,9 +77,12 @@ struct fd_snapshot_httpdl {
 
   ulong content_len;
 
-  /* Total downloaded so far */
+  /* Progress and speed tracking */
 
-  ulong dl_total;
+  ulong minimum_download_speed_mib;
+  ulong dl_total;      /* total bytes downloaded */
+  ulong last_dl_total; /* total bytes downloaded at last speed check */
+  long  last_nanos;    /* last time speed was checked */
 
   /* Total written out so far */
 
@@ -89,6 +94,8 @@ struct fd_snapshot_httpdl {
   /* File to store downloaded snapshot contents.
      Named as <snapshot-type>-<slot>-<hash>-partial.tar.zst */
   char  snapshot_archive_path[ PATH_MAX ];
+  char  snapshot_filename_temp[ PATH_MAX ];
+  char  snapshot_filename[ PATH_MAX ];
   int   current_snapshot_fd;
 
   /* snapshot entries */
@@ -117,18 +124,14 @@ fd_snapshot_httpdl_new( void *                                    mem,
                         fd_ip4_port_t const                       peers[ FD_SNAPSHOT_HTTP_MAX_NODES ],
                         char const *                              snapshot_archive_path,
                         fd_snapshot_archive_entry_t *             full_snapshot_entry,
-                        fd_incremental_snapshot_archive_entry_t * incremental_snapshot_entry );
+                        fd_incremental_snapshot_archive_entry_t * incremental_snapshot_entry,
+                        ulong                                     minimum_download_speed_mib );
 
 void
 fd_snapshot_httpdl_set_source_full( fd_snapshot_httpdl_t * self );
 
 void
 fd_snapshot_httpdl_set_source_incremental( fd_snapshot_httpdl_t * self );
-
-void
-fd_snapshot_httpdl_set_path( fd_snapshot_httpdl_t * self,
-                             char const *           path,
-                             ulong                  path_len );
 
 fd_snapshot_reader_metrics_t
 fd_snapshot_httpdl_read( void *  _self,

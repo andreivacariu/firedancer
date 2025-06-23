@@ -47,6 +47,29 @@ fd_snapshot_httpdl_render_headers( fd_snapshot_httpdl_t * self ) {
 }
 
 static void
+fd_snapshot_httpdl_set_path( fd_snapshot_httpdl_t * self,
+                             char const *            path,
+                             ulong                   path_len ) {
+  if( FD_UNLIKELY( !path_len ) ) {
+    path     = "/";
+    path_len = 1UL;
+  }
+
+  if( FD_UNLIKELY( path_len > FD_SNAPSHOT_HTTP_REQ_PATH_MAX ) ) {
+    FD_LOG_CRIT(( "fd_snapshot_httpdl: path too long (%lu chars)", path_len ));
+  }
+
+  ulong off = sizeof(self->path) - path_len - 4;
+  char * p = self->path + off;
+
+  fd_memcpy( p,   "GET ", 4UL      );
+  fd_memcpy( p+4, path,   path_len );
+
+  self->req_tail = off;
+  self->path_off = off;
+}
+
+static void
 fd_snapshot_httpdl_cleanup_fds( fd_snapshot_httpdl_t * self ) {
   if( self->current_snapshot_fd!=-1 ) {
     if( FD_UNLIKELY( close( self->current_snapshot_fd ) ) ) {
@@ -83,7 +106,7 @@ fd_snapshot_httpdl_init_connection( fd_snapshot_httpdl_t * self ) {
     /* TODO: should error out or report status failed? */
     FD_LOG_WARNING(( "socket(AF_INET, SOCK_STREAM, 0) failed (%d-%s)",
                  errno, fd_io_strerror( errno ) ));
-    self->state = FD_SNAPSHOT_HTTP_STATE_FAIL;
+    self->state          = FD_SNAPSHOT_HTTP_STATE_FAIL;
     return errno;
   }
 
@@ -205,13 +228,16 @@ fd_snapshot_httpdl_init_full_snapshot_file( fd_snapshot_httpdl_t * self,
     return EPROTO;
   }
 
-  fd_memcpy( self->full_snapshot_entry->filename + snapshot_filename_len, tag, tag_len );
-  self->full_snapshot_entry->filename[ snapshot_filename_len + tag_len ] = '\0';
+  fd_memcpy( self->snapshot_filename_temp, self->full_snapshot_entry->filename, PATH_MAX );
+  fd_memcpy( self->snapshot_filename_temp + snapshot_filename_len, tag, tag_len );
+  self->snapshot_filename_temp[ snapshot_filename_len + tag_len ] = '\0';
+
+  fd_memcpy( self->snapshot_filename, self->full_snapshot_entry->filename, PATH_MAX );
 
   /* open full snapshot save file */
-  self->current_snapshot_fd = open( self->full_snapshot_entry->filename, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR );
+  self->current_snapshot_fd = open( self->snapshot_filename_temp, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR );
   if( FD_UNLIKELY( self->current_snapshot_fd<0 ) ) {
-    FD_LOG_WARNING(( "open(%s) failed (%d-%s)", self->full_snapshot_entry->filename, errno, fd_io_strerror( errno ) ));
+    FD_LOG_WARNING(( "open(%s) failed (%d-%s)", self->snapshot_filename_temp, errno, fd_io_strerror( errno ) ));
     self->state = FD_SNAPSHOT_HTTP_STATE_FAIL;
     return EACCES;
   }
@@ -251,23 +277,26 @@ fd_snapshot_httpdl_init_incremental_snapshot_file( fd_snapshot_httpdl_t * self,
     return EPROTO;
   }
 
-  fd_memcpy( self->incremental_snapshot_entry->inner.filename + snapshot_filename_len, tag, tag_len );
-  self->incremental_snapshot_entry->inner.filename[ snapshot_filename_len + tag_len ] = '\0';
+  fd_memcpy( self->snapshot_filename_temp, self->incremental_snapshot_entry->inner.filename, PATH_MAX );
+  fd_memcpy( self->snapshot_filename_temp + snapshot_filename_len, tag, tag_len );
+  self->snapshot_filename_temp[ snapshot_filename_len + tag_len ] = '\0';
+
+  fd_memcpy( self->snapshot_filename, self->incremental_snapshot_entry->inner.filename, PATH_MAX );
 
   /* open incremental snapshot save file */
-  self->current_snapshot_fd = open( self->incremental_snapshot_entry->inner.filename, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR );
+  self->current_snapshot_fd = open( self->snapshot_filename_temp, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR );
   if( FD_UNLIKELY( self->current_snapshot_fd<0 ) ) {
-    FD_LOG_WARNING(( "open(%s) failed (%d-%s)", self->incremental_snapshot_entry->inner.filename, errno, fd_io_strerror( errno ) ));
+    FD_LOG_WARNING(( "open(%s) failed (%d-%s)", self->snapshot_filename_temp, errno, fd_io_strerror( errno ) ));
     self->state = FD_SNAPSHOT_HTTP_STATE_FAIL;
     return EACCES;
   }
 
-  if( self->incremental_snapshot_entry->base_slot != self->base_slot ) {
-    FD_LOG_WARNING(( "Incremental snapshot does not build off previously loaded full snapshot."
-                     "This likely indicates that the full snapsnot is stale and that the incremental snapshot is based on a newer slot." ));
-    self->state = FD_SNAPSHOT_HTTP_STATE_FAIL;
-    return EINVAL;
-  }
+  // if( self->incremental_snapshot_entry->base_slot != self->base_slot ) {
+  //   FD_LOG_WARNING(( "Incremental snapshot does not build off previously loaded full snapshot."
+  //                    "This likely indicates that the full snapsnot is stale and that the incremental snapshot is based on a newer slot." ));
+  //   self->state = FD_SNAPSHOT_HTTP_STATE_FAIL;
+  //   return EINVAL;
+  // }
 
   return 0;
 }
@@ -462,7 +491,8 @@ fd_snapshot_httpdl_resp( fd_snapshot_httpdl_t * self ) {
   const ulong target_len = sizeof("content-length")-1;
   for( ulong i = 0; i < header_cnt; ++i ) {
     if( headers[i].name_len==target_len && strncasecmp( headers[i].name, "content-length", target_len ) == 0 ) {
-      self->content_len = strtoul( headers[i].value, NULL, 10 );
+      self->content_len         = strtoul( headers[i].value, NULL, 10 );
+      self->metrics.bytes_total = self->content_len;
       break;
     }
   }
@@ -476,9 +506,12 @@ fd_snapshot_httpdl_resp( fd_snapshot_httpdl_t * self ) {
   if( FD_UNLIKELY( self->current_snapshot_fd==-1 ) ) {
     /* We didn't follow a redirect. Parse the snapshot file name here */
     ulong off = (ulong)self->path_off + 4;
-    fd_snapshot_httpdl_parse_snapshot_name( self,
+    int err = fd_snapshot_httpdl_parse_snapshot_name( self,
                                             self->path + off,
                                             sizeof(self->path) - off );
+    if( FD_UNLIKELY( err ) ) {
+      return err;
+    }
 
   }
 
@@ -517,21 +550,73 @@ fd_snapshot_httldl_write_snapshot_file( fd_snapshot_httpdl_t * self,
   return 0;
 }
 
+static void
+fd_snapshot_httpdl_reset( fd_snapshot_httpdl_t * self ) {
+  self->state         = FD_SNAPSHOT_HTTP_STATE_INIT;
+  self->hops          = FD_SNAPSHOT_HTTP_DEFAULT_HOPS;
+  self->req_deadline  = 0L;
+
+  self->req_tail      = 0UL;
+  self->req_head      = 0UL;
+  self->resp_tail     = 0UL;
+  self->resp_head     = 0UL;
+  self->dl_total      = 0UL;
+  self->last_dl_total = 0UL;
+  self->last_nanos    = 0UL;
+  self->write_total   = 0UL;
+  self->content_len   = 0UL;
+
+  fd_memset( self->req_buf, 0, sizeof(self->req_buf) );
+  fd_memset( self->resp_buf, 0, sizeof(self->resp_buf) );
+
+  fd_snapshot_httpdl_cleanup_fds( self );
+}
+
+static int
+fd_snapshot_httpdl_retry( fd_snapshot_httpdl_t * self ) {
+  self->current_peer_idx++;
+
+  if( self->current_peer_idx == self->peers_cnt ) {
+    FD_LOG_WARNING(( "Exhausted all peers to download from. Failing." ));
+    self->state = FD_SNAPSHOT_HTTP_STATE_FAIL;
+    fd_snapshot_httpdl_cleanup_fds( self );
+    return -1;
+  }
+
+  self->ipv4 = self->peers[ self->current_peer_idx ].addr;
+  self->port = self->peers[self->current_peer_idx ].port;
+
+  FD_LOG_NOTICE(( "Retrying download of %s from "FD_IP4_ADDR_FMT" and port: %u",
+                  self->snapshot_filename,
+                  FD_IP4_ADDR_FMT_ARGS( self->ipv4 ),
+                  self->port ));
+  fd_snapshot_httpdl_reset( self );
+
+  if( self->snapshot_type == FD_SNAPSHOT_TYPE_FULL ) {
+    fd_snapshot_httpdl_set_source_full( self );
+  } else if( self->snapshot_type == FD_SNAPSHOT_TYPE_INCREMENTAL ) {
+    fd_snapshot_httpdl_set_source_incremental( self );
+  } else {
+    FD_LOG_WARNING(( "Unknown snapshot type %d", self->snapshot_type ));
+    self->state = FD_SNAPSHOT_HTTP_STATE_FAIL;
+    return -1;
+  }
+
+  return 0;
+}
 
 static int
 fd_snapshot_httpdl_dl( fd_snapshot_httpdl_t * self,
                        void *               dst,
                        ulong                dst_max,
                        ulong *              sz ) {
-  if( FD_UNLIKELY( self->state!=FD_SNAPSHOT_HTTP_STATE_DL ) ) {
-    FD_LOG_CRIT(( "invalid state %d", self->state ));
+  if( self->content_len == self->dl_total ) {
+    FD_LOG_NOTICE(( "download already complete at %lu MB", self->dl_total>>20 ));
+    return -1;
   }
 
   if( self->resp_head == self->resp_tail ) {
-    if( self->content_len == self->dl_total ) {
-      FD_LOG_NOTICE(( "download already complete at %lu MB", self->dl_total>>20 ));
-      return -1;
-    }
+    /* Empty resp buffer means we can recv more bytes */
     self->resp_tail = self->resp_head = 0UL;
     long recv_sz = recv( self->socket_fd, self->resp_buf,
                          fd_ulong_min( self->content_len - self->dl_total, FD_SNAPSHOT_HTTP_RESP_BUF_MAX ),
@@ -541,7 +626,7 @@ fd_snapshot_httpdl_dl( fd_snapshot_httpdl_t * self,
         FD_LOG_WARNING(( "recv(%d,%p,%lu) failed while downloading response body (%d-%s)",
                         self->socket_fd, (void *)self->resp_buf, FD_SNAPSHOT_HTTP_RESP_BUF_MAX,
                         errno, fd_io_strerror( errno ) ));
-        self->state = FD_SNAPSHOT_HTTP_STATE_FAIL;
+        self->state          = FD_SNAPSHOT_HTTP_STATE_FAIL;
         fd_snapshot_httpdl_cleanup_fds( self );
         return errno;
       } else {
@@ -555,28 +640,32 @@ fd_snapshot_httpdl_dl( fd_snapshot_httpdl_t * self,
       return -1;
     }
     self->resp_head = (ulong)recv_sz;
-#define DL_PERIOD (100UL<<20)
-    static ulong x = 0;
-    static ulong last_dl_total;
-    static long  last_nanos;
     self->dl_total += (ulong)recv_sz;
-    if( x != self->dl_total/DL_PERIOD ) {
+
+    /* check download speed and retry if needed */
+    if( (self->dl_total-self->last_dl_total ) >= FD_SNAPSHOT_HTTP_DL_PERIOD ) {
 
       FD_LOG_NOTICE(( "downloaded %lu MB (%lu%%) ...",
                       self->dl_total>>20U, 100UL*self->dl_total/self->content_len ));
-      x = self->dl_total/DL_PERIOD;
-      if( FD_LIKELY( x >= 2UL ) ) {
-        ulong dl_delta    = self->dl_total - last_dl_total;
-        ulong nanos_delta = (ulong)(fd_log_wallclock() - last_nanos);
-        FD_LOG_NOTICE(( "estimate %lu MB/s", dl_delta*1000UL/nanos_delta ));
+
+      ulong dl_delta    = self->dl_total - self->last_dl_total;
+      ulong nanos_delta = (ulong)(fd_log_wallclock() - self->last_nanos);
+      ulong mibps       = (dl_delta*1000UL)/nanos_delta;
+      FD_LOG_NOTICE(( "estimate %lu MB/s", mibps ));
+
+      if( FD_UNLIKELY( mibps < self->minimum_download_speed_mib ) ) {
+        FD_LOG_WARNING(( "download speed %lu MB/s is below minimum %lu MB/s",
+                         mibps, self->minimum_download_speed_mib ));
+        self->metrics.status = FD_SNAPSHOT_READER_RETRY;
+        return fd_snapshot_httpdl_retry( self );
       }
-      last_dl_total = self->dl_total;
-      last_nanos    = fd_log_wallclock();
+
+      self->last_dl_total = self->dl_total;
+      self->last_nanos    = fd_log_wallclock();
     }
+
     if( self->content_len <= self->dl_total ) {
       FD_LOG_NOTICE(( "download complete at %lu MB", self->dl_total>>20 ));
-      close( self->socket_fd );
-      self->socket_fd = -1;
       if( FD_UNLIKELY( self->content_len < self->dl_total ) ) {
         FD_LOG_WARNING(( "server transmitted more than Content-Length %lu bytes vs %lu bytes", self->content_len, self->dl_total ));
       }
@@ -593,46 +682,29 @@ fd_snapshot_httpdl_dl( fd_snapshot_httpdl_t * self,
   fd_memcpy( dst, self->resp_buf + self->resp_tail, write_sz );
   *sz = write_sz;
 
+  /* save snapshot contents to file */
   int err = fd_snapshot_httldl_write_snapshot_file( self, write_sz );
   if( FD_UNLIKELY( err ) ) {
     return err;
   }
 
-  self->resp_tail   += (uint)write_sz;
-  self->write_total += write_sz;
-
+  self->resp_tail          += (uint)write_sz;
+  self->write_total        += write_sz;
   self->metrics.bytes_read += self->dl_total;
 
   /* check if done downloading */
   if( self->content_len == self->write_total ) {
     FD_LOG_NOTICE(( "wrote out all %lu MB", self->write_total>>20 ));
 
-    /* TODO: rename -partial to non-partial filename */
     self->state = FD_SNAPSHOT_HTTP_STATE_DONE;
     fd_snapshot_httpdl_cleanup_fds( self );
     self->metrics.status = FD_SNAPSHOT_READER_DONE;
+
+    /* rename to remove partial tag */
+    rename( self->snapshot_filename_temp, self->snapshot_filename );
   }
 
   return 0;
-}
-
-static void
-fd_snapshot_httpdl_reset( fd_snapshot_httpdl_t * self ) {
-  self->state       = FD_SNAPSHOT_HTTP_STATE_INIT;
-  self->hops        = FD_SNAPSHOT_HTTP_DEFAULT_HOPS;
-
-  self->req_tail    = 0UL;
-  self->req_head    = 0UL;
-  self->resp_tail   = 0UL;
-  self->resp_head   = 0UL;
-  self->dl_total    = 0UL;
-  self->write_total = 0UL;
-  self->content_len = 0UL;
-
-  fd_memset( self->req_buf, 0, sizeof(self->req_buf) );
-  fd_memset( self->resp_buf, 0, sizeof(self->resp_buf) );
-
-  fd_snapshot_httpdl_cleanup_fds( self );
 }
 
 /* fd_snapshot_http_read reads bytes from a pre-existing snapshot file
@@ -649,16 +721,15 @@ fd_snapshot_httpdl_read( void *  _self,
   switch( self->state ) {
   case FD_SNAPSHOT_HTTP_STATE_INIT: {
     err = fd_snapshot_httpdl_init_connection( self );
-    *sz = 0UL;
+    self->metrics.status = FD_SNAPSHOT_READER_INIT;
     break;
   }
   case FD_SNAPSHOT_HTTP_STATE_REQ:
     err = fd_snapshot_httpdl_req( self );
-    *sz = 0UL;
     break;
   case FD_SNAPSHOT_HTTP_STATE_RESP:
     err = fd_snapshot_httpdl_resp( self );
-    *sz = 0UL;
+    self->metrics.status = FD_SNAPSHOT_READER_READ;
     break;
   case FD_SNAPSHOT_HTTP_STATE_DL: {
     err = fd_snapshot_httpdl_dl( self, dst, dst_max, sz );
@@ -682,7 +753,8 @@ fd_snapshot_httpdl_new( void *                                    mem,
                         fd_ip4_port_t const                       peers[ FD_SNAPSHOT_HTTP_MAX_NODES ],
                         char const *                              snapshot_archive_path,
                         fd_snapshot_archive_entry_t *             full_snapshot_entry,
-                        fd_incremental_snapshot_archive_entry_t * incremental_snapshot_entry ) {
+                        fd_incremental_snapshot_archive_entry_t * incremental_snapshot_entry,
+                        ulong                                     minimum_download_speed_mib ) {
   if( FD_UNLIKELY( !mem ) ) {
     FD_LOG_WARNING(( "NULL mem" ));
     return NULL;
@@ -701,8 +773,9 @@ fd_snapshot_httpdl_new( void *                                    mem,
   fd_memcpy( self->peers, peers, sizeof(fd_ip4_port_t) * peers_cnt );
 
   /* set up first peer to contact */
-  self->ipv4 = self->peers[0].addr;
-  self->port = self->peers[0].port;
+  self->current_peer_idx = 0UL;
+  self->ipv4             = self->peers[ self->current_peer_idx ].addr;
+  self->port             = self->peers[ self->current_peer_idx ].port;
 
   /* set up http state */
   self->socket_fd = -1;
@@ -713,14 +786,15 @@ fd_snapshot_httpdl_new( void *                                    mem,
   fd_memcpy( self->snapshot_archive_path, snapshot_archive_path, PATH_MAX );
   self->current_snapshot_fd = -1;
 
-  self->full_snapshot_entry = full_snapshot_entry;
+  self->full_snapshot_entry        = full_snapshot_entry;
   self->incremental_snapshot_entry = incremental_snapshot_entry;
+  self->minimum_download_speed_mib = minimum_download_speed_mib;
 
   return self;
 }
 
 void
-fd_snapshot_httpdl_set_source_full( fd_snapshot_httpdl_t *        self ) {
+fd_snapshot_httpdl_set_source_full( fd_snapshot_httpdl_t * self ) {
   fd_snapshot_httpdl_reset( self );
 
   self->snapshot_type = FD_SNAPSHOT_TYPE_FULL;
@@ -732,7 +806,7 @@ fd_snapshot_httpdl_set_source_full( fd_snapshot_httpdl_t *        self ) {
 }
 
 void
-fd_snapshot_httpdl_set_source_incremental( fd_snapshot_httpdl_t *                    self ) {
+fd_snapshot_httpdl_set_source_incremental( fd_snapshot_httpdl_t * self ) {
   fd_snapshot_httpdl_reset( self );
 
   self->snapshot_type = FD_SNAPSHOT_TYPE_INCREMENTAL;
@@ -741,29 +815,6 @@ fd_snapshot_httpdl_set_source_incremental( fd_snapshot_httpdl_t *               
   fd_snapshot_httpdl_set_path( self, default_incremental_path, sizeof(default_incremental_path)-1UL );
 
   fd_snapshot_httpdl_render_headers( self );
-}
-
-void
-fd_snapshot_httpdl_set_path( fd_snapshot_httpdl_t * self,
-                             char const *            path,
-                             ulong                   path_len ) {
-  if( FD_UNLIKELY( !path_len ) ) {
-    path     = "/";
-    path_len = 1UL;
-  }
-
-  if( FD_UNLIKELY( path_len > FD_SNAPSHOT_HTTP_REQ_PATH_MAX ) ) {
-    FD_LOG_CRIT(( "fd_snapshot_httpdl: path too long (%lu chars)", path_len ));
-  }
-
-  ulong off = sizeof(self->path) - path_len - 4;
-  char * p = self->path + off;
-
-  fd_memcpy( p,   "GET ", 4UL      );
-  fd_memcpy( p+4, path,   path_len );
-
-  self->req_tail = off;
-  self->path_off = off;
 }
 
 void *

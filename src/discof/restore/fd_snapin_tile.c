@@ -201,40 +201,6 @@ snapshot_reset_acc_data( fd_snapshot_parser_t * parser FD_PARAM_UNUSED,
   ctx->acc_data = NULL;
 }
 
-static void
-fd_snapin_reset( fd_snapin_tile_t * ctx ) {
-  fd_snapshot_parser_reset( ctx->parser );
-  ctx->in_state.in_skip = 0UL;
-}
-
-static void
-fd_snapin_on_file_complete( fd_snapin_tile_t *   ctx,
-                            fd_stream_reader_t * reader,
-                            fd_stream_frag_meta_t const * frag ) {
-  if( ctx->metrics.status == STATUS_FULL &&
-      fd_frag_meta_ctl_orig( frag->ctl ) == 1UL ) {
-    FD_LOG_INFO(("snapin: done processing full snapshot, now processing incremental snapshot"));
-    fd_snapin_set_status( ctx, STATUS_INC );
-
-    fd_snapin_reset( ctx );
-    fd_stream_reader_reset_stream( reader );
-
-  } else if( ctx->metrics.status == STATUS_INC ||
-             !fd_frag_meta_ctl_orig( frag->ctl ) ) {
-    fd_snapin_shutdown( ctx );
-
-  } else {
-    FD_LOG_ERR(("snapin: unexpected status"));
-  }
-}
-
-static void
-fd_snapin_check_parser_failed( fd_snapshot_parser_t * parser ) {
-  if( FD_UNLIKELY( parser->flags & SNAP_FLAG_FAILED ) ) {
-    FD_LOG_ERR(( "Failed to restore snapshot" ));
-  }
-}
-
 static ulong
 scratch_align( void ) {
   return fd_ulong_max( alignof(fd_snapin_tile_t), 
@@ -338,6 +304,50 @@ metrics_write( void * _ctx ) {
   FD_MGAUGE_SET( SNAPIN, ACCOUNTS_INSERTED,                    ctx->metrics.num_accounts_inserted );
 }
 
+static void
+fd_snapin_reset( fd_snapin_tile_t *   ctx,
+                 fd_stream_reader_t * reader ) {
+  fd_snapshot_parser_reset( ctx->parser );
+  fd_stream_reader_reset_stream( reader );
+  ctx->in_state.in_skip = 0UL;
+}
+
+static void
+fd_snapin_on_file_complete( fd_snapin_tile_t *   ctx,
+                            fd_stream_reader_t * reader,
+                            fd_stream_frag_meta_t const * frag ) {
+  if( ctx->metrics.status == STATUS_FULL &&
+      fd_frag_meta_ctl_orig( frag->ctl ) == 1UL ) {
+    FD_LOG_INFO(("snapin: done processing full snapshot, now processing incremental snapshot"));
+    fd_snapin_set_status( ctx, STATUS_INC );
+
+    fd_snapin_reset( ctx, reader );
+
+  } else if( ctx->metrics.status == STATUS_INC ||
+             !fd_frag_meta_ctl_orig( frag->ctl ) ) {
+    fd_snapin_shutdown( ctx );
+
+  } else {
+    FD_LOG_ERR(("snapin: unexpected status"));
+  }
+}
+
+static void
+fd_snapin_on_notification( fd_snapin_tile_t *            ctx,
+                           fd_stream_reader_t *          reader,
+                           fd_stream_frag_meta_t const * frag ) {
+  if( FD_UNLIKELY( fd_frag_meta_ctl_eom( frag->ctl ) ) ) {
+    /* file complete notification */
+    fd_snapin_on_file_complete( ctx, reader, frag );
+  } else if( FD_UNLIKELY( fd_frag_meta_ctl_err( frag->ctl ) ) ) {
+    /* retry notification */
+    /* TODO: notify manifest writer if needed */
+    fd_snapin_reset( ctx, reader );
+  } else {
+    FD_LOG_ERR(( "snapin: unknown notification ctl %u", frag->ctl ));
+  }
+}
+
 /* on_stream_frag consumes an incoming stream data fragment.  This frag
    may be up to the dcache size (e.g. 8 MiB), therefore could contain
    thousands of accounts.  This function will publish a message for each
@@ -353,16 +363,15 @@ on_stream_frag( void *                        _ctx,
                 ulong *                       sz ) {
   fd_snapin_tile_t * ctx = fd_type_pun( _ctx );
 
-  /* poll file complete notification */
-  if( FD_UNLIKELY( fd_frag_meta_ctl_eom( frag->ctl ) ) ) {
-    fd_snapin_on_file_complete( ctx, reader, frag );
-    *sz = frag->sz;
+  /* poll notifications */
+  if( FD_UNLIKELY( frag->sz==0 ) ) {
+    fd_snapin_on_notification( ctx, reader, frag );
     return 1;
   }
 
-  if( FD_UNLIKELY( ctx->parser->flags ) ) {
-    fd_snapin_check_parser_failed( ctx->parser );
-    /* don't consume the frag if blocked or done */
+  if( FD_UNLIKELY( ctx->parser->flags & SNAP_FLAG_BLOCKED ||
+                   ctx->parser->flags & SNAP_FLAG_DONE ) ) {
+    /* Don't consume the frag if blocked or done */
     return 0;
   }
 
@@ -381,7 +390,10 @@ on_stream_frag( void *                        _ctx,
     }
     cur = fd_snapshot_parser_process_chunk( ctx->parser, cur, (ulong)( chunk1-cur ) );
     if( FD_UNLIKELY( ctx->parser->flags ) ) {
-      fd_snapin_check_parser_failed( ctx->parser );
+      if( FD_UNLIKELY( ctx->parser->flags & SNAP_FLAG_FAILED ) ) {
+        /* abort app if parser failed */
+        FD_LOG_ERR(( "Failed to restore snapshot" ));
+      }
     }
   }
 
