@@ -95,15 +95,6 @@ scratch_footprint( fd_topo_tile_t const * tile FD_PARAM_UNUSED ) {
 }
 
 static void
-prepare_new_slot_execution( fd_exec_tile_ctx_t *           ctx,
-                            fd_runtime_public_slot_msg_t * slot_msg ) {
-
-  FD_LOG_WARNING(("PREPARE NEW SLOT EXECUTION %lu", slot_msg->slot));
-  (void)ctx;
-  (void)slot_msg;
-}
-
-static void
 execute_txn( fd_exec_tile_ctx_t * ctx ) {
 
   FD_SPAD_FRAME_BEGIN( ctx->exec_spad ) {
@@ -307,8 +298,6 @@ during_frag( fd_exec_tile_ctx_t * ctx,
     } else if( sig==EXEC_NEW_SLOT_SIG ) {
       fd_runtime_public_slot_msg_t * msg = fd_chunk_to_laddr( ctx->replay_in_mem, chunk );
       FD_LOG_DEBUG(( "new slot=%lu msg recvd", msg->slot ));
-      prepare_new_slot_execution( ctx, msg );
-      return;
     } else if( sig==EXEC_HASH_ACCS_SIG ) {
       fd_runtime_public_hash_bank_msg_t * msg = fd_chunk_to_laddr( ctx->replay_in_mem, chunk );
       FD_LOG_DEBUG(( "hash accs=%lu msg recvd", msg->end_idx - msg->start_idx ));

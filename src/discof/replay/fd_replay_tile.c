@@ -55,8 +55,6 @@
 
 #define EXEC_BOOT_WAIT  (0UL)
 #define EXEC_BOOT_DONE  (1UL)
-#define EXEC_EPOCH_WAIT (2UL)
-#define EXEC_EPOCH_DONE (3UL)
 #define EXEC_SLOT_WAIT  (4UL)
 #define EXEC_TXN_BUSY   (5UL)
 #define EXEC_TXN_READY  (6UL)
@@ -273,6 +271,7 @@ struct fd_replay_tile_ctx {
   ulong enable_bank_hash_cmp;
 
   fd_banks_t * banks;
+  int is_booted;
 };
 typedef struct fd_replay_tile_ctx fd_replay_tile_ctx_t;
 
@@ -1080,7 +1079,7 @@ publish_slot_notifications( fd_replay_tile_ctx_t * ctx,
 //   if( FD_LIKELY( ctx->tower_checkpt_fileno > 0 ) ) fd_restart_tower_checkpt( vote_bank_hash, ctx->tower, ctx->ghost, ctx->root, ctx->tower_checkpt_fileno );
 // }
 
-static void
+static void FD_FN_UNUSED
 send_exec_slot_msg( fd_replay_tile_ctx_t * ctx,
                     fd_stem_context_t *    stem,
                     fd_exec_slot_ctx_t *   slot_ctx ) {
@@ -1090,9 +1089,11 @@ send_exec_slot_msg( fd_replay_tile_ctx_t * ctx,
      also mark the tile as not not being ready. */
 
   for( ulong i=0UL; i<ctx->exec_cnt; i++ ) {
+    // (void)stem;
+    // (void)slot_ctx;
     ulong tsorig = fd_frag_meta_ts_comp( fd_tickcount() );
 
-    ctx->exec_ready[ i ]            = EXEC_SLOT_WAIT;
+    // ctx->exec_ready[ i ]            = EXEC_SLOT_WAIT;
     fd_replay_out_link_t * exec_out = &ctx->exec_out[ i ];
 
     fd_runtime_public_slot_msg_t * slot_msg = (fd_runtime_public_slot_msg_t *)fd_chunk_to_laddr( exec_out->mem, exec_out->chunk );
@@ -1117,9 +1118,9 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
                              ulong                  curr_slot,
                              ulong                  flags ) {
 
-  for( ulong i=0UL; i<ctx->exec_cnt; i++ ) {
-    ctx->exec_ready[ i ] = EXEC_SLOT_WAIT;
-  }
+  // for( ulong i=0UL; i<ctx->exec_cnt; i++ ) {
+  //   ctx->exec_ready[ i ] = EXEC_SLOT_WAIT;
+  // }
 
   long prepare_time_ns = -fd_log_wallclock();
 
@@ -1211,7 +1212,12 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
   /* At this point we need to notify all of the exec tiles and tell them
      that a new slot is ready to be published. At this point, we should
      also mark the tile as not being ready. */
-  send_exec_slot_msg( ctx, stem, ctx->slot_ctx );
+  //send_exec_slot_msg( ctx, stem, ctx->slot_ctx );
+
+  for( ulong i=0UL; i<ctx->exec_cnt; i++ ) {
+    fd_fseq_update( ctx->exec_fseq[i], fd_exec_fseq_set_slot_done() );
+    ctx->exec_ready[ i ] = EXEC_TXN_READY;
+  }
 
   /* We want to push on a spad frame before we start executing a block.
      Apart from allocations made at the epoch boundary, there should be no
@@ -2041,7 +2047,7 @@ handle_exec_state_updates( fd_replay_tile_ctx_t * ctx ) {
       continue;
     }
 
-    uint state  = fd_exec_fseq_get_state( res );
+    uint state = fd_exec_fseq_get_state( res );
     switch( state ) {
       case FD_EXEC_STATE_NOT_BOOTED:
         /* Init is not complete in the exec tile for some reason. */
@@ -2054,14 +2060,15 @@ handle_exec_state_updates( fd_replay_tile_ctx_t * ctx ) {
         }
         break;
       case FD_EXEC_STATE_SLOT_DONE:
-        if( ctx->exec_ready[ i ]==EXEC_SLOT_WAIT ) {
-          FD_LOG_INFO(( "Ack that exec tile idx=%lu has processed slot message", i ));
-          ctx->exec_ready[ i ] = EXEC_TXN_READY;
-        }
+        FD_LOG_WARNING(("SLOT DONE"));
         break;
       case FD_EXEC_STATE_HASH_DONE:
         break;
       case FD_EXEC_STATE_BPF_SCAN_DONE:
+        if( ctx->exec_ready[ i ]==EXEC_BOOT_WAIT ) {
+          FD_LOG_WARNING(( "Ack that exec tile idx=%lu has processed bpf scan message", i ));
+          ctx->exec_ready[ i ] = EXEC_TXN_READY;
+        }
         break;
       default:
         FD_LOG_ERR(( "Unexpected fseq state from exec tile idx=%lu state=%u", i, state ));
@@ -2272,7 +2279,7 @@ after_credit( fd_replay_tile_ctx_t * ctx,
           //funk_cancel( ctx, cmp_slot );
           //checkpt( ctx );
           (void)checkpt;
-          FD_LOG_WARNING(( "Bank hash mismatch on slot: %lu. Halting.", cmp_slot ));
+          FD_LOG_CRIT(( "Bank hash mismatch on slot: %lu. Halting.", cmp_slot ));
 
           break;
 

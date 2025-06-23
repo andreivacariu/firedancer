@@ -986,7 +986,6 @@ distribute_epoch_reward_to_stake_acc( fd_exec_slot_ctx_t * slot_ctx,
 /* Sets the epoch reward status to inactive, and destroys any allocated state associated with the active state. */
 static void
 set_epoch_reward_status_inactive( fd_exec_slot_ctx_t * slot_ctx ) {
-  FD_LOG_WARNING(("LOCK %d", slot_ctx->bank->epoch_reward_status_lock.value));
   fd_epoch_reward_status_global_t * epoch_reward_status = fd_bank_epoch_reward_status_modify( slot_ctx->bank );
   if( epoch_reward_status->discriminant == fd_epoch_reward_status_enum_Active ) {
     FD_LOG_NOTICE(( "Done partitioning rewards for current epoch" ));
