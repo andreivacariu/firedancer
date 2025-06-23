@@ -1820,13 +1820,11 @@ fd_runtime_pre_execute_check( fd_execute_txn_task_info_t * task_info,
    TODO: This function should probably be moved to fd_executor.c. */
 
 void
-fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
-                         fd_capture_ctx_t *           capture_ctx,
+fd_runtime_finalize_txn( fd_funk_t *                  funk,
+                         fd_funk_txn_t *              funk_txn,
                          fd_execute_txn_task_info_t * task_info,
                          fd_spad_t *                  finalize_spad,
                          fd_bank_t *                  bank ) {
-
-  (void)capture_ctx;
 
   /* for all accounts, if account->is_verified==true, propagate update
      to cache entry. */
@@ -1860,12 +1858,12 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
 
        We should always rollback the nonce account first. Note that the nonce account may be the fee payer (case 2). */
     if( txn_ctx->nonce_account_idx_in_txn!=ULONG_MAX ) {
-      fd_txn_account_save( txn_ctx->rollback_nonce_account, slot_ctx->funk, slot_ctx->funk_txn, txn_ctx->spad_wksp );
+      fd_txn_account_save( txn_ctx->rollback_nonce_account, funk, funk_txn, txn_ctx->spad_wksp );
     }
 
     /* Now, we must only save the fee payer if the nonce account was not the fee payer (because that was already saved above) */
     if( FD_LIKELY( txn_ctx->nonce_account_idx_in_txn!=FD_FEE_PAYER_TXN_IDX ) ) {
-      fd_txn_account_save( txn_ctx->rollback_fee_payer_account, slot_ctx->funk, slot_ctx->funk_txn, txn_ctx->spad_wksp );
+      fd_txn_account_save( txn_ctx->rollback_fee_payer_account, funk, funk_txn, txn_ctx->spad_wksp );
     }
   } else {
 
@@ -1922,7 +1920,7 @@ fd_runtime_finalize_txn( fd_exec_slot_ctx_t *         slot_ctx,
         fd_store_stake_delegation( acc_rec, bank );
       }
 
-      fd_txn_account_save( &txn_ctx->accounts[i], slot_ctx->funk, slot_ctx->funk_txn, txn_ctx->spad_wksp );
+      fd_txn_account_save( &txn_ctx->accounts[i], funk, funk_txn, txn_ctx->spad_wksp );
       int fresh_account = acc_rec->vt->is_mutable( acc_rec ) &&
          acc_rec->vt->get_lamports( acc_rec ) && acc_rec->vt->get_rent_epoch( acc_rec ) != FD_RENT_EXEMPT_RENT_EPOCH;
       if( FD_UNLIKELY( fresh_account ) ) {
@@ -2041,7 +2039,7 @@ fd_runtime_prepare_execute_finalize_txn_task( void * tpool,
     return;
   }
 
-  fd_runtime_finalize_txn( slot_ctx, capture_ctx, task_info, task_info->txn_ctx->spad, slot_ctx->bank );
+  fd_runtime_finalize_txn( slot_ctx->funk, slot_ctx->funk_txn, task_info, task_info->txn_ctx->spad, slot_ctx->bank );
 }
 
 /* fd_executor_txn_verify and fd_runtime_pre_execute_check are responisble

@@ -176,7 +176,6 @@ struct fd_replay_tile_ctx {
 
   ulong                writer_cnt;
   ulong *              writer_fseq[ FD_PACK_MAX_BANK_TILES ];
-  fd_replay_out_link_t writer_out [ FD_PACK_MAX_BANK_TILES ];
 
   /* Metadata updated during execution */
 
@@ -1141,27 +1140,6 @@ send_exec_slot_msg( fd_replay_tile_ctx_t * ctx,
                      tsorig,
                      tspub );
     exec_out->chunk = fd_dcache_compact_next( exec_out->chunk, sizeof(fd_runtime_public_slot_msg_t), exec_out->chunk0, exec_out->wmark );
-  }
-
-  /* Notify writer tiles as well. */
-  for( ulong i=0UL; i<ctx->writer_cnt; i++ ) {
-    ulong tsorig = fd_frag_meta_ts_comp( fd_tickcount() );
-
-    fd_replay_out_link_t * writer_out = &ctx->writer_out[ i ];
-
-    fd_runtime_public_replay_writer_slot_msg_t * slot_msg = (fd_runtime_public_replay_writer_slot_msg_t *)fd_chunk_to_laddr( writer_out->mem, writer_out->chunk );
-    slot_msg->slot_ctx_gaddr = fd_wksp_gaddr_fast( ctx->runtime_public_wksp, slot_ctx );
-
-    ulong tspub = fd_frag_meta_ts_comp( fd_tickcount() );
-    fd_stem_publish( stem,
-                     writer_out->idx,
-                     FD_WRITER_SLOT_SIG,
-                     writer_out->chunk,
-                     sizeof(fd_runtime_public_replay_writer_slot_msg_t),
-                     0UL,
-                     tsorig,
-                     tspub );
-    writer_out->chunk = fd_dcache_compact_next( writer_out->chunk, sizeof(fd_runtime_public_replay_writer_slot_msg_t), writer_out->chunk0, writer_out->wmark );
   }
 }
 
@@ -2779,17 +2757,6 @@ unprivileged_init( fd_topo_t *      topo,
     if( FD_UNLIKELY( !ctx->writer_fseq[ i ] ) ) {
       FD_LOG_CRIT(( "writer tile %lu has no fseq", i ));
     }
-
-    /* Setup out links. */
-    ulong idx = fd_topo_find_tile_out_link( topo, tile, "replay_wtr", i );
-    fd_topo_link_t * writer_out_link = &topo->links[ tile->out_link_id[ idx ] ];
-
-    fd_replay_out_link_t * out = &ctx->writer_out[ i ];
-    out->idx                   = idx;
-    out->mem                   = topo->workspaces[ topo->objs[ writer_out_link->dcache_obj_id ].wksp_id ].wksp;
-    out->chunk0                = fd_dcache_compact_chunk0( out->mem, writer_out_link->dcache );
-    out->wmark                 = fd_dcache_compact_wmark( out->mem, writer_out_link->dcache, writer_out_link->mtu );
-    out->chunk                 = out->chunk0;
   }
 
   /**********************************************************************/

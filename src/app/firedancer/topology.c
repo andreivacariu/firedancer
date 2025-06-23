@@ -290,7 +290,6 @@ fd_topo_initialize( config_t * config ) {
   fd_topob_wksp( topo, "sign_gossip"  );
 
   fd_topob_wksp( topo, "replay_exec"  );
-  fd_topob_wksp( topo, "replay_wtr"   );
   fd_topob_wksp( topo, "exec_writer"  );
 
   fd_topob_wksp( topo, "send_sign"    );
@@ -376,7 +375,6 @@ fd_topo_initialize( config_t * config ) {
   /* TODO: The MTU is currently relatively arbitrary and needs to be resized to the size of the largest
      message that is outbound from the replay to exec. */
   FOR(exec_tile_cnt)   fd_topob_link( topo, "replay_exec",  "replay_exec",  128UL,                                    10240UL,                       exec_tile_cnt );
-  FOR(writer_tile_cnt) fd_topob_link( topo, "replay_wtr",   "replay_wtr",   128UL,                                    FD_REPLAY_WRITER_MTU,          1UL );
   /* Assuming the number of writer tiles is sufficient to keep up with
      the number of exec tiles, under equilibrium, we should have at least
      enough link space to buffer worst case input shuffling done by the
@@ -741,7 +739,6 @@ fd_topo_initialize( config_t * config ) {
   /**/                 fd_topob_tile_out( topo, "replay",  0UL,                       "replay_tower",  0UL                                                  );
   FOR(bank_tile_cnt)   fd_topob_tile_out( topo, "replay",  0UL,                       "replay_poh",    i                                                    );
   FOR(exec_tile_cnt)   fd_topob_tile_out( topo, "replay",  0UL,                       "replay_exec",   i                                                    ); /* TODO check order in fd_replay.c macros*/
-  FOR(writer_tile_cnt) fd_topob_tile_out( topo, "replay",  0UL,                       "replay_wtr",    i                                                    );
 
   FOR(exec_tile_cnt)   fd_topob_tile_in(  topo, "exec",    i,            "metric_in", "replay_exec",  i,            FD_TOPOB_RELIABLE,   FD_TOPOB_POLLED    );
   FOR(exec_tile_cnt)   fd_topob_tile_out( topo, "exec",    i,                         "exec_writer",  i                                                     );
@@ -749,7 +746,6 @@ fd_topo_initialize( config_t * config ) {
      single out link, over which all the writer tiles round-robin. */
   FOR(writer_tile_cnt) for( ulong j=0UL; j<exec_tile_cnt; j++ )
                        fd_topob_tile_in(  topo, "writer",  i,            "metric_in", "exec_writer",  j,            FD_TOPOB_RELIABLE,   FD_TOPOB_POLLED    );
-  FOR(writer_tile_cnt) fd_topob_tile_in(  topo, "writer",  i,            "metric_in", "replay_wtr",   i,            FD_TOPOB_RELIABLE,   FD_TOPOB_POLLED    );
 
   /**/                 fd_topob_tile_in ( topo, "send",   0UL,         "metric_in", "stake_out",     0UL,    FD_TOPOB_UNRELIABLE, FD_TOPOB_POLLED   );
   /**/                 fd_topob_tile_in ( topo, "send",   0UL,         "metric_in", "gossip_send",   0UL,    FD_TOPOB_RELIABLE,   FD_TOPOB_POLLED   );

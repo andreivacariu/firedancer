@@ -6,7 +6,7 @@
    backtest-------------->replay------------->exec------------->writer
      ^                    |^ | |                                   ^
      |____________________|| | |___________________________________|
-          replay_notif     | |              replay_wtr
+          replay_notif     | |
                            | |------------------------------>no consumer
     no producer-------------  stake_out, send_out, poh_out
                 store_replay,
@@ -168,16 +168,6 @@ backtest_topo( config_t * config ) {
   FOR(exec_tile_cnt) fd_topob_tile_out( topo, "exec", i, "exec_writer", i );
   FOR(writer_tile_cnt) for( ulong j=0UL; j<exec_tile_cnt; j++ )
     fd_topob_tile_in( topo, "writer", i, "metric_in", "exec_writer", j, FD_TOPOB_RELIABLE, FD_TOPOB_POLLED );
-
-  /**********************************************************************/
-  /* Setup replay->writer links in topo                                 */
-  /**********************************************************************/
-  fd_topob_wksp( topo, "replay_wtr" );
-  for( ulong i=0; i<writer_tile_cnt; i++ ) {
-    fd_topob_link( topo, "replay_wtr", "replay_wtr", 128UL, FD_REPLAY_WRITER_MTU, 1UL );
-    fd_topob_tile_out( topo, "replay", 0UL, "replay_wtr", i );
-    fd_topob_tile_in( topo, "writer", i, "metric_in", "replay_wtr", i, FD_TOPOB_RELIABLE, FD_TOPOB_POLLED );
-  }
 
   /**********************************************************************/
   /* Setup the shared objs used by replay and exec tiles                */

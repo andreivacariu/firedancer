@@ -712,6 +712,8 @@ after_credit( fd_exec_tile_ctx_t * ctx,
   (void)charge_busy;
 
   if( FD_UNLIKELY( !ctx->boot_msg_sent ) ) {
+
+    FD_LOG_WARNING(("EXEC BOOTED"));
     ctx->boot_msg_sent = 1U;
 
     ulong txn_ctx_gaddr = fd_wksp_gaddr( ctx->exec_spad_wksp, ctx->txn_ctx );
