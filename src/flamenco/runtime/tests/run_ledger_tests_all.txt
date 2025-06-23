@@ -48,9 +48,9 @@ src/flamenco/runtime/tests/run_ledger_test.sh -l mainnet-251418170-no-rent -s sn
 src/flamenco/runtime/tests/run_ledger_test.sh -l mainnet-282232100-no-rent -s snapshot-282232097-5ChH2XwaWrYaMvkemMQZmhMxabSNvXLKz3mZSCwhaW5W.tar.zst -p 60 -y 3 -m 2000000 -e 282232101 -c 2.1.14
 src/flamenco/runtime/tests/run_ledger_test.sh -l mainnet-282151715-no-rent -s snapshot-282151712-6qodKmgM9YNdoFzfRKPFmVh1Gv3McVzQ8pd1Gka1efdg.tar.zst -p 60 -y 3 -m 2000000 -e 282151717 -c 2.1.14
 src/flamenco/runtime/tests/run_ledger_test.sh -l mainnet-286450148-no-rent -s snapshot-286450145-5kdyfTzRq8GHKgQAZNYLNGRR2MvoeG6CWrsm8uwG6QKF.tar.zst -p 60 -y 3 -m 2000000 -e 286450151 -c 2.1.14
-src/flamenco/runtime/tests/run_ledger_test.sh -l multi-epoch-per-no-rent-200 -s snapshot-200-ic2aT3ncpMBwXo72XRtWRJK2FxanAGZsrNefaSH9CqH.tar.zst -p 60 -y 1 -m 1000000 -e 1015 -c 2.0.23 -o PERzQrt5gBD1XEe2c9XdFWqwgHY3mr7cYWbm5V772V8
-src/flamenco/runtime/tests/run_ledger_test.sh -l multi-epoch-per-no-rent-300 -s snapshot-300-2dAfRSrePrc8PbuncizkbW43XqfGYZnvNRUxmok9Jdzv.tar.zst -p 60 -y 1 -m 1000000 -e 1015 -c 2.0.23 -o PERzQrt5gBD1XEe2c9XdFWqwgHY3mr7cYWbm5V772V8
-src/flamenco/runtime/tests/run_ledger_test.sh -l multi-epoch-per-no-rent-500 -s snapshot-500-2AqHj4aMP3oDC5YzQaatBDMfwWF89fK2f79yJ9xhJojc.tar.zst -p 60 -y 1 -m 1000000 -e 1015 -c 2.0.23 -o PERzQrt5gBD1XEe2c9XdFWqwgHY3mr7cYWbm5V772V8
+src/flamenco/runtime/tests/run_ledger_test.sh -l multi-epoch-per-no-rent-200 -s snapshot-200-ic2aT3ncpMBwXo72XRtWRJK2FxanAGZsrNefaSH9CqH.tar.zst -p 60 -y 1 -m 1000000 -e 1015 -c 2.0.23
+src/flamenco/runtime/tests/run_ledger_test.sh -l multi-epoch-per-no-rent-300 -s snapshot-300-2dAfRSrePrc8PbuncizkbW43XqfGYZnvNRUxmok9Jdzv.tar.zst -p 60 -y 1 -m 1000000 -e 1015 -c 2.0.23
+src/flamenco/runtime/tests/run_ledger_test.sh -l multi-epoch-per-no-rent-500 -s snapshot-500-2AqHj4aMP3oDC5YzQaatBDMfwWF89fK2f79yJ9xhJojc.tar.zst -p 60 -y 1 -m 1000000 -e 1015 -c 2.0.23
 src/flamenco/runtime/tests/run_ledger_test.sh -l testnet-mismatch-297489336-no-rent -s snapshot-297489335-BgExNqwDtYPo2YQ87C2bra6b5GK2eu52R8Budh85cRUp.tar.zst -p 60 -y 2 -m 1000000 -e 297489363 -c 2.1.14
 src/flamenco/runtime/tests/run_ledger_test.sh -l mainnet-300377724-no-rent -s snapshot-300377719-DWngYKosZegyeLAgHK5jVfMsSeuYjSZWJixE5VgcLDAM.tar.zst -p 60 -y 5 -m 2000000 -e 300377728 -c 2.1.14
 src/flamenco/runtime/tests/run_ledger_test.sh -l mainnet-300645644-no-rent -s snapshot-300645643-D2ZXqQffEoM6cgPGoC9LC4UfjyCMi1cqbhrceRPh4cE7.tar.zst -p 60 -y 5 -m 2000000 -e 300645644 -c 2.1.14
