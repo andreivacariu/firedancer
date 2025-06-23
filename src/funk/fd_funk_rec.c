@@ -688,6 +688,44 @@ fd_funk_all_iter_ele( fd_funk_all_iter_t * iter ) {
 }
 
 int
+fd_funk_rec_purify( fd_funk_t * funk ) {
+  fd_funk_rec_map_t *  rec_map  = funk->rec_map;
+  fd_funk_rec_pool_t * rec_pool = funk->rec_pool;
+  ulong rec_max = fd_funk_rec_pool_ele_max( rec_pool );
+
+  ulong chain_cnt = fd_funk_rec_map_chain_cnt( rec_map );
+  for( ulong chain_idx=0UL; chain_idx<chain_cnt; chain_idx++ ) {
+    fd_funk_rec_map_shmem_private_chain_t * chain = fd_funk_rec_map_shmem_private_chain( rec_map->map, 0UL ) + chain_idx;
+    uint * prev_next = &chain->head_cidx;
+    for( fd_funk_rec_map_iter_t iter = fd_funk_rec_map_iter( rec_map, chain_idx );
+         !fd_funk_rec_map_iter_done( iter );  ) {
+
+      if( iter.ele_idx >= rec_max ) {
+        /* Corrupt chain */
+        *prev_next = fd_funk_rec_map_private_cidx(fd_funk_rec_map_private_idx_null());
+        break;
+      }
+
+      fd_funk_rec_t * rec = fd_funk_rec_map_iter_ele( iter );
+      if( !fd_funk_txn_xid_eq_root( rec->pair.xid ) ||
+          (rec->map_hash & (chain_cnt-1UL)) != chain_idx ) {
+        /* Snip out the record */
+        *prev_next = rec->map_next;
+        iter = fd_funk_rec_map_iter_next( iter );
+        fd_funk_val_flush( rec, funk->alloc, funk->wksp );
+        fd_funk_rec_pool_release( funk->rec_pool, rec, 1 );
+        continue;
+      }
+
+      prev_next = &rec->map_next;
+      iter = fd_funk_rec_map_iter_next( iter );
+    }
+  }
+
+  return FD_FUNK_SUCCESS;
+}
+
+int
 fd_funk_rec_verify( fd_funk_t * funk ) {
   fd_funk_rec_map_t *  rec_map  = funk->rec_map;
   fd_funk_rec_pool_t * rec_pool = funk->rec_pool;

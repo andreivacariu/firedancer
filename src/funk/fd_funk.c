@@ -205,11 +205,11 @@ fd_funk_purify( void * shfunk ) {
   fd_funk_t * funk = fd_funk_join( ljoin, shfunk );
   if( funk == NULL ) return FD_FUNK_ERR_PURIFY;
 
-  /* Reset the txn map */
+  /* Reset the txn map. We discard any pending transactions. */
   fd_funk_txn_map_reset( funk->txn_map );
   fd_funk_txn_pool_reset( funk->txn_pool, 0 );
 
-  return FD_FUNK_SUCCESS;
+  return fd_funk_rec_purify( funk );
 }
 
 void *
