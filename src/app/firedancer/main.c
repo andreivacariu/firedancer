@@ -24,6 +24,7 @@ extern fd_topo_obj_callbacks_t fd_obj_cb_txncache;
 extern fd_topo_obj_callbacks_t fd_obj_cb_exec_spad;
 extern fd_topo_obj_callbacks_t fd_obj_cb_banks;
 extern fd_topo_obj_callbacks_t fd_obj_cb_funk;
+extern fd_topo_obj_callbacks_t fd_obj_cb_bank_hash_cmp;
 
 fd_topo_obj_callbacks_t * CALLBACKS[] = {
   &fd_obj_cb_mcache,
@@ -43,6 +44,7 @@ fd_topo_obj_callbacks_t * CALLBACKS[] = {
   &fd_obj_cb_txncache,
   &fd_obj_cb_exec_spad,
   &fd_obj_cb_banks,
+  &fd_obj_cb_bank_hash_cmp,
 };
 configure_stage_t * STAGES[] = {
   &fd_cfg_stage_hugetlbfs,

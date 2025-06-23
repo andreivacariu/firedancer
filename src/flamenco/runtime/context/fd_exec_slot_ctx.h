@@ -20,8 +20,6 @@ struct fd_exec_slot_ctx {
 
   ulong                       slot;
 
-  fd_funk_txn_t *             funk_txn;
-
   fd_banks_t *                banks;
   fd_bank_t *                 bank;
 
@@ -30,15 +28,12 @@ struct fd_exec_slot_ctx {
   /* External joins, pointers to be set by caller */
 
   fd_funk_t *                 funk;
+  fd_funk_txn_t *             funk_txn;
+
   ulong                       txns_meta_gaddr;
   ulong                       txns_meta_sz;
 
   fd_txncache_t *             status_cache;
-
-  int                         enable_exec_recording; /* Enable/disable execution metadata
-                                                        recording, e.g. txn logs.  Analogue
-                                                        of Agave's ExecutionRecordingConfig. */
-
 };
 
 #define FD_EXEC_SLOT_CTX_ALIGN     (alignof(fd_exec_slot_ctx_t))

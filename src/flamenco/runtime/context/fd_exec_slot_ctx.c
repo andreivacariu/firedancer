@@ -165,7 +165,8 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
                           fd_solana_manifest_global_t * manifest_global,
                           fd_spad_t *                  runtime_spad ) {
 
-  FD_LOG_WARNING(("BANK %p", (void*)slot_ctx->bank));
+  FD_LOG_WARNING(("MADE IT TO SLOT CTX RECOVER"));
+
   slot_ctx->bank = fd_banks_clone_from_parent( slot_ctx->banks, manifest->bank.slot, 0UL );
   FD_TEST( slot_ctx->bank );
 
@@ -552,8 +553,13 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
   rent_fresh_accounts->total_count        = 0UL;
   rent_fresh_accounts->fresh_accounts_len = FD_RENT_FRESH_ACCOUNTS_MAX;
 
+  FD_LOG_WARNING(("FRESH ACCOUTNS LEN %lu", rent_fresh_accounts->fresh_accounts_len));
+
   fd_rent_fresh_account_t * fresh_accounts = (fd_rent_fresh_account_t *)fd_ulong_align_up( (ulong)rent_fresh_accounts + sizeof(fd_rent_fresh_accounts_global_t), FD_RENT_FRESH_ACCOUNT_ALIGN );
   memset( fresh_accounts, 0, rent_fresh_accounts->fresh_accounts_len * sizeof(fd_rent_fresh_account_t) );
+
+  FD_LOG_WARNING(("FRESH ACCOUTNS LEN %lu", rent_fresh_accounts->fresh_accounts_len));
+
   fd_rent_fresh_accounts_fresh_accounts_update( rent_fresh_accounts, fresh_accounts );
 
   fd_bank_rent_fresh_accounts_end_modify( slot_ctx->bank );

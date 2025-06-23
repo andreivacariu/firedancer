@@ -68,7 +68,6 @@ generate_replay_exec_slot_msg( fd_exec_slot_ctx_t * slot_ctx,
   (void)runtime_public_wksp;
 
   slot_msg_out->slot                  = slot_ctx->slot;
-  slot_msg_out->enable_exec_recording = slot_ctx->enable_exec_recording;
 }
 
 static inline void

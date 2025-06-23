@@ -1234,7 +1234,7 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
   }
   fd_bank_max_tick_height_end_modify( ctx->slot_ctx->bank );
 
-  ctx->slot_ctx->enable_exec_recording = ctx->tx_metadata_storage;
+  fd_bank_enable_exec_recording_set( ctx->slot_ctx->bank, ctx->tx_metadata_storage );
 
   ctx->slot_ctx->status_cache = ctx->status_cache;
 
@@ -1690,6 +1690,7 @@ read_snapshot( void *              _ctx,
     /* If we don't have an incremental snapshot, load the manifest and the status cache and initialize
          the objects because we don't have these from the incremental snapshot. */
     if( strlen( incremental )<=0UL ) {
+      FD_LOG_WARNING(("NO INCREMENTAL SNAPSHOT"));
       fd_snapshot_load_manifest_and_status_cache( snap_ctx, NULL,
         FD_SNAPSHOT_RESTORE_MANIFEST | FD_SNAPSHOT_RESTORE_STATUS_CACHE );
       ctx->curr_slot = ctx->slot_ctx->slot;
@@ -1697,6 +1698,7 @@ read_snapshot( void *              _ctx,
       /* If we don't have an incremental snapshot, we can still kick off
          sending the stake weights and snapshot slot to repair. */
     } else {
+      FD_LOG_WARNING(("INCREMENTAL SNAPSHOT"));
       /* If we have an incremental snapshot, load the manifest and the status cache,
           and don't initialize the objects because we did this above from the incremental snapshot. */
       fd_snapshot_load_manifest_and_status_cache( snap_ctx, NULL, FD_SNAPSHOT_RESTORE_NONE );
@@ -1722,6 +1724,8 @@ read_snapshot( void *              _ctx,
                           ctx->exec_spads,
                           ctx->exec_spad_cnt,
                           ctx->runtime_spad );
+    ctx->curr_slot = ctx->slot_ctx->slot;
+    kickoff_repair_orphans( ctx, stem );
   }
 
   fd_runtime_update_leaders( ctx->slot_ctx,
@@ -1848,7 +1852,7 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx,
     fd_stem_publish( stem, ctx->tower_out_idx, snapshot_slot << 32UL | UINT_MAX, ctx->tower_out_chunk, off, 0UL, (ulong)fd_log_wallclock(), (ulong)fd_log_wallclock() );
   }
 
-  fd_bank_hash_cmp_t * bank_hash_cmp = ctx->slot_ctx->bank_hash_cmp;
+  fd_bank_hash_cmp_t * bank_hash_cmp = ctx->bank_hash_cmp;
   for( fd_vote_accounts_pair_global_t_mapnode_t * curr = fd_vote_accounts_pair_global_t_map_minimum( vote_accounts_pool, vote_accounts_root );
        curr;
        curr = fd_vote_accounts_pair_global_t_map_successor( vote_accounts_pool, curr ) ) {
@@ -1918,7 +1922,6 @@ init_snapshot( fd_replay_tile_ctx_t * ctx,
   //                     ctx->blockstore_fd,
   //                     FD_BLOCKSTORE_ARCHIVE_MIN_SIZE,
   //                     ctx->curr_slot );
-  ctx->slot_ctx->bank_hash_cmp  = ctx->bank_hash_cmp;
   init_after_snapshot( ctx, stem );
 
   if( ctx->plugin_out->mem && strlen( ctx->genesis ) > 0 ) {
@@ -2319,7 +2322,7 @@ after_credit( fd_replay_tile_ctx_t * ctx,
     /**********************************************************************/
 
     fd_hash_t const * bank_hash = fd_bank_bank_hash_query( ctx->slot_ctx->bank );
-    fd_bank_hash_cmp_t * bank_hash_cmp = ctx->slot_ctx->bank_hash_cmp;
+    fd_bank_hash_cmp_t * bank_hash_cmp = ctx->bank_hash_cmp;
     fd_bank_hash_cmp_lock( bank_hash_cmp );
     fd_bank_hash_cmp_insert( bank_hash_cmp, curr_slot, bank_hash, 1, 0 );
 
@@ -2644,6 +2647,17 @@ unprivileged_init( fd_topo_t *      topo,
   fd_bank_features_end_modify( bank );
 
   ctx->forks = fd_forks_join( fd_forks_new( forks_mem, FD_BLOCK_MAX, 42UL ) );
+
+  /**********************************************************************/
+  /* bank_hash_cmp                                                      */
+  /**********************************************************************/
+
+  ulong bank_hash_cmp_obj_id = fd_pod_queryf_ulong( topo->props, ULONG_MAX, "bh_cmp" );
+  FD_TEST( bank_hash_cmp_obj_id!=ULONG_MAX );
+  ctx->bank_hash_cmp = fd_bank_hash_cmp_join( fd_bank_hash_cmp_new( fd_topo_obj_laddr( topo, bank_hash_cmp_obj_id ) ) );
+  if( FD_UNLIKELY( !ctx->bank_hash_cmp ) ) {
+    FD_LOG_ERR(( "failed to join bank_hash_cmp" ));
+  }
 
   /**********************************************************************/
   /* voter                                                              */

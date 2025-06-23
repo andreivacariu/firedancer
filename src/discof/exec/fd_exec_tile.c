@@ -39,6 +39,9 @@ struct fd_exec_tile_ctx {
   fd_runtime_public_t * runtime_public;
   fd_spad_t const *     runtime_spad;
 
+  /* Shared bank hash cmp object. */
+  fd_bank_hash_cmp_t * bank_hash_cmp;
+
   /* Management around exec spad and frame lifetimes.
 
      We will always have at least 1 frame pushed onto the exec spad.
@@ -168,6 +171,7 @@ static void
 prepare_new_epoch_execution( fd_exec_tile_ctx_t *            ctx,
                              fd_runtime_public_epoch_msg_t * epoch_msg ) {
 
+  (void)epoch_msg;
   /* If we need to refresh epoch-level information, we need to pop off
      the transaction-level, slot-level, and epoch-level frames.
 
@@ -187,12 +191,6 @@ prepare_new_epoch_execution( fd_exec_tile_ctx_t *            ctx,
   fd_spad_push( ctx->exec_spad );
   ctx->pending_epoch_pop = 1;
 
-  /* TODO: The bank hash cmp obj needs to be a topo obj.. */
-  fd_bank_hash_cmp_t * bank_hash_cmp_local = fd_bank_hash_cmp_join( fd_wksp_laddr_fast( ctx->runtime_public_wksp, epoch_msg->bank_hash_cmp_gaddr ) );
-  if( FD_UNLIKELY( !bank_hash_cmp_local ) ) {
-    FD_LOG_ERR(( "Could not get laddr for bank hash cmp" ));
-  }
-  ctx->txn_ctx->bank_hash_cmp = bank_hash_cmp_local;
 }
 
 static void
@@ -644,6 +642,18 @@ unprivileged_init( fd_topo_t *      topo,
   ctx->pending_epoch_pop = 0;
 
   /********************************************************************/
+  /* bank hash cmp                                                    */
+  /********************************************************************/
+  ulong bank_hash_cmp_obj_id = fd_pod_queryf_ulong( topo->props, ULONG_MAX, "bh_cmp" );
+  if( FD_UNLIKELY( bank_hash_cmp_obj_id==ULONG_MAX ) ) {
+    FD_LOG_ERR(( "Could not find topology object for bank hash cmp" ));
+  }
+  ctx->bank_hash_cmp = fd_bank_hash_cmp_join( fd_topo_obj_laddr( topo, bank_hash_cmp_obj_id ) );
+  if( FD_UNLIKELY( !ctx->bank_hash_cmp ) ) {
+    FD_LOG_ERR(( "Failed to join bank hash cmp" ));
+  }
+
+  /********************************************************************/
   /* funk-specific setup                                              */
   /********************************************************************/
 
@@ -671,6 +681,8 @@ unprivileged_init( fd_topo_t *      topo,
   if( FD_UNLIKELY( !ctx->txn_ctx->runtime_pub_wksp ) ) {
     FD_LOG_ERR(( "Failed to find public wksp" ));
   }
+
+  ctx->txn_ctx->bank_hash_cmp = ctx->bank_hash_cmp;
 
   /********************************************************************/
   /* setup exec fseq                                                  */

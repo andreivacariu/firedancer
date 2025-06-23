@@ -103,6 +103,8 @@ fd_runtime_register_new_fresh_account( fd_pubkey_t const  * pubkey,
   /* Insert the new account into the partition */
   ulong partition = fd_rent_key_to_partition( pubkey, fd_bank_part_width_get( bank ), fd_bank_slots_per_epoch_get( bank ) );
 
+  FD_LOG_WARNING(("FRESH ACCOUTNS LEN %lu", rent_fresh_accounts->fresh_accounts_len));
+
   /* See if there is an unused fresh account we can re-use */
   fd_rent_fresh_account_t * rent_fresh_account = NULL;
   for( ulong i = 0; i < rent_fresh_accounts->fresh_accounts_len; i++ ) {
@@ -112,7 +114,7 @@ fd_runtime_register_new_fresh_account( fd_pubkey_t const  * pubkey,
     }
   }
   if( FD_UNLIKELY( rent_fresh_account == NULL ) ) {
-    FD_LOG_ERR(( "rent_fresh_accounts full! increase FD_RENT_FRESH_ACCOUNTS_MAX" ));
+    FD_LOG_CRIT(( "rent_fresh_accounts full! increase FD_RENT_FRESH_ACCOUNTS_MAX" ));
   }
 
   /* Add the account to the rent fresh account list */
@@ -842,7 +844,7 @@ fd_txn_copy_meta( fd_exec_txn_ctx_t * txn_ctx, uchar * dest, ulong dest_sz ) {
 /* fd_runtime_finalize_txns_update_blockstore_meta() updates transaction metadata
    after execution.
 
-   Execution recording is controlled by slot_ctx->enable_exec_recording, and this
+   Execution recording is controlled by enable_exec_recording, and this
    function does nothing if execution recording is off.  The following comments
    only apply when execution recording is on.
 
@@ -855,7 +857,7 @@ fd_runtime_finalize_txns_update_blockstore_meta( fd_exec_slot_ctx_t *         sl
                                                  fd_execute_txn_task_info_t * task_info,
                                                  ulong                        txn_cnt ) {
   /* Nothing to do if execution recording is off */
-  if( !slot_ctx->enable_exec_recording ) {
+  if( !fd_bank_enable_exec_recording_get( slot_ctx->bank ) ) {
     return;
   }
 
