@@ -7,6 +7,7 @@
 #include "../keyguard/fd_keyload.h"
 #include "../keyguard/fd_keyswitch.h"
 #include "../../ballet/base58/fd_base58.h"
+#include "../metrics/fd_metrics.h"
 
 #include <errno.h>
 #include <sys/mman.h>
@@ -43,6 +44,8 @@ typedef struct {
 
   uchar *           public_key;
   uchar *           private_key;
+
+  fd_histf_t        sign_duration[1];
 } fd_sign_ctx_t;
 
 FD_FN_CONST static inline ulong
@@ -88,6 +91,11 @@ during_housekeeping_sensitive( fd_sign_ctx_t * ctx ) {
 static inline void
 during_housekeeping( fd_sign_ctx_t * ctx ) {
   during_housekeeping_sensitive( ctx );
+}
+
+static inline void
+metrics_write( fd_sign_ctx_t * ctx ) {
+  FD_MHIST_COPY( SIGN, SIGN_DURATION_SECONDS, ctx->sign_duration );
 }
 
 /* during_frag is called between pairs for sequence number checks, as
@@ -158,6 +166,8 @@ after_frag_sensitive( void *              _ctx,
     FD_LOG_EMERG(( "fd_keyguard_payload_authorize failed (role=%d sign_type=%d)", role, sign_type ));
   }
 
+  long sign_duration = -fd_tickcount();
+
   switch( sign_type ) {
   case FD_KEYGUARD_SIGN_TYPE_ED25519: {
     fd_ed25519_sign( ctx->out[ in_idx ].data, ctx->_data, sz, ctx->public_key, ctx->private_key, ctx->sha512 );
@@ -182,6 +192,9 @@ after_frag_sensitive( void *              _ctx,
   default:
     FD_LOG_EMERG(( "invalid sign type: %d", sign_type ));
   }
+
+  sign_duration += fd_tickcount();
+  fd_histf_sample( ctx->sign_duration, (ulong)sign_duration );
 
   fd_mcache_publish( ctx->out[ in_idx ].mcache, 128UL, ctx->out[ in_idx ].seq, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL );
   ctx->out[ in_idx ].seq = fd_seq_inc( ctx->out[ in_idx ].seq, 1UL );
@@ -246,6 +259,9 @@ unprivileged_init_sensitive( fd_topo_t *      topo,
 
   FD_TEST( tile->in_cnt<=MAX_IN );
   FD_TEST( tile->in_cnt==tile->out_cnt );
+
+  fd_histf_join( fd_histf_new( ctx->sign_duration, FD_MHIST_SECONDS_MIN( SIGN, SIGN_DURATION_SECONDS ),
+                                                       FD_MHIST_SECONDS_MAX( SIGN, SIGN_DURATION_SECONDS ) ) );
 
   ctx->keyswitch = fd_keyswitch_join( fd_topo_obj_laddr( topo, tile->keyswitch_obj_id ) );
   derive_fields( ctx );
@@ -353,6 +369,7 @@ populate_allowed_fds( fd_topo_t const *      topo,
 #define STEM_CALLBACK_CONTEXT_ALIGN alignof(fd_sign_ctx_t)
 
 #define STEM_CALLBACK_DURING_HOUSEKEEPING during_housekeeping
+#define STEM_CALLBACK_METRICS_WRITE       metrics_write
 #define STEM_CALLBACK_DURING_FRAG         during_frag
 #define STEM_CALLBACK_AFTER_FRAG          after_frag
 
