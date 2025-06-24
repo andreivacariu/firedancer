@@ -29,6 +29,7 @@
 #define FD_EXEC_STATE_BPF_SCAN_DONE    (1<<7UL      )
 #define FD_EXEC_STATE_SNAP_CNT_DONE    (1<<8UL      )
 #define FD_EXEC_STATE_SNAP_GATHER_DONE (1<<9UL      )
+#define FD_EXEC_STATE_EXEC_TXN         (1<<10UL     )
 
 #define FD_WRITER_STATE_NOT_BOOTED     (0UL         )
 #define FD_WRITER_STATE_READY          (1UL         )
@@ -97,6 +98,11 @@ fd_exec_fseq_get_state( ulong fseq ) {
 static ulong FD_FN_UNUSED
 fd_exec_fseq_set_slot_done( void ) {
   return (ulong)FD_EXEC_STATE_SLOT_DONE;
+}
+
+static ulong FD_FN_UNUSED
+fd_exec_fseq_set_exec_txn( void ) {
+  return (ulong)FD_EXEC_STATE_EXEC_TXN;
 }
 
 static ulong FD_FN_UNUSED

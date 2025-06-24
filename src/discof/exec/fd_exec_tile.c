@@ -99,6 +99,11 @@ execute_txn( fd_exec_tile_ctx_t * ctx ) {
 
   FD_SPAD_FRAME_BEGIN( ctx->exec_spad ) {
 
+  /* Replay tile should know that the exec tile just executed a txn. */
+  if( fd_fseq_query( ctx->exec_fseq )!=FD_EXEC_STATE_BOOTED ) {
+    fd_fseq_update( ctx->exec_fseq, fd_exec_fseq_set_exec_txn() );
+  }
+
   fd_funk_txn_map_t * txn_map = fd_funk_txn_map( ctx->funk );
   if( FD_UNLIKELY( !txn_map->map ) ) {
     FD_LOG_ERR(( "Could not find valid funk transaction map" ));

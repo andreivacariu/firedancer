@@ -53,11 +53,8 @@
 #define BATCH_IN_IDX   (2UL)
 #define SHRED_IN_IDX   (3UL)
 
-#define EXEC_BOOT_WAIT  (0UL)
-#define EXEC_BOOT_DONE  (1UL)
-#define EXEC_SLOT_WAIT  (4UL)
-#define EXEC_TXN_BUSY   (5UL)
-#define EXEC_TXN_READY  (6UL)
+#define EXEC_TXN_BUSY   (0xA)
+#define EXEC_TXN_READY  (0xB)
 
 #define BANK_HASH_CMP_LG_MAX (16UL)
 
@@ -236,7 +233,6 @@ struct fd_replay_tile_ctx {
 
   fd_spad_t *         exec_spads[ FD_PACK_MAX_BANK_TILES ];
   fd_wksp_t *         exec_spads_wksp[ FD_PACK_MAX_BANK_TILES ];
-  fd_exec_txn_ctx_t * exec_txn_ctxs[ FD_PACK_MAX_BANK_TILES ];
   ulong               exec_spad_cnt;
 
   fd_spad_t *         runtime_spad;
@@ -1079,48 +1075,11 @@ publish_slot_notifications( fd_replay_tile_ctx_t * ctx,
 //   if( FD_LIKELY( ctx->tower_checkpt_fileno > 0 ) ) fd_restart_tower_checkpt( vote_bank_hash, ctx->tower, ctx->ghost, ctx->root, ctx->tower_checkpt_fileno );
 // }
 
-static void FD_FN_UNUSED
-send_exec_slot_msg( fd_replay_tile_ctx_t * ctx,
-                    fd_stem_context_t *    stem,
-                    fd_exec_slot_ctx_t *   slot_ctx ) {
-
-  /* At this point we need to notify all of the exec tiles and tell them
-     that a new slot is ready to be published. At this point, we should
-     also mark the tile as not not being ready. */
-
-  for( ulong i=0UL; i<ctx->exec_cnt; i++ ) {
-    // (void)stem;
-    // (void)slot_ctx;
-    ulong tsorig = fd_frag_meta_ts_comp( fd_tickcount() );
-
-    // ctx->exec_ready[ i ]            = EXEC_SLOT_WAIT;
-    fd_replay_out_link_t * exec_out = &ctx->exec_out[ i ];
-
-    fd_runtime_public_slot_msg_t * slot_msg = (fd_runtime_public_slot_msg_t *)fd_chunk_to_laddr( exec_out->mem, exec_out->chunk );
-    generate_replay_exec_slot_msg( slot_ctx, ctx->runtime_spad, ctx->runtime_public_wksp, slot_msg );
-
-    ulong tspub = fd_frag_meta_ts_comp( fd_tickcount() );
-    fd_stem_publish( stem,
-                     exec_out->idx,
-                     EXEC_NEW_SLOT_SIG,
-                     exec_out->chunk,
-                     sizeof(fd_runtime_public_slot_msg_t),
-                     0UL,
-                     tsorig,
-                     tspub );
-    exec_out->chunk = fd_dcache_compact_next( exec_out->chunk, sizeof(fd_runtime_public_slot_msg_t), exec_out->chunk0, exec_out->wmark );
-  }
-}
-
 static fd_fork_t *
 prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
                              fd_stem_context_t *    stem,
                              ulong                  curr_slot,
                              ulong                  flags ) {
-
-  // for( ulong i=0UL; i<ctx->exec_cnt; i++ ) {
-  //   ctx->exec_ready[ i ] = EXEC_SLOT_WAIT;
-  // }
 
   long prepare_time_ns = -fd_log_wallclock();
 
@@ -1212,10 +1171,7 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
   /* At this point we need to notify all of the exec tiles and tell them
      that a new slot is ready to be published. At this point, we should
      also mark the tile as not being ready. */
-  //send_exec_slot_msg( ctx, stem, ctx->slot_ctx );
-
   for( ulong i=0UL; i<ctx->exec_cnt; i++ ) {
-    fd_fseq_update( ctx->exec_fseq[i], fd_exec_fseq_set_slot_done() );
     ctx->exec_ready[ i ] = EXEC_TXN_READY;
   }
 
@@ -1757,8 +1713,10 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx,
                                                          &exec_para_ctx_bpf );
     FD_LOG_NOTICE(( "finished fd_bpf_scan_and_create_bpf_program_cache_entry..." ));
 
-    /* On boot, we want to send all of the relevant epoch-level
-       information to each of the exec tiles.  */
+    /* Now setup exec tiles for execution */
+    for( ulong i=0UL; i<ctx->exec_cnt; i++ ) {
+      ctx->exec_ready[ i ] = EXEC_TXN_READY;
+    }
   }
 
   ctx->curr_slot     = snapshot_slot;
@@ -2008,75 +1966,6 @@ publish_votes_to_plugin( fd_replay_tile_ctx_t * ctx,
   ctx->votes_plugin_out->chunk = fd_dcache_compact_next( ctx->votes_plugin_out->chunk, 8UL + 40200UL*(58UL+12UL*34UL), ctx->votes_plugin_out->chunk0, ctx->votes_plugin_out->wmark );
 }
 
-static void /* could be moved */
-join_txn_ctx( fd_replay_tile_ctx_t * ctx,
-              ulong                  exec_tile_idx,
-              uint                   txn_ctx_offset ) {
-
-  /* The txn ctx offset is an offset from its respective exec spad.*/
-  ulong exec_spad_gaddr = fd_wksp_gaddr( ctx->exec_spads_wksp[ exec_tile_idx ], ctx->exec_spads[ exec_tile_idx ] );
-  if( FD_UNLIKELY( !exec_spad_gaddr ) ) {
-    FD_LOG_ERR(( "Unable to get gaddr of the exec spad" ));
-  }
-
-
-  ulong   txn_ctx_gaddr = exec_spad_gaddr + (ulong)txn_ctx_offset;
-  uchar * txn_ctx_laddr = fd_wksp_laddr( ctx->exec_spads_wksp[ exec_tile_idx ], txn_ctx_gaddr );
-  if( FD_UNLIKELY( !txn_ctx_laddr ) ) {
-    FD_LOG_ERR(( "Unable to get laddr of the txn ctx" ));
-  }
-
-  ctx->exec_txn_ctxs[ exec_tile_idx ] = fd_exec_txn_ctx_join( txn_ctx_laddr,
-                                                              ctx->exec_spads[ exec_tile_idx ],
-                                                              ctx->exec_spads_wksp[ exec_tile_idx ] );
-  if( FD_UNLIKELY( !ctx->exec_txn_ctxs[ exec_tile_idx ] ) ) {
-    FD_LOG_ERR(( "Unable to join txn ctx" ));
-  }
-}
-
-static void
-handle_exec_state_updates( fd_replay_tile_ctx_t * ctx ) {
-
-  /* This function is responsible for updating the local view for the
-     states of the exec tiles. */
-
-  for( ulong i=0UL; i<ctx->exec_cnt; i++ ) {
-    ulong res = fd_fseq_query( ctx->exec_fseq[ i ] );
-    if( FD_UNLIKELY( fd_exec_fseq_is_not_joined( res ) ) ) {
-      FD_LOG_WARNING(( "exec tile fseq idx=%lu has not been joined by the corresponding exec tile", i ));
-      continue;
-    }
-
-    uint state = fd_exec_fseq_get_state( res );
-    switch( state ) {
-      case FD_EXEC_STATE_NOT_BOOTED:
-        /* Init is not complete in the exec tile for some reason. */
-        FD_LOG_WARNING(( "Exec tile idx=%lu is not booted", i ));
-        break;
-      case FD_EXEC_STATE_BOOTED:
-        if( ctx->exec_ready[ i ] == EXEC_BOOT_WAIT ) {
-          FD_LOG_INFO(( "Exec tile idx=%lu is booted", i ));
-          join_txn_ctx( ctx, i, fd_exec_fseq_get_booted_offset( res ) );
-        }
-        break;
-      case FD_EXEC_STATE_SLOT_DONE:
-        FD_LOG_WARNING(("SLOT DONE"));
-        break;
-      case FD_EXEC_STATE_HASH_DONE:
-        break;
-      case FD_EXEC_STATE_BPF_SCAN_DONE:
-        if( ctx->exec_ready[ i ]==EXEC_BOOT_WAIT ) {
-          FD_LOG_WARNING(( "Ack that exec tile idx=%lu has processed bpf scan message", i ));
-          ctx->exec_ready[ i ] = EXEC_TXN_READY;
-        }
-        break;
-      default:
-        FD_LOG_ERR(( "Unexpected fseq state from exec tile idx=%lu state=%u", i, state ));
-        break;
-    }
-  }
-}
-
 static void
 handle_writer_state_updates( fd_replay_tile_ctx_t * ctx ) {
 
@@ -2136,9 +2025,6 @@ after_credit( fd_replay_tile_ctx_t * ctx,
 
   /* Check all the writer link fseqs. */
   handle_writer_state_updates( ctx );
-
-  /* Check all the exec link fseqs and handle any updates if needed. */
-  handle_exec_state_updates( ctx );
 
   /* If we are ready to process a new slice, we will poll for it and try
      to setup execution for it. */
@@ -2670,9 +2556,8 @@ unprivileged_init( fd_topo_t *      topo,
 
   for( ulong i = 0UL; i < ctx->exec_cnt; i++ ) {
     /* Mark all initial state as not being ready. */
-    ctx->exec_ready[ i ]    = EXEC_BOOT_WAIT;
+    ctx->exec_ready[ i ]    = EXEC_TXN_BUSY;
     ctx->prev_ids[ i ]      = FD_EXEC_ID_SENTINEL;
-    ctx->exec_txn_ctxs[ i ] = NULL;
 
     ulong exec_fseq_id = fd_pod_queryf_ulong( topo->props, ULONG_MAX, "exec_fseq.%lu", i );
     if( FD_UNLIKELY( exec_fseq_id==ULONG_MAX ) ) {

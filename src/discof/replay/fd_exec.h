@@ -35,26 +35,6 @@ generate_stake_weight_msg( fd_exec_slot_ctx_t * slot_ctx,
   return 5*sizeof(ulong) + (stake_weight_idx * sizeof(fd_stake_weight_t));
 }
 
-/* generate_replay_exec_epoch_msg formats memory at epoch_msg_out to be
-   a fd_runtime_public_epoch_msg_t. On return, epoch_msg_out is well-
-   formatted. */
-static inline void
-generate_replay_exec_epoch_msg( fd_exec_slot_ctx_t * slot_ctx,
-                                fd_spad_t          * runtime_spad,
-                                fd_wksp_t          * runtime_public_wksp,
-                                fd_bank_hash_cmp_t * bank_hash_cmp,
-                                fd_runtime_public_epoch_msg_t * epoch_msg_out ) {
-
-    (void)slot_ctx;
-    epoch_msg_out->bank_hash_cmp_gaddr = fd_wksp_gaddr_fast( runtime_public_wksp,
-                                                         fd_bank_hash_cmp_leave( bank_hash_cmp ) );
-    if( FD_UNLIKELY( !epoch_msg_out->bank_hash_cmp_gaddr ) ) {
-      FD_LOG_ERR(( "Failed to get gaddr for bank hash cmp" ));
-    }
-
-    (void)runtime_spad;
-}
-
 /* generate_replay_exec_slot_msg formats memory at slot_msg_out to be
    a fd_runtime_public_slot_msg_t. On return, slot_msg_out is well-
    formatted. */
