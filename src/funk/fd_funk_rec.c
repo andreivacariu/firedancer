@@ -693,16 +693,17 @@ fd_funk_rec_purify( fd_funk_t * funk ) {
   fd_funk_rec_pool_t * rec_pool = funk->rec_pool;
   ulong rec_max = fd_funk_rec_pool_ele_max( rec_pool );
 
+  uint prev_idx = FD_FUNK_REC_IDX_NULL;
   ulong chain_cnt = fd_funk_rec_map_chain_cnt( rec_map );
   for( ulong chain_idx=0UL; chain_idx<chain_cnt; chain_idx++ ) {
     fd_funk_rec_map_shmem_private_chain_t * chain = fd_funk_rec_map_shmem_private_chain( rec_map->map, 0UL ) + chain_idx;
-    uint * prev_next = &chain->head_cidx;
+    uint * prev_chain_idx = &chain->head_cidx;
     for( fd_funk_rec_map_iter_t iter = fd_funk_rec_map_iter( rec_map, chain_idx );
          !fd_funk_rec_map_iter_done( iter );  ) {
 
       if( iter.ele_idx >= rec_max ) {
         /* Corrupt chain */
-        *prev_next = fd_funk_rec_map_private_cidx(fd_funk_rec_map_private_idx_null());
+        *prev_chain_idx = fd_funk_rec_map_private_cidx(fd_funk_rec_map_private_idx_null());
         break;
       }
 
@@ -710,16 +711,28 @@ fd_funk_rec_purify( fd_funk_t * funk ) {
       if( !fd_funk_txn_xid_eq_root( rec->pair.xid ) ||
           (rec->map_hash & (chain_cnt-1UL)) != chain_idx ) {
         /* Snip out the record */
-        *prev_next = rec->map_next;
+        *prev_chain_idx = rec->map_next;
         iter = fd_funk_rec_map_iter_next( iter );
         fd_funk_val_flush( rec, funk->alloc, funk->wksp );
         fd_funk_rec_pool_release( funk->rec_pool, rec, 1 );
         continue;
       }
 
-      prev_next = &rec->map_next;
+      rec->prev_idx = prev_idx;
+      if( prev_idx != FD_FUNK_REC_IDX_NULL ) {
+        (rec_pool->ele + prev_idx)->next_idx = fd_funk_rec_map_private_cidx( iter.ele_idx );
+      } else {
+        funk->shmem->rec_head_idx = fd_funk_rec_map_private_cidx( iter.ele_idx );
+      }
+      prev_idx = fd_funk_rec_map_private_cidx( iter.ele_idx );
+
+      prev_chain_idx = &rec->map_next;
       iter = fd_funk_rec_map_iter_next( iter );
     }
+  }
+  funk->shmem->rec_tail_idx = prev_idx;
+  if( prev_idx != FD_FUNK_REC_IDX_NULL ) {
+    (rec_pool->ele + prev_idx)->next_idx = FD_FUNK_REC_IDX_NULL;
   }
 
   return FD_FUNK_SUCCESS;
