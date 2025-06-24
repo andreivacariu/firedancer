@@ -615,7 +615,11 @@ block_finalize_tiles_cb( void * para_arg_1,
       if( !hash_done[ i ] ) {
         ulong res   = fd_fseq_query( ctx->exec_fseq[ i ] );
         uint  state = fd_exec_fseq_get_state( res );
-        if( state==FD_EXEC_STATE_HASH_DONE ) {
+        uint  slot  = fd_exec_fseq_get_slot( res );
+        /* We need to compare the state and a unique identifier (slot)
+           in the case where the last thing the exec tile did is to hash
+           accounts. */
+        if( state==FD_EXEC_STATE_HASH_DONE && slot==ctx->curr_slot ) {
           hash_done[ i ] = 1;
         } else {
           wait_cnt++;

@@ -103,8 +103,6 @@ fd_runtime_register_new_fresh_account( fd_pubkey_t const  * pubkey,
   /* Insert the new account into the partition */
   ulong partition = fd_rent_key_to_partition( pubkey, fd_bank_part_width_get( bank ), fd_bank_slots_per_epoch_get( bank ) );
 
-  FD_LOG_WARNING(("FRESH ACCOUTNS LEN %lu", rent_fresh_accounts->fresh_accounts_len));
-
   /* See if there is an unused fresh account we can re-use */
   fd_rent_fresh_account_t * rent_fresh_account = NULL;
   for( ulong i = 0; i < rent_fresh_accounts->fresh_accounts_len; i++ ) {

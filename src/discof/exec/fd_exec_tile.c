@@ -99,11 +99,6 @@ execute_txn( fd_exec_tile_ctx_t * ctx ) {
 
   FD_SPAD_FRAME_BEGIN( ctx->exec_spad ) {
 
-  /* Replay tile should know that the exec tile just executed a txn. */
-  if( fd_fseq_query( ctx->exec_fseq )!=FD_EXEC_STATE_BOOTED ) {
-    fd_fseq_update( ctx->exec_fseq, fd_exec_fseq_set_exec_txn() );
-  }
-
   fd_funk_txn_map_t * txn_map = fd_funk_txn_map( ctx->funk );
   if( FD_UNLIKELY( !txn_map->map ) ) {
     FD_LOG_ERR(( "Could not find valid funk transaction map" ));
@@ -176,7 +171,6 @@ execute_txn( fd_exec_tile_ctx_t * ctx ) {
 static void
 hash_accounts( fd_exec_tile_ctx_t *                ctx,
                fd_runtime_public_hash_bank_msg_t * msg ) {
-
 
   ctx->slot = msg->slot;
   fd_funk_txn_map_t * txn_map = fd_funk_txn_map( ctx->funk );
@@ -300,9 +294,6 @@ during_frag( fd_exec_tile_ctx_t * ctx,
       ctx->slot = txn->slot;
       execute_txn( ctx );
       return;
-    } else if( sig==EXEC_NEW_SLOT_SIG ) {
-      fd_runtime_public_slot_msg_t * msg = fd_chunk_to_laddr( ctx->replay_in_mem, chunk );
-      FD_LOG_DEBUG(( "new slot=%lu msg recvd", msg->slot ));
     } else if( sig==EXEC_HASH_ACCS_SIG ) {
       fd_runtime_public_hash_bank_msg_t * msg = fd_chunk_to_laddr( ctx->replay_in_mem, chunk );
       FD_LOG_DEBUG(( "hash accs=%lu msg recvd", msg->end_idx - msg->start_idx ));
@@ -336,10 +327,7 @@ after_frag( fd_exec_tile_ctx_t * ctx,
             ulong                tspub,
             fd_stem_context_t *  stem ) {
 
-  if( sig==EXEC_NEW_SLOT_SIG ) {
-    FD_LOG_DEBUG(( "Sending ack for new slot msg" ));
-    fd_fseq_update( ctx->exec_fseq, fd_exec_fseq_set_slot_done() );
-  } else if( sig==EXEC_NEW_TXN_SIG ) {
+  if( sig==EXEC_NEW_TXN_SIG ) {
     FD_LOG_DEBUG(( "Sending ack for new txn msg" ));
     /* At this point we can assume that the transaction is done
        executing. A writer tile will be repsonsible for commiting
@@ -371,7 +359,7 @@ after_frag( fd_exec_tile_ctx_t * ctx,
     }
   } else if( sig==EXEC_HASH_ACCS_SIG ) {
     FD_LOG_DEBUG(( "Sending ack for hash accs msg" ));
-    fd_fseq_update( ctx->exec_fseq, fd_exec_fseq_set_hash_done() );
+    fd_fseq_update( ctx->exec_fseq, fd_exec_fseq_set_hash_done( ctx->slot ) );
   } else if( sig==EXEC_BPF_SCAN_SIG ) {
     FD_LOG_DEBUG(( "Sending ack for bpf scan msg %u", ctx->bpf_id ));
     fd_fseq_update( ctx->exec_fseq, fd_exec_fseq_set_bpf_scan_done( ctx->bpf_id++ ) );
