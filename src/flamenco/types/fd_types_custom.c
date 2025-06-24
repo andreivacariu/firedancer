@@ -288,24 +288,13 @@ fd_rust_duration_footprint_validator ( fd_bincode_decode_ctx_t * ctx ) {
   return FD_BINCODE_SUCCESS;
 }
 
-// void fd_vote_accounts_decode_inner( void * struct_mem, void * * alloc_mem, fd_bincode_decode_ctx_t * ctx ) {
-//   fd_vote_accounts_t * self = (fd_vote_accounts_t *)struct_mem;
-//   ulong vote_accounts_len;
-//   fd_bincode_uint64_decode_unsafe( &vote_accounts_len, ctx );
-//   self->vote_accounts_pool = fd_vote_accounts_pair_t_map_join_new( alloc_mem, fd_ulong_max( vote_accounts_len, 50000 ) );
-//   self->vote_accounts_root = NULL;
-//   for( ulong i=0; i < vote_accounts_len; i++ ) {
-//     fd_vote_accounts_pair_t_mapnode_t * node = fd_vote_accounts_pair_t_map_acquire( self->vote_accounts_pool );
-//     fd_vote_accounts_pair_new( &node->elem );
-//     fd_vote_accounts_pair_decode_inner( &node->elem, alloc_mem, ctx );
-//     fd_vote_accounts_pair_t_mapnode_t * out = NULL;;
-//     fd_vote_accounts_pair_t_map_insert_or_replace( self->vote_accounts_pool, &self->vote_accounts_root, node, &out );
-//     if( out != NULL ) {
-//       // Unclear how to release the memory...
-//       fd_vote_accounts_pair_t_map_release( self->vote_accounts_pool, out );
-//     }
-//   }
-// }
+int
+fd_gossip_duplicate_shred_validator ( fd_bincode_decode_ctx_t * ctx ) {
+  fd_gossip_duplicate_shred_t *d = (fd_gossip_duplicate_shred_t *) ctx->data;
+  if( FD_UNLIKELY( (d->_unused_shred_type != 0x5a) || (d->_unused_shred_type != 0xa5) ) )
+    return FD_BINCODE_ERR_ENCODING;
+  return FD_BINCODE_SUCCESS;
+}
 
 void fd_vote_accounts_decode_inner( void * struct_mem, void * * alloc_mem, fd_bincode_decode_ctx_t * ctx ) {
   fd_vote_accounts_t * self = (fd_vote_accounts_t *)struct_mem;
