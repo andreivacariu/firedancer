@@ -200,6 +200,11 @@ fd_snp_init( fd_snp_t * snp ) {
   fd_aes_set_encrypt_key( random_aes_key, 128, snp->config._state_enc_key );
   fd_aes_set_decrypt_key( random_aes_key, 128, snp->config._state_dec_key );
 
+  /* Initialize flow control credits pool (to zero). */
+  snp->flow_cred_total = 0L; /* must be set externally. */
+  snp->flow_cred_taken = 0L;
+  snp->flow_cred_alloc = 0L; /* must be set externally. */
+
   return snp;
 }
 
@@ -221,6 +226,12 @@ fd_snp_conn_create( fd_snp_t * snp,
   fd_snp_conn_map_t * entry = NULL;
   ulong session_id = 0UL;
   int i = 0;
+
+  /* check if there are enough flow credits available. */
+  if( FD_UNLIKELY( ( snp->flow_cred_total - snp->flow_cred_taken ) < snp->flow_cred_alloc ) ) {
+    FD_LOG_WARNING(( "[snp-conn] insufficient flow credits for new connection total %ld taken %ld alloc %ld", snp->flow_cred_total, snp->flow_cred_taken, snp->flow_cred_alloc ));
+    return NULL;
+  }
 
   /* get a new conn from pool */
   fd_snp_conn_t * conn = fd_snp_conn_pool_ele_acquire( snp->conn_pool );
@@ -264,6 +275,15 @@ fd_snp_conn_create( fd_snp_t * snp,
   conn->last_pkt = last_pkt;
   conn->_pubkey = snp->config.identity;
   conn->is_server = is_server;
+  /* Currently, every connection is allocated the same  amount
+     of credits.  In the future, however, it may be possible to
+     allocate more credits to specific connections. */
+  snp->flow_cred_taken += snp->flow_cred_alloc;
+  conn->flow_rx_alloc = snp->flow_cred_alloc;
+  conn->flow_rx_level = 0L;
+  conn->flow_rx_wmark = snp->flow_cred_alloc;
+  conn->flow_tx_level = 0L;
+  conn->flow_tx_wmark = snp->flow_cred_alloc;
 
   /* init last_pkt */
   last_pkt->data_sz = 0;
@@ -283,6 +303,10 @@ err:
 int
 fd_snp_conn_delete( fd_snp_t * snp,
                     fd_snp_conn_t * conn ) {
+
+  /* return taken flow credits to the pool. */
+  snp->flow_cred_taken -= conn->flow_rx_alloc;
+
   fd_snp_pkt_pool_ele_release( snp->last_pkt_pool, conn->last_pkt );
 
   fd_snp_conn_map_t sentinel = { 0 };
@@ -320,6 +344,52 @@ fd_snp_conn_query_by_peer( fd_snp_t * snp,
   fd_snp_conn_map_t sentinel = { 0 };
   fd_snp_conn_map_t * entry = fd_snp_conn_map_query( snp->conn_map, peer_addr, &sentinel );
   return entry->val;
+}
+
+static inline int
+fd_snp_has_enough_flow_tx_credit( fd_snp_t *      snp,
+                                  fd_snp_conn_t * conn ) {
+  (void)snp;
+  /* Returns true if there are enough flow tx credits to send a
+     packet.  It does not take responses into account (e.g.
+     ACKs), in which case one should also check flow_rx_level.
+     The receiver guarantees that there are FD_SNP_MTU bytes
+     available beyond the watermark, which may be crossed only
+     once per watermark value.  This minimizes the calculations
+     around the crossing boundary and avoids weird edge cases. */
+  int has_enough_tx_credit = conn->flow_tx_level < conn->flow_tx_wmark;
+  return has_enough_tx_credit;
+}
+
+static inline int
+fd_snp_has_enough_flow_rx_credit( fd_snp_t *      snp,
+                                  fd_snp_conn_t * conn ) {
+  (void)snp;
+  /* Returns true if there are enough flow rx credits to receive
+     a packet.  It does not take responses into account (e.g.
+     ACKs), in which case one should also check flow_tx_level.
+     The receiver guarantees that there are FD_SNP_MTU bytes
+     available beyond the watermark, which may be crossed only
+     once per watermark value.  This minimizes the calculations
+     around the crossing boundary and avoids weird edge cases. */
+  int has_enough_rx_credit = conn->flow_rx_level < conn->flow_rx_wmark;
+  return has_enough_rx_credit;
+}
+
+static inline void
+fd_snp_incr_flow_tx_level( fd_snp_t *      snp,
+                           fd_snp_conn_t * conn,
+                           ulong           incr ) {
+  (void)snp;
+  conn->flow_tx_level += (long)incr;
+}
+
+static inline void
+fd_snp_incr_flow_rx_level( fd_snp_t *      snp,
+                           fd_snp_conn_t * conn,
+                           ulong           incr ) {
+  (void)snp;
+  conn->flow_rx_level += (long)incr;
 }
 
 static inline int
@@ -362,6 +432,11 @@ fd_snp_finalize_snp_and_invoke_tx_cb(
   if( FD_UNLIKELY( packet_sz==0 ) ) {
     return 0;
   }
+  if( FD_UNLIKELY( !fd_snp_has_enough_flow_tx_credit( snp, conn ) ) ) {
+    FD_LOG_WARNING(( "[snp-finalize] unable to send snp pkt due to insufficient flow tx credits" ));
+    return -1;
+  }
+  fd_snp_incr_flow_tx_level( snp, conn, packet_sz );
   fd_snp_v1_finalize_packet( conn, packet+sizeof(fd_ip4_udp_hdrs_t), packet_sz-sizeof(fd_ip4_udp_hdrs_t) );
   conn->last_sent_ts = fd_snp_timestamp_ms();
   return fd_snp_finalize_udp_and_invoke_tx_cb( snp, packet, packet_sz, meta & (~FD_SNP_META_OPT_HANDSHAKE) );
@@ -375,6 +450,11 @@ fd_snp_verify_snp_and_invoke_rx_cb(
   ulong           packet_sz,
   fd_snp_meta_t   meta
 ) {
+  if( FD_UNLIKELY( !fd_snp_has_enough_flow_rx_credit( snp, conn ) ) ) {
+    FD_LOG_WARNING(( "[snp-verify] unable to verify snp pkt due to insufficient flow rx credits" ));
+    return -1;
+  }
+  fd_snp_incr_flow_rx_level( snp, conn, packet_sz );
   int res = fd_snp_v1_validate_packet( conn, packet+sizeof(fd_ip4_udp_hdrs_t), packet_sz-sizeof(fd_ip4_udp_hdrs_t) );
   if( FD_UNLIKELY( res < 0 ) ) {
     return -1;
@@ -484,6 +564,7 @@ fd_snp_pkt_pool_process(
       ulong   buf_sz = (ulong)ele->data_sz;
 
       /* ignore return from callbacks for cached packets */
+      /* TODO does this ignore still hold? */
       if( ele->send==1 ) {
         fd_snp_finalize_snp_and_invoke_tx_cb( snp, conn, buf, buf_sz, meta_buffered );
       } else {
@@ -496,6 +577,21 @@ fd_snp_pkt_pool_process(
     }
     if( ++used_ele>=used ) break;
   }
+}
+
+static inline int
+fd_snp_send_flow_rx_wmark_packet( fd_snp_t *      snp,
+                                  fd_snp_conn_t * conn ) {
+  uchar packet[1514];
+  const ulong off = sizeof(fd_ip4_udp_hdrs_t) + sizeof(snp_hdr_t);
+  const ulong packet_sz = off + (1UL+2UL+8UL)/*tlv with wmark*/ + (1UL+2UL+16UL)/*hmac*/;
+  fd_snp_meta_t meta = conn->peer_addr | FD_SNP_META_PROTO_V1;
+  packet [off+0UL ] = FD_SNP_FRAME_MAX_DATA;
+  packet [off+1UL ] = 8U;
+  packet [off+2UL ] = 0U;
+  fd_memcpy( packet + off + 3UL, &conn->flow_rx_wmark, sizeof(long) );
+  // FD_LOG_HEXDUMP_WARNING(( "pre tx pkt", packet, packet_sz ));
+  return fd_snp_finalize_snp_and_invoke_tx_cb( snp, conn, packet, packet_sz, meta );
 }
 
 /* fd_snp_send sends a packet to a peer.
@@ -664,6 +760,25 @@ fd_snp_process_packet( fd_snp_t * snp,
 
     /* R3. (likely case) conn established + validate integrity, accept */
     if( FD_LIKELY( conn->state==FD_SNP_TYPE_HS_DONE ) ) {
+      tlv_meta_t tlv[1];
+      fd_snp_tlv_extract( packet, sizeof(fd_ip4_udp_hdrs_t)+sizeof(snp_hdr_t) /*offset*/, tlv );
+      /* TODO this assumes that every wmark update is sent in a separate packet. */
+      if( FD_UNLIKELY( tlv[0].type==FD_SNP_FRAME_MAX_DATA ) ) {
+        if( FD_UNLIKELY( tlv[0].len!=8U ) ) {
+          FD_LOG_WARNING(( "[snp-pkt] tlv type %u len %u mismatch!", tlv[0].type, tlv[0].len ));
+          return -1;
+        }
+        /* TODO this is expensive - but we know that it is a FD_SNP_FRAME_MAX_DATA tlv. */
+        int res = fd_snp_v1_validate_packet( conn, packet+sizeof(fd_ip4_udp_hdrs_t), packet_sz-sizeof(fd_ip4_udp_hdrs_t) );
+        if( FD_UNLIKELY( res < 0 ) ) {
+          FD_LOG_WARNING(( "[snp-pkt] tlv type %u fd_snp_v1_validate_packet failed with res %d", tlv[0].type, res ));
+          return -1;
+        }
+        long wmark = (long)tlv[0].u64;
+        FD_LOG_NOTICE(( "[snp-pkt] tlv type %u previous wmark %ld new wmark %ld", tlv[0].type, conn->flow_tx_wmark, wmark ));
+        conn->flow_tx_wmark = wmark;
+        return 0;
+      }
       return fd_snp_verify_snp_and_invoke_rx_cb( snp, conn, packet, packet_sz, meta );
     }
 
@@ -868,16 +983,43 @@ fd_snp_housekeeping( fd_snp_t * snp ) {
       }
     }
 
-    if( conn->state==FD_SNP_TYPE_HS_DONE ) {
+    if( FD_LIKELY( conn->state==FD_SNP_TYPE_HS_DONE ) ) {
       if( now > conn->last_recv_ts + FD_SNP_TIMEOUT_MS ) {
         FD_LOG_NOTICE(( "[snp-hkp] timeout - deleting session_id=%016lx", conn->session_id ));
         fd_snp_conn_delete( snp, conn );
         continue;
       }
       if( now > conn->last_sent_ts + FD_SNP_KEEP_ALIVE_MS ) {
-        FD_LOG_NOTICE(( "[snp-hkp] keep alive - pinging session_id=%016lx peer_session_id=%016lx", conn->session_id, conn->peer_session_id ));
-        fd_snp_send_ping( snp, conn );
-        continue;
+        if( FD_LIKELY( fd_snp_has_enough_flow_tx_credit( snp, conn ) ) ) {
+          FD_LOG_NOTICE(( "[snp-hkp] keep alive - pinging session_id=%016lx peer_session_id=%016lx", conn->session_id, conn->peer_session_id ));
+          fd_snp_send_ping( snp, conn );
+          continue;
+        }
+        FD_LOG_WARNING(( "[snp-hkp] keep alive - not enough flow tx credits - unable to ping session_id=%016lx peer_session_id=%016lx", conn->session_id, conn->peer_session_id ));
+      }
+      /* Flow rx watermark is updated when flow rx level nears the
+         watermark by 2 snp mtu packets.  This is arbitrary, and it
+         is intended to minimize the number of watermark updates.
+         TODO it may be possible to adjust this margin based on the
+         round-trip latency between server and client.
+         Note that conn->flow_rx_alloc should be at least larger than
+         the amount of bytes considered for the margin update and the
+         bytes reserved beyond the next watermark (see below).  For
+         the current setup, this implies > ( 3 * FD_SNP_MTU ).
+         TODO validate snp->flow_rx_alloc at some point? */
+      if( FD_UNLIKELY( conn->flow_rx_level > ( conn->flow_rx_wmark - 2L * (long)FD_SNP_MTU ) ) ) {
+        /* The next watermark value must take into account any unused
+           credits (in which case it references the the current level)
+           and any overused credits (in which case it references the
+           current watermark).  The receiver guarantees that there are
+           FD_SNP_MTU bytes available beyond the next watermark, which
+           may be crossed only once.  This minimizes the calculations
+           around the crossing boundary and avoids weird edge cases. */
+        long wmark = fd_long_min( conn->flow_rx_level, conn->flow_rx_wmark ) + conn->flow_rx_alloc - (long)FD_SNP_MTU;
+        /* TODO remove log when ready */
+        FD_LOG_NOTICE(( "[snp-hkp] updating flow rx wmark from %ld to %ld for session_id %016lx level %ld", conn->flow_rx_wmark, wmark, conn->session_id, conn->flow_rx_level ));
+        conn->flow_rx_wmark = wmark;
+        fd_snp_send_flow_rx_wmark_packet( snp, conn );
       }
     }
   }

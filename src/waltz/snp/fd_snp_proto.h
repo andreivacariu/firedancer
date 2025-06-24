@@ -143,6 +143,13 @@ struct FD_SNP_ALIGNED fd_snp_conn {
   ulong peer_addr;
   ulong peer_session_id;
 
+  /* Flow control */
+  long  flow_rx_alloc;
+  long  flow_rx_level;
+  long  flow_rx_wmark;
+  long  flow_tx_level;
+  long  flow_tx_wmark;
+
   uchar state;
   uchar is_server;
 

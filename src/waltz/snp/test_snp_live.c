@@ -149,7 +149,8 @@ test_cb_app_rx( void const *  _ctx,
   if( strncmp( (char *)data, "ACK", fd_min( data_sz, 4 ) )==0 ) {
     // ctx->done = 1;
   } else {
-    ctx->ack = meta | ctx->ip;
+    (void)ctx;
+    // ctx->ack = meta | ctx->ip;
     // fd_snp_app_send( ctx->snp_app, ctx->packet, sizeof(ctx->packet), "ACK", 4, meta | ctx->ip );
   }
   return (int)data_sz;
@@ -193,6 +194,10 @@ int main(int argc, char *argv[]) {
   snp->cb.tx = test_cb_snp_tx;
   snp->cb.sign = test_cb_snp_sign;
 
+  snp->flow_cred_total = 16384L; /* Arbitrary for this test - typically dcache's depth. */
+  // snp->flow_cred_taken = 0L;  /* Initialized inside fd_snp_init( snp ). */
+  snp->flow_cred_alloc = 4 * FD_SNP_MTU; /* Arbitrary for this test */
+
   /* Create UDP socket */
   int sock_fd = create_udp_socket(ip, port);
   if (sock_fd < 0) {
@@ -215,6 +220,7 @@ int main(int argc, char *argv[]) {
   uchar packet[BUFFER_SIZE];
   uchar recv_buffer[BUFFER_SIZE];
   int running = 1;
+  int housekeep = 0;
   int j = 0;
   while (running) {
     int ret = poll(fds, 2, 300);
@@ -249,11 +255,18 @@ int main(int argc, char *argv[]) {
       while (getchar() != '\n');  // Clear input buffer
 
       if (c == 'q') {
+        FD_LOG_NOTICE(( "cmd 'q'" ));
         running=0;
       }
 
       if (c == 's') {
+        FD_LOG_NOTICE(( "cmd 's'" ));
         ctx->done = 1;
+      }
+
+      if (c == 'h') {
+        FD_LOG_NOTICE(( "cmd 'h'" ));
+        housekeep=1;
       }
     }
 
@@ -271,7 +284,8 @@ int main(int argc, char *argv[]) {
       ctx->ack = 0;
     }
 
-    if( (++j % 1) == 0 ) {
+    if( ( (++j % 1) == 0 ) || ( housekeep != 0 ) ) {
+      housekeep=0;
       fd_snp_housekeeping( snp );
     }
   }

@@ -106,6 +106,11 @@ struct FD_SNP_ALIGNED fd_snp {
   fd_snp_conn_map_t *   conn_map;
   fd_snp_pkt_t *        pkt_pool;
   fd_snp_pkt_t *        last_pkt_pool;
+
+  /* Support negative values to simplify arithmetic operations. */
+  long flow_cred_total;
+  long flow_cred_taken;
+  long flow_cred_alloc;
 };
 typedef struct fd_snp fd_snp_t;
 
