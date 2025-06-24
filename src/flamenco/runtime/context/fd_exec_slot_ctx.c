@@ -160,12 +160,10 @@ recover_clock( fd_exec_slot_ctx_t * slot_ctx, fd_spad_t * runtime_spad ) {
 }
 
 fd_exec_slot_ctx_t *
-fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *         slot_ctx,
-                          fd_solana_manifest_t const * manifest,
+fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *          slot_ctx,
+                          fd_solana_manifest_t const *  manifest,
                           fd_solana_manifest_global_t * manifest_global,
-                          fd_spad_t *                  runtime_spad ) {
-
-  FD_LOG_WARNING(("MADE IT TO SLOT CTX RECOVER"));
+                          fd_spad_t *                   runtime_spad ) {
 
   slot_ctx->bank = fd_banks_clone_from_parent( slot_ctx->banks, manifest->bank.slot, 0UL );
   FD_TEST( slot_ctx->bank );

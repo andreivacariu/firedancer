@@ -88,6 +88,7 @@ struct fd_topo_net_tile {
   ushort gossip_listen_port;
   ushort repair_intake_listen_port;
   ushort repair_serve_listen_port;
+  ushort send_src_port;
 };
 typedef struct fd_topo_net_tile fd_topo_net_tile_t;
 
@@ -406,7 +407,7 @@ struct fd_topo_tile {
     } store_int;
 
     struct {
-      ushort  tpu_listen_port;
+      ushort  send_src_port;
 
       /* non-config */
 
@@ -454,6 +455,17 @@ struct fd_topo_tile {
       char  identity_key_path[ PATH_MAX ];
       char  vote_acc_path[ PATH_MAX ];
     } tower;
+    struct {
+      char   folder_path[ PATH_MAX ];
+      ushort repair_intake_listen_port;
+      ulong   write_buffer_size; /* Size of the write buffer for the capture tile */
+
+      /* Set internally by the capture tile */
+      int shreds_fd;
+      int requests_fd;
+      int fecs_fd;
+      int peers_fd;
+    } shredcap;
   };
 };
 
