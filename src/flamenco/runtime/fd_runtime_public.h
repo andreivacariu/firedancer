@@ -23,7 +23,6 @@
 
 #define FD_EXEC_STATE_NOT_BOOTED       (0xFFFFFFFFUL)
 #define FD_EXEC_STATE_BOOTED           (1<<1UL      )
-#define FD_EXEC_STATE_SLOT_DONE        (1<<3UL      )
 #define FD_EXEC_STATE_HASH_DONE        (1<<6UL      )
 #define FD_EXEC_STATE_BPF_SCAN_DONE    (1<<7UL      )
 #define FD_EXEC_STATE_SNAP_CNT_DONE    (1<<8UL      )

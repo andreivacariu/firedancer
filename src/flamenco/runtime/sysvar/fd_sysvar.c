@@ -30,15 +30,15 @@ fd_sysvar_set( fd_exec_slot_ctx_t * slot_ctx,
   /* https://github.com/anza-xyz/agave/blob/ae18213c19ea5335dfc75e6b6116def0f0910aff/runtime/src/bank.rs#L6184
      The account passed in via the updater is always the current sysvar account, so we take the max of the
      current account lamports and the minimum rent exempt balance needed. */
-  fd_rent_t const * rent = fd_bank_rent_query( slot_ctx->bank );
+  fd_rent_t const * rent           = fd_bank_rent_query( slot_ctx->bank );
   fd_acc_lamports_t lamports_after = fd_ulong_max( lamports_before, fd_rent_exempt_minimum_balance( rent, sz ) );
   rec->vt->set_lamports( rec, lamports_after );
 
   /* https://github.com/anza-xyz/agave/blob/cbc8320d35358da14d79ebcada4dfb6756ffac79/runtime/src/bank.rs#L1826 */
   if( lamports_after > lamports_before ) {
-    fd_bank_capitalization_set( slot_ctx->bank, fd_bank_capitalization_get( slot_ctx->bank ) + ( lamports_after - lamports_before ) );
+    fd_bank_capitalization_set( slot_ctx->bank, fd_bank_capitalization_get( slot_ctx->bank ) + (lamports_after - lamports_before) );
   } else if( lamports_after < lamports_before ) {
-    fd_bank_capitalization_set( slot_ctx->bank, fd_bank_capitalization_get( slot_ctx->bank ) - ( lamports_before - lamports_after ) );
+    fd_bank_capitalization_set( slot_ctx->bank, fd_bank_capitalization_get( slot_ctx->bank ) - (lamports_before - lamports_after) );
   }
 
   rec->vt->set_data_len( rec, sz );

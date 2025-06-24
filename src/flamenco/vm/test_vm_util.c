@@ -48,7 +48,6 @@ test_vm_exec_instr_ctx_delete( fd_exec_instr_ctx_t * ctx,
   fd_valloc_free( valloc, txn_ctx );
   fd_valloc_free( valloc, ctx );
 
-
   return;
 }
 
